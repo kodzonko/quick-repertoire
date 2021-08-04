@@ -1,7 +1,8 @@
+// set your preferred cinema here
 {
   "cinema": {
     "chain": "cinema city",
     "branch": "manufaktura"
-  :},
+  },
   "date": ""
 }
