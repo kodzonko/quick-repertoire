@@ -22,7 +22,7 @@ def get_repertoire(cinema: str = 'manufaktura',
              or an empty list if the operation failed
              or if there are no films available in that date
     """
-    cinema_id = _match_cinema_name_id(cinema)
+    cinema_id = _match_cinema_name_id(cinema, path)
 
     # TODO: Add exception handling
     session = HTMLSession()
@@ -45,7 +45,7 @@ def get_cinemas_list(path: Union[str, Path] = _json_default_path) -> Optional[di
     try:
         with open(path, 'r') as f:
             return json.load(f).get('cinema-city', default=None)
-    except JSONDecodeError:
+    except Union[JSONDecodeError, FileNotFoundError]:
         _update_cinemas_list()
         with open(path, 'r') as f:
             return json.load(f).get('cinema-city', default=None)
