@@ -45,7 +45,7 @@ def get_cinemas_list(path: Union[str, Path] = _json_default_path) -> Optional[di
     try:
         with open(path, 'r') as f:
             return json.load(f).get('cinema-city', default=None)
-    except Union[JSONDecodeError, FileNotFoundError]:
+    except (JSONDecodeError, FileNotFoundError):
         _update_cinemas_list()
         with open(path, 'r') as f:
             return json.load(f).get('cinema-city', default=None)
