@@ -1,5 +1,6 @@
 import json
 from json import JSONDecodeError
+from os.path import exists
 from pathlib import Path
 from pprint import pprint
 from typing import List, Optional, Union
@@ -69,11 +70,18 @@ def _update_cinemas_list(path: Union[str, Path] = _json_default_path) -> None:
     # get a list of cinema ids from the elements (needed to construct a valid url to get repertoire)
     ids = [int(cinema.element.get('value')) for cinema in cinemas]
     updated_cinemas = dict(zip(venues, ids))
+    json_output = json.dumps(obj=updated_cinemas, sort_keys=True)  # create json obj from results
     # TODO: Add exception handling
-    with open(path, 'a+') as f:
-        cinema_city = json.load(f).get('cinema-city', default=None)
-        if cinema_city is not None:
-            cinema_city['cinema-city'].update()
+    if not exists(path):
+        with open(path, 'w') as f:
+            f.write(json_output)
+    else:
+        with open(path, 'a') as f:
+            cinema_city = json.load(f).get('cinema_city', default=None)
+            if cinema_city is not None:
+                cinema_city['cinema_city'].update()
+            else:
+                f.write(text)
 
 
 def _match_cinema_name_id(name: str, path: Union[str, Path] = _json_default_path) -> Optional[int]:
@@ -90,6 +98,5 @@ def _match_cinema_name_id(name: str, path: Union[str, Path] = _json_default_path
                 return id
     return None
 
-
-pprint(get_cinemas_list())
+# pprint(get_cinemas_list())
 # pprint(get_repertoire())
