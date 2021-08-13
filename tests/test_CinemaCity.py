@@ -3,13 +3,12 @@ from os.path import exists
 import pytest
 from repertoire_parser.CinemaCity import get_cinemas_list, _update_cinemas_list
 
-test_cache_folder = 'test_cache'
-test_json = os.path.join(test_cache_folder, 'cinemas-list-test.json')
+test_json = 'cinemas-list-test.json'
 
 
 @pytest.fixture
 def setup():
-    os.mkdir(test_cache_folder)
+    pass
 
 
 def test__update_cinemas_list():
@@ -30,4 +29,4 @@ def test_get_repertoire():
 
 @pytest.fixture
 def teardown():
-    os.rmdir(test_cache_folder)
+    os.remove(test_json)
