@@ -1,8 +1,8 @@
 // set your preferred cinema here
 {
   "cinema": {
-    "chain": "cinema city",
-    "branch": "manufaktura"
+    "chain": "cinema_city",
+    "branch": "Łódź Manufaktura"
   },
   "date": ""
 }
