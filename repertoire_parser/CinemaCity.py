@@ -78,10 +78,8 @@ def _update_cinemas_list(path: Union[str, Path] = _json_default_path) -> None:
     else:
         with open(path, 'a') as f:
             cinema_city = json.load(f).get('cinema_city', default=None)
-            if cinema_city is not None:
-                cinema_city['cinema_city'].update()
-            else:
-                f.write(text)
+            cinema_city.update(updated_cinemas)
+            json.dump()
 
 
 def _match_cinema_name_id(name: str, path: Union[str, Path] = _json_default_path) -> Optional[int]:
