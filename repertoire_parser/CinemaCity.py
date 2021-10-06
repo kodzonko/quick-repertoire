@@ -1,18 +1,19 @@
 import json
-from json import JSONDecodeError
-from os.path import exists
-from pathlib import Path
-from typing import List, Optional, Union
-from datetime import date
-from requests_html import HTMLSession
+import logging
 import re
+from datetime import date
+from json import JSONDecodeError
+from pathlib import Path
+from pathlib import PurePath
+from typing import List, Optional, Union
 
+from requests_html import HTMLSession
 
 _json_default_path = 'cinemas_list.json'
 
 
-def get_repertoire(cinema: str = 'manufaktura',
-                   path: Union[str, Path] = _json_default_path,
+def get_repertoire(cinema: str,
+                   path: PurePath[str] = _json_default_path,
                    repertoire_date: str = date.today()) -> Optional[List[str]]:
     """
     Get repertoire for a specified cinema and date from www.cinema-city.pl
@@ -38,7 +39,7 @@ def get_repertoire(cinema: str = 'manufaktura',
     return [film.text for film in films]  # Convert HTML Elements into strings
 
 
-def get_cinemas_list(path: Union[str, Path] = _json_default_path) -> Optional[dict[str, int]]:
+def get_cinemas_list(path: PurePath[str] = _json_default_path) -> Optional[dict[str, int]]:
     """
     Get all available cinemas with their respective IDs from a json file
     :return: dictionary with cinema name as a key and ID as a value
@@ -46,22 +47,23 @@ def get_cinemas_list(path: Union[str, Path] = _json_default_path) -> Optional[di
     _path = Path(path)
     try:
         with open(_path, 'r') as f:
-            return json.load(f).get('cinema-city', default=None)
-    except (JSONDecodeError, FileNotFoundError):
-        _update_cinemas_list()
-        with open(_path, 'r') as f:
-            return json.load(f).get('cinema-city', default=None)
+            return json.load(f).get('cinema-city')
+    except JSONDecodeError:
+        logging.error(f'Incorrect JSON file {path}')
+    except FileNotFoundError:
+        logging.error(f'Missing {path}')
 
 
-def _update_cinemas_list(path: Union[str, Path] = _json_default_path) -> None:
+def _download_cinemas_list() -> dict:
     """
     Get all available cinemas with their respective IDs from www.cinema-city.pl
-    :return: None
+    and parse it to a dictionary.
+
+    :return: a dictionary with <cinema_name>: <cinema_id> items
     """
-    _path = Path(path)
     # TODO: Add exception handling
     session = HTMLSession()
-    response_html = session.get('https://www.cinema-city.pl/#/buy-tickets-by-cinema')
+    response_html = session.get('https://www.cinema-city.pl/#/buy-tickets-by-cinema', verify=False)
     # render JS elements, required to get full
     response_html.html.render()
     # from downloaded website select only elements containing films titles
@@ -72,26 +74,38 @@ def _update_cinemas_list(path: Union[str, Path] = _json_default_path) -> None:
     # get a list of cinema ids from the elements (needed to construct a valid url to get repertoire)
     ids = [int(cinema.element.get('value')) for cinema in cinemas]
     # make dictionary of venue name - id pairs
-    updated_cinemas = dict(zip(venues, ids))
-    json_output = json.dumps(obj=updated_cinemas, sort_keys=True)  # create json obj from results
+    return dict(zip(venues, ids))
+
+
+def _update_cinemas_list(updated_cinemas: dict, path: Union[str, Path] = _json_default_path) -> None:
+    """
+    Get all available cinemas with their respective IDs from www.cinema-city.pl
+    :updated_cinemas:
+    :path: a path to json file to store a list of cinema venues in
+    :return: None
+    """
+
     # TODO: Add exception handling
-    if not exists(path):
-        with open(path, 'w') as f:
-            f.write(json_output)
-    else:
-        with open(path, 'a') as f:
-            cinema_city = json.load(f).get('cinema_city', default=None)
+    cinema_city = {}
+    with open(path, 'a+') as f:
+        try:
+            cinema_city = json.load(fp=f)
+        except JSONDecodeError:
+            logging.info("Missing json file with cinemas list. Populating content")
+        if cinema_city:
             cinema_city.update(updated_cinemas)
-            json.dump()
+        else:
+            cinema_city = updated_cinemas
+        json.dump(obj=cinema_city, fp=f, ensure_ascii=False)
 
 
-def _match_cinema_name_id(name: str, path: Union[str, Path] = _json_default_path) -> Optional[int]:
+def _match_cinema_name_id(name: str, path: PurePath[str] = _json_default_path) -> Optional[int]:
     """
     Returns id of a cinema specified by name. Based on cinema-list.json
     :param name: name of a cinema, case insensitive
     :return: id of a cinema or None if no match
     """
-    _path = Path(path)
+    _path = PurePath(path)
     # TODO: Add exception handling
     with open(_path, 'a+') as f:
         cinema_city = json.load(f).get('cinema-city')
@@ -99,6 +113,3 @@ def _match_cinema_name_id(name: str, path: Union[str, Path] = _json_default_path
             if re.search(name.lower(), cinema.lower()) is not None:
                 return id
     return None
-
-# pprint(get_cinemas_list())
-# pprint(get_repertoire())
