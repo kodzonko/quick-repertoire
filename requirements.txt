@@ -1,2 +1,1 @@
-pytest~=6.2.4
-requests_html~=0.10.0
+pytest~=6.2.5
