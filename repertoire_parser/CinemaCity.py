@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import re
 from datetime import date
 from json import JSONDecodeError
@@ -9,7 +10,7 @@ from typing import List, Optional, Union
 
 from requests_html import HTMLSession
 
-_json_default_path = 'cinemas_list.json'
+_json_default_path = Path(os.getcwd(), 'cinemas_list.json')  # default path is in the project directory
 
 
 def get_repertoire(cinema: str,
@@ -46,7 +47,7 @@ def get_cinemas_list(path: PurePath[str] = _json_default_path) -> Optional[dict[
     """
     _path = Path(path)
     try:
-        with open(file=_path, mode='r', encoding="utf8") as f:
+        with open(file=_path, mode='r', encoding='utf8') as f:
             return json.load(f).get('cinema-city')
     except JSONDecodeError:
         logging.error(f'Incorrect JSON file {path}')
@@ -54,7 +55,7 @@ def get_cinemas_list(path: PurePath[str] = _json_default_path) -> Optional[dict[
         logging.error(f'Missing {path}')
 
 
-def _download_cinemas_list() -> dict:
+def download_cinemas_list() -> dict:
     """
     Get all available cinemas with their respective IDs from www.cinema-city.pl
     and parse it to a dictionary.
@@ -84,19 +85,22 @@ def _update_cinemas_list(updated_cinemas: dict, path: Union[str, Path] = _json_d
     :path: a path to json file to store a list of cinema venues in
     :return: None
     """
+    _path = Path(path)
 
     # TODO: Add exception handling
-    cinema_city = {}
-    with open(file=path, mode='a+', encoding="utf8") as f:
+    cinemas = {}
+    with open(file=_path, mode='r', encoding='utf8') as f:
         try:
-            cinema_city = json.load(fp=f)
+            cinemas = json.load(fp=f)
         except JSONDecodeError:
             logging.info("Missing json file with cinemas list. Populating content")
-        if cinema_city:
-            cinema_city.update(updated_cinemas)
-        else:
-            cinema_city = updated_cinemas
-        json.dump(obj=cinema_city, fp=f, ensure_ascii=False)
+
+    with open(file=_path, mode='w', encoding='utf8') as f:
+        try:
+            cinemas['cinema-city'].update(updated_cinemas)
+        except KeyError:
+            cinemas['cinema-city'] = updated_cinemas
+        json.dump(obj=cinemas, fp=f, ensure_ascii=False, indent=2)
 
 
 def _match_cinema_name_id(name: str, path: PurePath[str] = _json_default_path) -> Optional[int]:
@@ -107,7 +111,7 @@ def _match_cinema_name_id(name: str, path: PurePath[str] = _json_default_path) -
     """
     _path = Path(path)
     # TODO: Add exception handling
-    with open(file=_path, mode='a+', encoding="utf8") as f:
+    with open(file=_path, mode='a+', encoding='utf8') as f:
         cinema_city = json.load(f).get('cinema-city')
         for cinema, id in cinema_city.items():
             if re.search(name.lower(), cinema.lower()) is not None:
