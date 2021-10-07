@@ -100,7 +100,7 @@ def _update_cinemas_list(updated_cinemas: dict, path: Union[str, Path] = _json_d
             cinemas['cinema-city'].update(updated_cinemas)
         except KeyError:
             cinemas['cinema-city'] = updated_cinemas
-        json.dump(obj=cinemas, fp=f, ensure_ascii=False, indent=2)
+        json.dump(obj=cinemas, fp=f, ensure_ascii=False, indent=4)
 
 
 def _match_cinema_name_id(name: str, path: PurePath[str] = _json_default_path) -> Optional[int]:
