@@ -46,7 +46,7 @@ def get_cinemas_list(path: PurePath[str] = _json_default_path) -> Optional[dict[
     """
     _path = Path(path)
     try:
-        with open(_path, 'r') as f:
+        with open(file=_path, mode='r', encoding="utf8") as f:
             return json.load(f).get('cinema-city')
     except JSONDecodeError:
         logging.error(f'Incorrect JSON file {path}')
@@ -87,7 +87,7 @@ def _update_cinemas_list(updated_cinemas: dict, path: Union[str, Path] = _json_d
 
     # TODO: Add exception handling
     cinema_city = {}
-    with open(path, 'a+') as f:
+    with open(file=path, mode='a+', encoding="utf8") as f:
         try:
             cinema_city = json.load(fp=f)
         except JSONDecodeError:
@@ -105,9 +105,9 @@ def _match_cinema_name_id(name: str, path: PurePath[str] = _json_default_path) -
     :param name: name of a cinema, case insensitive
     :return: id of a cinema or None if no match
     """
-    _path = PurePath(path)
+    _path = Path(path)
     # TODO: Add exception handling
-    with open(_path, 'a+') as f:
+    with open(file=_path, mode='a+', encoding="utf8") as f:
         cinema_city = json.load(f).get('cinema-city')
         for cinema, id in cinema_city.items():
             if re.search(name.lower(), cinema.lower()) is not None:
