@@ -1,0 +1,5 @@
+# set your preferences here
+# -*- coding: utf-8 -*-
+default_cinema_chain: cinema_city  # ['cinema_city | 'helios' | 'multikino']
+default_cinema_venue: Wrocław - Wroclavia  # check in cinemas_list.json for a list of viable choices
+default_day: 'today'  # [today | tomorrow]
