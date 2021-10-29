@@ -1,8 +1,8 @@
 import datetime
 import logging
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Union, Dict
+from pathlib import Path, PurePath
+from typing import Dict
 
 import yaml
 
@@ -16,7 +16,7 @@ class Settings:
     OUTPUT_DEFAULT_PATH = Path('repertoire.txt')  # default path to output file with the queried repertoire
 
     @classmethod
-    def load_default_settings(cls, file: Union[str, Path] = SETTINGS_DEFAULT_PATH) -> None:
+    def load_default_settings(cls, file: PurePath[str] = SETTINGS_DEFAULT_PATH) -> None:
         """
         Load settings from settings.yml
 
@@ -43,7 +43,7 @@ class Settings:
                 logging.error(e)
 
     @classmethod
-    def validate_settings(cls, path: Union[str, Path] = SETTINGS_DEFAULT_PATH) -> bool:
+    def validate_settings(cls, path: PurePath[str] = SETTINGS_DEFAULT_PATH) -> bool:
         """
         A function to validate settings.yml file
 
