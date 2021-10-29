@@ -1,88 +1,94 @@
 import json
 import logging
-import os
 import re
 from datetime import date
 from json import JSONDecodeError
 from pathlib import Path
 from pathlib import PurePath
-from typing import List, Optional, Union
+from typing import List, Optional, Dict
 
+import requests
 from requests_html import HTMLSession
 
-_json_default_path = Path(os.getcwd(), 'cinemas_list.json')  # default path is in the project directory
+from repertoire_parser.CinemasWrapper import CinemasWrapper
 
 
-def get_repertoire(cinema: str,
-                   path: PurePath[str] = _json_default_path,
-                   repertoire_date: str = date.today()) -> Optional[List[str]]:
+async def download_repertoire(cinema: str,
+                              cinemas_json_path: PurePath[str] = CinemasWrapper.CINEMAS_LIST_JSON_DEFAULT_PATH,
+                              date: date = date.today()) -> Optional[List[str]]:
     """
-    Get repertoire for a specified cinema and date from www.cinema-city.pl
-    :param cinema: name of a cinema for which you want to check the repertoire
-    :param path: path to json file containing cinemas and their respective IDs
-    :param repertoire_date: date for which to check the repertoire, defaults to today
-    :return: a list of films names in the repertoire
-             or an empty list if the operation failed
-             or if there are no films available in that date
+    Download a repertoire for Cinema City (www.cinema-city.pl) for a specified branch and date
+
+    :param cinema: name of a cinema venue for which you want to check the repertoire
+    :param cinemas_json_path: path to json file containing cinemas and their respective IDs
+    :param date: date for which to check the repertoire, defaults to today
+    :return: a list of films names in the repertoire or None if the operation failed
     """
-    cinema_id = _match_cinema_name_id(cinema, path)
+    cinema_id = _match_cinema_name_id(cinema, cinemas_json_path)
 
-    # TODO: Add exception handling
-    session = HTMLSession()
-    response_html = session.get(
-        f'https://www.cinema-city.pl/#/buy-tickets-by-cinema?in-cinema={cinema_id}&at={repertoire_date}'
-    )
-    # render JS elements, required to get full page with films
-    response_html.html.render()
+    try:
+        session = HTMLSession()
+        response_html = session.get(
+            f'https://www.cinema-city.pl/#/buy-tickets-by-cinema?in-cinema={cinema_id}&at={date}'
+        )
+        # render JS elements, required to get full page with films
+        response_html.html.render()
 
-    # from downloaded website select only elements containing films titles
-    films = response_html.html.find(selector='h3.qb-movie-name')
-    return [film.text for film in films]  # Convert HTML Elements into strings
+        # from downloaded website select only elements containing films titles
+        films = response_html.html.find(selector='h3.qb-movie-name')
+        return [film.text for film in films]  # Convert HTML Elements into strings
+    except requests.exceptions.ConnectionError:
+        logging.error(msg="No internet connection. Unable to fetch the repertoire")
 
 
-def get_cinemas_list(path: PurePath[str] = _json_default_path) -> Optional[dict[str, int]]:
+def read_cinemas_list(cinemas_json_path: PurePath[str] = CinemasWrapper.CINEMAS_LIST_JSON_DEFAULT_PATH) \
+        -> Optional[Dict[str, int]]:
     """
     Get all available cinemas with their respective IDs from a json file
     :return: dictionary with cinema name as a key and ID as a value
     """
-    _path = Path(path)
+    _path = Path(cinemas_json_path)
     try:
         with open(file=_path, mode='r', encoding='utf8') as f:
-            return json.load(f).get('cinema-city')
+            return json.load(f).get('cinema_city')
     except JSONDecodeError:
-        logging.error(f'Incorrect JSON file {path}')
+        logging.error(f'Incorrect JSON file: {cinemas_json_path}')
     except FileNotFoundError:
-        logging.error(f'Missing {path}')
+        logging.error(f'Missing {cinemas_json_path}')
 
 
-def download_cinemas_list() -> dict:
+async def download_cinemas_list() -> dict:
     """
     Get all available cinemas with their respective IDs from www.cinema-city.pl
     and parse it to a dictionary.
 
     :return: a dictionary with <cinema_name>: <cinema_id> items
     """
-    # TODO: Add exception handling
-    session = HTMLSession()
-    response_html = session.get('https://www.cinema-city.pl/#/buy-tickets-by-cinema', verify=False)
-    # render JS elements, required to get full
-    response_html.html.render()
-    # from downloaded website select only elements containing films titles
-    cinemas = response_html.html.find(selector='option[value][data-tokens]')
+    try:
+        session = HTMLSession()
+        response_html = session.get('https://www.cinema-city.pl/#/buy-tickets-by-cinema', verify=False)
+        # render JS elements, required to get full
+        response_html.html.render()
+        # from downloaded website select only elements containing films titles
+        cinemas = response_html.html.find(selector='option[value][data-tokens]')
 
-    # get a list of cinema names from the elements
-    venues = [cinema.element.get('data-tokens') for cinema in cinemas]
-    # get a list of cinema ids from the elements (needed to construct a valid url to get repertoire)
-    ids = [int(cinema.element.get('value')) for cinema in cinemas]
-    # make dictionary of venue name - id pairs
-    return dict(zip(venues, ids))
+        # get a list of cinema names from the elements
+        venues = [cinema.element.get('data-tokens') for cinema in cinemas]
+        # get a list of cinema ids from the elements (needed to construct a valid url to get repertoire)
+        ids = [int(cinema.element.get('value')) for cinema in cinemas]
+        # make dictionary of venue name - id pairs
+        return dict(zip(venues, ids))
+    except requests.exceptions.ConnectionError:
+        logging.error(msg="No internet connection. Unable to fetch the list of cinemas.")
+    # except requests.exceptions.ConnectTimeout:
+    #     logging.error(msg="Internet connection slow or unstable. Unable to fetch the list of cinemas.")
 
 
-def _update_cinemas_list(updated_cinemas: dict, path: Union[str, Path] = _json_default_path) -> None:
+def _update_cinemas_list(updated_cinemas: dict, path: PurePath[str] = _json_default_path) -> None:
     """
     Get all available cinemas with their respective IDs from www.cinema-city.pl
     :updated_cinemas:
-    :path: a path to json file to store a list of cinema venues in
+    :cinemas_json_path: a cinemas_json_path to json file to store a list of cinema venues in
     :return: None
     """
     _path = Path(path)
@@ -116,4 +122,3 @@ def _match_cinema_name_id(name: str, path: PurePath[str] = _json_default_path) -
         for cinema, id in cinema_city.items():
             if re.search(name.lower(), cinema.lower()) is not None:
                 return id
-    return None
