@@ -2,7 +2,7 @@ import datetime
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Union, Dict
+from typing import Dict, Union
 
 import yaml
 

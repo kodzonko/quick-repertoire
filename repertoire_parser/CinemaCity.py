@@ -4,8 +4,7 @@ import os
 import re
 from datetime import date
 from json import JSONDecodeError
-from pathlib import Path
-from pathlib import PurePath
+from pathlib import Path, PurePath
 from typing import List, Optional, Union
 
 from requests_html import HTMLSession
