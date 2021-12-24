@@ -1,10 +1,10 @@
 import datetime
-import logging
 from dataclasses import dataclass, field
 from pathlib import Path, PurePath
 from typing import Dict
 
 import yaml
+from loguru import logger
 
 
 @dataclass
@@ -31,7 +31,7 @@ class Settings:
         try:
             cls.config = yaml.safe_load(open(file=file, mode="r", encoding="utf8"))
         except Exception as e:
-            logging.error(e)
+            logger.error(e)
 
     @classmethod
     def resolve_date(cls, date_verbal: str) -> datetime.date:
@@ -42,8 +42,11 @@ class Settings:
         else:
             try:
                 return datetime.datetime.strptime(date_verbal, "%d.%m.%Y").date()
-            except ValueError as e:
-                logging.error(e)
+            except ValueError:
+                logger.error(
+                    f"Cannot parse date {date_verbal}. Pass date in format: DD.MM.YYYY"
+                )
+                return None
 
     @classmethod
     def validate_settings(cls, path: PurePath = SETTINGS_DEFAULT_PATH) -> bool:

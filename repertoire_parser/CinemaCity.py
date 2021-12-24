@@ -1,12 +1,12 @@
 import json
-import logging
 import re
 from datetime import date
 from json import JSONDecodeError
 from pathlib import Path, PurePath
-from typing import List, Optional
+from typing import List
 
 import requests
+from loguru import logger
 from requests_html import HTMLSession
 
 from settings.Settings import Settings
@@ -42,7 +42,7 @@ class CinemaCity:
             films = response_html.html.find(selector="h3.qb-movie-name")
             return [film.text for film in films]  # Convert HTML Elements into strings
         except requests.exceptions.ConnectionError:
-            logging.error(msg="No internet connection. Unable to fetch the repertoire")
+            logger.error("No internet connection. Unable to fetch the repertoire")
             return None
 
     @classmethod
@@ -70,10 +70,8 @@ class CinemaCity:
             # make dictionary of venue name - id pairs
             return dict(zip(venues, ids))
         except requests.exceptions.ConnectionError:
-            logging.error(
-                msg="No internet connection. Unable to fetch the list of cinemas."
-            )
-            return {}
+            logger.error("No internet connection. Unable to fetch the list of cinemas.")
+            return None
         # except requests.exceptions.ConnectTimeout:
         #     logging.error(msg="Internet connection slow or unstable. Unable to fetch the list of cinemas.")
 
@@ -97,7 +95,7 @@ class CinemaCity:
             try:
                 cinemas = json.load(fp=f)
             except JSONDecodeError:
-                logging.info("Missing json file with cinemas list. Populating content")
+                logger.info("Missing json file with cinemas list. Populating content")
 
         with open(file=_path, mode="w", encoding="utf8") as f:
             try:
