@@ -19,7 +19,7 @@ class Settings:
     )  # default path to output file with the queried repertoire
 
     @classmethod
-    def load_default_settings(cls, file: PurePath[str] = SETTINGS_DEFAULT_PATH) -> None:
+    def load_default_settings(cls, file: PurePath = SETTINGS_DEFAULT_PATH) -> None:
         """
         Load settings from settings.yml
 

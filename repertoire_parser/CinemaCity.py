@@ -15,10 +15,10 @@ from settings.Settings import Settings
 class CinemaCity:
     @classmethod
     async def download_repertoire(
-            cls,
-            cinema: str,
-            cinemas_json_path: PurePath = Settings.CINEMAS_LIST_JSON_DEFAULT_PATH,
-            date: date = date.today(),
+        cls,
+        cinema: str,
+        cinemas_json_path: PurePath = Settings.CINEMAS_LIST_JSON_DEFAULT_PATH,
+        date: date = date.today(),
     ) -> List[str] | None:
         """
         Download a repertoire for Cinema City (www.cinema-city.pl) for a specified branch and date
@@ -79,9 +79,9 @@ class CinemaCity:
 
     @classmethod
     def _update_cinemas_list(
-            cls,
-            updated_cinemas: dict,
-            path: PurePath = Settings.CINEMAS_LIST_JSON_DEFAULT_PATH,
+        cls,
+        updated_cinemas: dict,
+        path: PurePath = Settings.CINEMAS_LIST_JSON_DEFAULT_PATH,
     ) -> None:
         """
         Get all available cinemas with their respective IDs from www.cinema-city.pl
@@ -108,7 +108,7 @@ class CinemaCity:
 
     @classmethod
     def _match_cinema_name_id(
-            cls, name: str, path: PurePath = Settings.CINEMAS_LIST_JSON_DEFAULT_PATH
+        cls, name: str, path: PurePath = Settings.CINEMAS_LIST_JSON_DEFAULT_PATH
     ) -> Optional[int]:
         """
         Returns id of a cinema specified by name. Based on cinema-list.json

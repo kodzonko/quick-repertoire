@@ -10,5 +10,5 @@ setup(
     author="Jan Wadolowski",
     author_email="janwadolowski@gmail.com",
     description="A commandline app to fetch repertoire for a selected cinemas with movies descriptions and ratings "
-                "from IMDb, Filmweb, Metacritic and Rotten Tomatoes ",
+    "from IMDb, Filmweb, Metacritic and Rotten Tomatoes ",
 )
