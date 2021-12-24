@@ -120,3 +120,4 @@ class CinemaCity:
             for cinema, id in cinema_city.items():
                 if re.search(name.lower(), cinema.lower()) is not None:
                     return id
+        return None
