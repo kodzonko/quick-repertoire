@@ -34,7 +34,7 @@ class Settings:
             logger.error(e)
 
     @classmethod
-    def resolve_date(cls, date_verbal: str) -> datetime.date:
+    def resolve_date(cls, date_verbal: str) -> datetime.date | None:
         if date_verbal in ["today", "dzisiaj"]:
             return datetime.date.today()
         elif date_verbal in ["tomorrow", "jutro"]:

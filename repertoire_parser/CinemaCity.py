@@ -46,7 +46,7 @@ class CinemaCity:
             return None
 
     @classmethod
-    async def download_cinemas_list(cls) -> dict:
+    async def download_cinemas_list(cls) -> dict[str, int] | None:
         """
         Get all available cinemas with their respective IDs from www.cinema-city.pl
         and parse it to a dictionary.
@@ -107,7 +107,7 @@ class CinemaCity:
     @classmethod
     def _match_cinema_name_id(
         cls, name: str, path: PurePath = Settings.CINEMAS_LIST_JSON_DEFAULT_PATH
-    ) -> Optional[int]:
+    ) -> int | None:
         """
         Returns id of a cinema specified by name. Based on cinema-list.json
         :param name: name of a cinema, case insensitive
@@ -116,7 +116,7 @@ class CinemaCity:
         _path = Path(path)
         # TODO: Add exception handling
         with open(file=_path, mode="a+", encoding="utf8") as f:
-            cinema_city = json.load(f).get("cinema_city")
+            cinema_city: dict[str, int] = json.load(f).get("cinema_city")
             for cinema, id in cinema_city.items():
                 if re.search(name.lower(), cinema.lower()) is not None:
                     return id
