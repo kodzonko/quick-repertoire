@@ -11,9 +11,12 @@ import yaml
 class Settings:
     config: Dict[str, str] = field(default_factory=dict)
     CINEMAS_LIST_JSON_DEFAULT_PATH = Path(
-        'cinemas_list.json')  # default path to json with names and ids of cinemas
-    SETTINGS_DEFAULT_PATH = Path('settings.yml')  # setting file with the defaults
-    OUTPUT_DEFAULT_PATH = Path('repertoire.txt')  # default path to output file with the queried repertoire
+        "cinemas_list.json"
+    )  # default path to json with names and ids of cinemas
+    SETTINGS_DEFAULT_PATH = Path("settings.yml")  # setting file with the defaults
+    OUTPUT_DEFAULT_PATH = Path(
+        "repertoire.txt"
+    )  # default path to output file with the queried repertoire
 
     @classmethod
     def load_default_settings(cls, file: PurePath[str] = SETTINGS_DEFAULT_PATH) -> None:
@@ -26,24 +29,24 @@ class Settings:
         default_day: [today, tomorrow, <day of the week>]
         """
         try:
-            cls.config = yaml.safe_load(open(file=file, mode='r', encoding='utf8'))
+            cls.config = yaml.safe_load(open(file=file, mode="r", encoding="utf8"))
         except Exception as e:
             logging.error(e)
 
     @classmethod
     def resolve_date(cls, date_verbal: str) -> datetime.date:
-        if date_verbal in ['today', 'dzisiaj']:
+        if date_verbal in ["today", "dzisiaj"]:
             return datetime.date.today()
-        elif date_verbal in ['tomorrow', 'jutro']:
+        elif date_verbal in ["tomorrow", "jutro"]:
             return datetime.date.today() + datetime.timedelta(days=1)
         else:
             try:
-                return datetime.datetime.strptime(date_verbal, '%d.%m.%Y').date()
+                return datetime.datetime.strptime(date_verbal, "%d.%m.%Y").date()
             except ValueError as e:
                 logging.error(e)
 
     @classmethod
-    def validate_settings(cls, path: PurePath[str] = SETTINGS_DEFAULT_PATH) -> bool:
+    def validate_settings(cls, path: PurePath = SETTINGS_DEFAULT_PATH) -> bool:
         """
         A function to validate settings.yml file
 
