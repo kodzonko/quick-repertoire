@@ -52,6 +52,7 @@ class CinemaCity:
         and parse it to a dictionary.
 
         :return: a dictionary with <cinema_name>: <cinema_id> items
+        :raises ConnectionError:
         """
         try:
             session = HTMLSession()
@@ -86,6 +87,7 @@ class CinemaCity:
         :updated_cinemas:
         :cinemas_json_path: a cinemas_json_path to json file to store a list of cinema venues in
         :return: None
+        :raises KeyError:
         """
         _path = Path(path)
 
@@ -110,7 +112,7 @@ class CinemaCity:
     ) -> int | None:
         """
         Returns id of a cinema specified by name. Based on cinema-list.json
-        :param name: name of a cinema, case insensitive
+        :param name: name of a cinema, case-insensitive
         :return: id of a cinema or None if no match
         """
         _path = Path(path)
