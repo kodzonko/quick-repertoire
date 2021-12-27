@@ -1,8 +1,16 @@
 from abc import ABC, abstractmethod
+from datetime import date
+from pathlib import PurePath
+from typing import List
 
 
-class ICinema(ABC):
+class Cinema(ABC):
     @classmethod
     @abstractmethod
-    def download_repertoire(cls):
+    async def download_repertoire(
+        cls,
+        cinema: str,
+        cinemas_json_path: PurePath,
+        date: date,
+    ) -> List[str] | None:
         pass

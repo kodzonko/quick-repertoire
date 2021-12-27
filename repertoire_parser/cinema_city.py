@@ -9,10 +9,11 @@ import requests
 from loguru import logger
 from requests_html import HTMLSession
 
+from repertoire_parser.cinema import Cinema
 from settings.settings import Settings
 
 
-class CinemaCity:
+class CinemaCity(Cinema):
     @classmethod
     async def download_repertoire(
         cls,
