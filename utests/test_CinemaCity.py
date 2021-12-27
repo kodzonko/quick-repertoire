@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-import repertoire_parser.CinemaCity
+import repertoire_parser.cinema_city
 
 test_json = Path(os.getcwd(), "Resources/cinemas-list-test.json")
 

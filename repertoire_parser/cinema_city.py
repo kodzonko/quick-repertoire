@@ -9,7 +9,7 @@ import requests
 from loguru import logger
 from requests_html import HTMLSession
 
-from settings.Settings import Settings
+from settings.settings import Settings
 
 
 class CinemaCity:
