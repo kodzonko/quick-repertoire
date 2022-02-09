@@ -6,7 +6,7 @@ authors = ["Jan Wądołowski <janwadolowski@gmail.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.10"
-loguru = "^0.5.3"
+loguru = "^0.6.0"
 requests-html = "^0.10.0"
 requests = "^2.26.0"
 PyYAML = "^6.0"
