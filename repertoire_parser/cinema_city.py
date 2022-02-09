@@ -57,9 +57,7 @@ class CinemaCity(Cinema):
         """
         try:
             session = HTMLSession()
-            response_html = session.get(
-                "https://www.cinema-city.pl/#/buy-tickets-by-cinema", verify=False
-            )
+            response_html = session.get("https://www.cinema-city.pl/#/buy-tickets-by-cinema", verify=False)
             # render JS elements, required to get full
             response_html.html.render()
             # from downloaded website select only elements containing films titles
@@ -108,9 +106,7 @@ class CinemaCity(Cinema):
             json.dump(obj=cinemas, fp=f, ensure_ascii=False, indent=4)
 
     @classmethod
-    def _match_cinema_name_id(
-        cls, name: str, path: PurePath = Settings.CINEMAS_LIST_JSON_DEFAULT_PATH
-    ) -> int | None:
+    def _match_cinema_name_id(cls, name: str, path: PurePath = Settings.CINEMAS_LIST_JSON_DEFAULT_PATH) -> int | None:
         """
         Returns id of a cinema specified by name. Based on cinema-list.json
         :param name: name of a cinema, case-insensitive

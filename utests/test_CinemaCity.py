@@ -26,9 +26,7 @@ def test_download_cinemas_list():
 
 
 def test_update_cinemas_list():
-    repertoire_parser.CinemaCity._update_cinemas_list(
-        updated_cinemas={"test": 1}, path=test_json
-    )
+    repertoire_parser.CinemaCity._update_cinemas_list(updated_cinemas={"test": 1}, path=test_json)
     with open(test_json, "r", encoding="utf8") as f:
         cinema_city_list = json.load(fp=f).get("cinema-city")
     assert cinema_city_list  # fails if no 'cinema-city' key in the json

@@ -10,13 +10,9 @@ from loguru import logger
 @dataclass
 class Settings:
     config: Dict[str, str] = field(default_factory=dict)
-    CINEMAS_LIST_JSON_DEFAULT_PATH = Path(
-        "cinemas_list.json"
-    )  # default path to json with names and ids of cinemas
+    CINEMAS_LIST_JSON_DEFAULT_PATH = Path("cinemas_list.json")  # default path to json with names and ids of cinemas
     SETTINGS_DEFAULT_PATH = Path("settings.yml")  # setting file with the defaults
-    OUTPUT_DEFAULT_PATH = Path(
-        "repertoire.txt"
-    )  # default path to output file with the queried repertoire
+    OUTPUT_DEFAULT_PATH = Path("repertoire.txt")  # default path to output file with the queried repertoire
 
     @classmethod
     def load_default_settings(cls, file: PurePath = SETTINGS_DEFAULT_PATH) -> None:
@@ -43,9 +39,7 @@ class Settings:
             try:
                 return datetime.datetime.strptime(date_verbal, "%d.%m.%Y").date()
             except ValueError:
-                logger.error(
-                    f"Cannot parse date {date_verbal}. Pass date in format: DD.MM.YYYY"
-                )
+                logger.error(f"Cannot parse date {date_verbal}. Pass date in format: DD.MM.YYYY")
                 return None
 
     @classmethod

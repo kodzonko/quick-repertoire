@@ -13,9 +13,7 @@ def main() -> None:
         type=str,
         choices={"Cinema City", "Multikino", "Helios"},
     )
-    parser.add_argument(
-        "cinema_venue", help="A name of venue (branch) to look up the repertoire for"
-    )
+    parser.add_argument("cinema_venue", help="A name of venue (branch) to look up the repertoire for")
     parser.add_argument("-u", "--update", help="Update a list of known cinema venues")
     parser.add_argument("-s", "--save", help="A path to file to save data in")
     args = parser.parse_args()
