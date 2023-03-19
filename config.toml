@@ -1,0 +1,8 @@
+[user_preferences]
+default_cinema = "Cinema City"               # ['cinema_city | 'helios' | 'multikino']
+default_cinema_venue = "Wrocław - Wroclavia" # check list of available cinemas in db or on cinema chain website
+default_day = "today"                        # [today | tomorrow | date in format YYYY-MM-DD]
+
+
+[db]
+db_file_path = "./db.sqlite"
