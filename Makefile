@@ -20,6 +20,10 @@ update:
 lint:
 	poetry run black $(SRC)
 	poetry run black $(TESTS)
-	poetry run flake8 $(SRC)
-	poetry run flake8 $(TESTS)
+	poetry run isort $(SRC)
+	poetry run isort $(TESTS)
+	poetry run pautoflake $(SRC)
+	poetry run pautoflake $(TESTS)
+	poetry run flake8 --toml-config $(PROJ_DIR)pyproject.toml $(SRC)
+	poetry run flake8 --toml-config $(PROJ_DIR)pyproject.toml $(TESTS)
 	poetry run bandit -r $(SRC)

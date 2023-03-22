@@ -15,7 +15,6 @@ pydocstyle = "^6.3.0"
 pylama = { extras = ["all"], version = "^8.4.1" }
 mypy = "^0.991"
 bandit = "^1.7.4"
-autoflake = "^2.0.0"
 pytest = "^7.2.1"
 isort = "^5.11.4"
 black = "^22.12.0"
@@ -25,6 +24,7 @@ mockito = "^1.4.0"
 types-toml = "^0.10.8.5"
 pytest-cov = "^4.0.0"
 pre-commit = "^3.2.0"
+pyproject-autoflake = "^1.0.2"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -51,6 +51,7 @@ count = true
 exclude = [".git", "__pycache__"]
 per-file-ignores = ["__init__.py: F401"] # imported but unused
 max-complexity = 10
+exit-zero = true
 
 [tool.pylama]
 format = "pylint"
@@ -64,3 +65,20 @@ linters = [
   "pylint",
   "isort",
 ]
+
+[tool.autoflake]
+# return error code if changes are needed
+check = false
+# make changes to files instead of printing diffs
+in-place = true
+# drill down directories recursively
+recursive = true
+expand-star-imports = true
+# remove all unused imports (not just those from the standard library)
+remove-all-unused-imports = true
+# exclude __init__.py when removing unused imports
+ignore-init-module-imports = true
+# remove all duplicate keys in objects
+remove-duplicate-keys = true
+# remove unused variables
+remove-unused-variables = true

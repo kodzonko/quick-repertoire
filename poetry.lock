@@ -884,6 +884,22 @@ spelling = ["pyenchant (>=3.2,<4.0)"]
 testutils = ["gitpython (>3)"]
 
 [[package]]
+name = "pyproject-autoflake"
+version = "1.0.2"
+description = "pyproject-autoflake (pautoflake), a monkey patching wrapper to connect autoflake with pyproject.toml configuration."
+category = "dev"
+optional = false
+python-versions = ">=3.6.2,<4.0.0"
+files = [
+    { file = "pyproject-autoflake-1.0.2.tar.gz", hash = "sha256:7ad1ab8c8e522bd04f05728f2656935853288b7b974a47850174c6cf6cc378ad" },
+    { file = "pyproject_autoflake-1.0.2-py3-none-any.whl", hash = "sha256:db7220bec762cbc8cfe93f1d23f3a564d0c076529bc1ebafc2dcb023c5ee265c" },
+]
+
+[package.dependencies]
+autoflake = "*"
+toml = ">=0.10.1"
+
+[[package]]
 name = "pytest"
 version = "7.2.2"
 description = "pytest: simple powerful testing with Python"
@@ -1376,4 +1392,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.11,<3.12"
-content-hash = "0617b1a495e5054aadd6ba34b1a31b05716ef40e59df07da0b1cf1d03d2a9ea9"
+content-hash = "256153861b349ef27b41a39b820679292bbc5eff2a6f76b85be866af4ad5b3d2"
