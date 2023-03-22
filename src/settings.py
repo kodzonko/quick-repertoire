@@ -80,12 +80,12 @@ def load_settings(config_file: Path | str = SETTINGS_PATH) -> dict[str, Any]:
             {"file": str(config_file), "error": e},
         )
         raise SettingsLoadError(
-            "Failed to load settings. Adjust path: %s or check permissions."
+            'Failed to load settings. Adjust path: "%s" or check permissions.'
             % str(config_file)
         )
     except KeyError as e:
         logger.error(
-            "Settings file incomplete: %(file)s. Missing value for: %(error)s",
+            'Settings file incomplete: "%(file)s". Missing value for: %(error)s',
             {"file": str(config_file), "error": e},
         )
         raise SettingsLoadError("Settings file doesn't contain value for: %s." % str(e))
@@ -103,23 +103,26 @@ def load_config_for_cinema(
     cinema_chain: CinemaChain, config_file: Path | str = SETTINGS_PATH
 ) -> CinemaConfig:
     """Load configuration for a specific cinema from config file."""
+    logger.info("Loading settings for cinema: %s." % cinema_chain.value)
     try:
         _loaded_settings: dict[str, Any] = toml.load(config_file)
-        output: CinemaConfig = _loaded_settings["cinemas"][cinema_chain.value]
-        for val in ["repertoire_url", "venues_list_url"]:
-            if not output[val]:
-                raise SettingsLoadError(
-                    'Cinema: "%s" config is missing value for: %s in config file: %s.'
-                    % (cinema_chain.value, val, str(config_file))
-                )
-        else:
-            return _loaded_settings["cinemas"][cinema_chain.value]
+        output: CinemaConfig = _loaded_settings["cinemas"][str(cinema_chain)]
+        logger.info(
+            "Settings for cinema: %s loaded correctly." % cinema_chain.value
+        )
+        return output
     except OSError as e:
         logger.error(
             "Unable to load settings file: %(file)s because of error: %(error)s",
             {"file": str(config_file), "error": e},
         )
         raise SettingsLoadError(
-            "Failed to load settings. Adjust path: %s or check permissions."
+            'Failed to load settings. Adjust path: "%s" or check permissions.'
             % str(config_file)
         )
+    except KeyError as e:
+        logger.error(
+            'Settings file incomplete: "%(file)s". Missing value for: %(error)s',
+            {"file": str(config_file), "error": e},
+        )
+        raise SettingsLoadError("Settings file doesn't contain value for: %s." % str(e))
