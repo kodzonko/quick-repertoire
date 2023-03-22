@@ -7,7 +7,7 @@ from mockito import when
 
 from enums import Cinema
 from exceptions import SettingsLoadError
-from settings import load_settings, SETTINGS_PATH
+from settings import SETTINGS_PATH, load_settings
 
 pytestmark = pytest.mark.usefixtures("unstub")
 

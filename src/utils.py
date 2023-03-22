@@ -1,10 +1,11 @@
-import re
 from typing import Any
 
+from loguru import logger
 
-def verify_string_formatting_variables_match(
-        text: str, variables: dict[str, Any]
-) -> bool:
+from exceptions import SettingsLoadError
+
+
+def fill_string_template(text: str, variables: dict[str, Any]) -> str:
     """
     Verify that all variables in string are matched in the variables dictionary.
 
@@ -14,10 +15,14 @@ def verify_string_formatting_variables_match(
     Returns:
         True if all variables are present, False otherwise.
     """
-    substituted = text.format(**variables)
-    variables_in_text = re.findall(r"{[a-zA-Z0-9_]*}", substituted)
-    import pdb
-
-    pdb.set_trace()
-    # If there are any unsubstituted variables left (list not empty), return False
-    return False if variables_in_text else True
+    try:
+        return text.format(**variables)
+    except IndexError:  # means no placeholders to substitute
+        logger.info(
+            "No placeholders to substitute in the url template. Returning unchanged."
+        )
+        return text
+    except KeyError as e:  # means some variables are missing
+        raise SettingsLoadError(
+            "Unable to fill url template to make a request. Missing variable: %s." % e
+        )

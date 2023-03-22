@@ -3,9 +3,9 @@ from sqlite3 import Error
 
 import pytest
 import sqlalchemy
-from mockito import mock, when, args
+from mockito import args, mock, when
 from sqlalchemy.orm import Session
-from sqlalchemy.orm.query import RowReturningQuery, Query
+from sqlalchemy.orm.query import Query, RowReturningQuery
 
 from database.database_manager import DatabaseManager
 from database.models import CinemaVenues
