@@ -1,22 +1,24 @@
-from typing import Any
-
 from loguru import logger
 
 from exceptions import SettingsLoadError
 
 
-def fill_string_template(text: str, variables: dict[str, Any]) -> str:
+def fill_string_template(text: str, **kwargs) -> str:
     """
     Verify that all variables in string are matched in the variables dictionary.
 
     Args:
         text: A string to parse.
-        variables: A dictionary with variables to format the string.
+        kwargs: Variables to format the string.
+
     Returns:
         True if all variables are present, False otherwise.
+
+    Raises:
+        SettingsLoadError: If some variables are missing.
     """
     try:
-        return text.format(**variables)
+        return text.format(**kwargs)
     except IndexError:  # means no placeholders to substitute
         logger.info(
             "No placeholders to substitute in the url template. Returning unchanged."

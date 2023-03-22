@@ -9,7 +9,7 @@ from sqlalchemy.orm.query import Query, RowReturningQuery
 
 from database.database_manager import DatabaseManager
 from database.models import CinemaVenues
-from enums import Cinema
+from enums import CinemaChain
 from exceptions import DBConnectionError
 
 
@@ -55,7 +55,7 @@ def test_get_cinema_venues_returns_venues_without_city_filter(
     )
     when(row_returning_query).all().thenReturn([("Cinema 1",), ("Cinema 2",)])
 
-    assert db_manager.get_cinema_venues(Cinema.CINEMA_CITY) == expected
+    assert db_manager.get_cinema_venues(CinemaChain.CINEMA_CITY) == expected
 
 
 def test_get_cinema_venues_returns_venues_with_city_filter(
@@ -75,7 +75,9 @@ def test_get_cinema_venues_returns_venues_with_city_filter(
     )
     when(row_returning_query).all().thenReturn([("Cinema 1",), ("Cinema 2",)])
 
-    assert db_manager.get_cinema_venues(Cinema.CINEMA_CITY, "some city") == expected
+    assert (
+        db_manager.get_cinema_venues(CinemaChain.CINEMA_CITY, "some city") == expected
+    )
 
 
 def test_update_cinema_venues_inserts_records_to_db(
@@ -108,7 +110,7 @@ def test_get_repertoire_returns_repertoire(
     )
     db_manager.get_repertoire(
         datetime(2022, 1, 1),
-        Cinema.CINEMA_CITY,
+        CinemaChain.CINEMA_CITY,
         venue="some venue",
         city="some city",
         format="some format",

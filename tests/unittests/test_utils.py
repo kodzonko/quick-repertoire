@@ -26,7 +26,7 @@ from utils import fill_string_template
 def test_fill_string_template_returns_correctly_filled_string(
     text: str, variables: dict[str, Any], expected: bool
 ) -> None:
-    assert fill_string_template(text, variables) == expected
+    assert fill_string_template(text, **variables) == expected
 
 
 def test_fill_string_template_raises_error_on_missing_variable() -> None:
@@ -37,4 +37,4 @@ def test_fill_string_template_raises_error_on_missing_variable() -> None:
             "'missing_variable'."
         ),
     ):
-        fill_string_template("{missing_variable}", {"a": "sth", "b": "text"})
+        fill_string_template("{missing_variable}", a="sth", b="text")

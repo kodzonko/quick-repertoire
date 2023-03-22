@@ -11,7 +11,7 @@ from loguru import logger
 
 import settings
 from database.models import CinemaVenues, Repertoire
-from enums import Cinema
+from enums import CinemaChain
 from exceptions import DBConnectionError
 
 
@@ -27,7 +27,9 @@ class DatabaseManager:
             logger.error("Unable to connect with the database: %s.", e)
             raise DBConnectionError("Failed to connect with the database.")
 
-    def get_cinema_venues(self, cinema: Cinema, city: str | None = None) -> list[str]:
+    def get_cinema_venues(
+        self, cinema: CinemaChain, city: str | None = None
+    ) -> list[str]:
         """Get all cinema venues for a specified cinema chain from the database.
 
         Optionally filter by city.
@@ -57,7 +59,7 @@ class DatabaseManager:
     def get_repertoire(
         self,
         date: datetime.date,
-        cinema: Cinema,
+        cinema: CinemaChain,
         *,
         venue: str | None = None,
         city: str | None = None,
@@ -79,3 +81,8 @@ class DatabaseManager:
             if language:
                 clauses.append(Repertoire.movie_language == language)
             return session.query(Repertoire).filter(*clauses).all()
+
+    def get_venue_by_venue_id(self, venue_id: int) -> CinemaVenues:
+        """Get venue by id."""
+        with self._session_constructor() as session:
+            return session.query(CinemaVenues).filter_by(venue_id=venue_id).one()

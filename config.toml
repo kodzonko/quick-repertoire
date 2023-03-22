@@ -7,6 +7,14 @@ default_day = "today"                        # ["today" | "tomorrow"]
 [db]
 db_file_path = "db.sqlite"  # relative to project root
 
-[urls]
-cinema_city_repertoire_url = "https://www.cinema-city.pl/#/buy-tickets-by-cinema?in-cinema={cinema_venue_id}&at={repertoire_date}"
-cinema_city_venues_list_url = "https://www.cinema-city.pl/#/buy-tickets-by-cinema"
+[cinemas_urls.cinema_city]
+repertoire_url = "https://www.cinema-city.pl/#/buy-tickets-by-cinema?in-cinema={cinema_venue_id}&at={repertoire_date}"
+venues_list_url = "https://www.cinema-city.pl/#/buy-tickets-by-cinema"
+
+[cinemas_urls.helios]
+repertoire_url = ""
+venues_list_url = ""
+
+[cinemas_urls.multikino]
+repertoire_url = ""
+venues_list_url = ""
