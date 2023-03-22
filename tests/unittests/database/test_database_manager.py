@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime
 from sqlite3 import Error
 
 import pytest
@@ -6,7 +6,6 @@ import sqlalchemy
 from mockito import mock, when, args
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.query import RowReturningQuery, Query
-from tomlkit import datetime
 
 from database.database_manager import DatabaseManager
 from database.models import CinemaVenues
@@ -99,8 +98,6 @@ def test_get_repertoire_returns_repertoire(
         session: Session,
         row_returning_query: RowReturningQuery,
 ) -> None:
-    expected = ["Movie 1", "Movie 2"]
-
     when(session).__enter__().thenReturn(session)
     when(session).__exit__(*args)
     when(db_manager)._session_constructor().thenReturn(session)
@@ -109,9 +106,8 @@ def test_get_repertoire_returns_repertoire(
     when(row_returning_query).all().thenReturn(
         [("Repertoire Entry 1",), ("Repertoire Entry  2",)]
     )
-
     db_manager.get_repertoire(
-        datetime.date(2022, 1, 10),
+        datetime(2022, 1, 1),
         Cinema.CINEMA_CITY,
         venue="some venue",
         city="some city",

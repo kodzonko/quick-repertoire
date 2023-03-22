@@ -20,11 +20,11 @@ pytest = "^7.2.1"
 isort = "^5.11.4"
 black = "^22.12.0"
 flake8-pyproject = "^1.2.2"
-vulture = "^2.7"
 types-pyyaml = "^6.0.12.8"
 mockito = "^1.4.0"
 types-toml = "^0.10.8.5"
 pytest-cov = "^4.0.0"
+pre-commit = "^3.2.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -36,7 +36,7 @@ src_paths = ["src", "tests"]
 
 [tool.black]
 line-length = 88
-target-version = ['py310']
+target-version = ['py311']
 include = '\.pyi?$'
 preview = true
 exclude = '''
@@ -52,14 +52,6 @@ exclude = [".git", "__pycache__"]
 per-file-ignores = ["__init__.py: F401"] # imported but unused
 max-complexity = 10
 
-[tool.vulture]
-exclude = ["*resources/"]
-make_whitelist = true
-min_confidence = 80
-paths = ["src", "tests"]
-sort_by_size = true
-verbose = true
-
 [tool.pylama]
 format = "pylint"
 skip = "*/.tox/*,*/.env/*"
@@ -69,7 +61,6 @@ linters = [
   "mypy",
   "pycodestyle",
   "pydocstyle",
-  "pyflakes",
   "pylint",
   "isort",
 ]

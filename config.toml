@@ -1,8 +1,12 @@
 [user_preferences]
-default_cinema = "Cinema City"               # ['cinema_city | 'helios' | 'multikino']
-default_cinema_venue = "Wrocław - Wroclavia" # check list of available cinemas in db or on cinema chain website
-default_day = "today"                        # [today | tomorrow | date in format YYYY-MM-DD]
+default_cinema = "Cinema City"               # available choices: ["Cinema City" | "Helios" | "Multikino"]
+default_cinema_venue = "Wrocław - Wroclavia" # check list of available cinemas in db or at cinema' website
+default_day = "today"                        # ["today" | "tomorrow"]
 
 
 [db]
-db_file_path = "./db.sqlite"
+db_file_path = "db.sqlite"  # relative to project root
+
+[urls]
+cinema_city_repertoire_url = "https://www.cinema-city.pl/#/buy-tickets-by-cinema?in-cinema={cinema_venue_id}&at={repertoire_date}"
+cinema_city_venues_list_url = "https://www.cinema-city.pl/#/buy-tickets-by-cinema"

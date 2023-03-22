@@ -6,7 +6,7 @@ run:
 	poetry run python $(SRC)/main.py
 
 test-unit:
-	poetry run pytest -vvv --failed-first --new-first --cov=$(SRC) $(TESTS)/unittests
+	poetry run pytest --failed-first --new-first --cov=$(SRC) $(TESTS)/unittests
 
 test-int:
 	poetry run pytest $(TESTS)/integration
@@ -20,9 +20,6 @@ update:
 lint:
 	poetry run black $(SRC)
 	poetry run black $(TESTS)
-	poetry run pylama $(SRC)
-	poetry run pylama $(TESTS)
-	poetry run vulture
 	poetry run flake8 $(SRC)
 	poetry run flake8 $(TESTS)
 	poetry run bandit -r $(SRC)
