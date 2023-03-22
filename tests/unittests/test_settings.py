@@ -83,7 +83,7 @@ def loaded_settings_incorrect_db_path() -> dict[str, Any]:
 
 
 def test_load_settings_parses_correct_config(
-        loaded_settings_correct: dict[str, Any]
+    loaded_settings_correct: dict[str, Any]
 ) -> None:
     expected = {
         "DEFAULT_CINEMA": Cinema("Multikino"),
