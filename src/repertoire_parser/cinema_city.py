@@ -2,12 +2,12 @@ import json
 import logging
 import os
 import re
-from _typeshed import AnyPath
 from datetime import date
 from json import JSONDecodeError
 from pathlib import Path
 from typing import List, Optional, Union
 
+from _typeshed import AnyPath
 from requests_html import HTMLSession
 
 _json_default_path = Path(
@@ -16,9 +16,9 @@ _json_default_path = Path(
 
 
 def get_repertoire(
-        cinema: str,
-        path: AnyPath = _json_default_path,
-        repertoire_date: str = date.today(),
+    cinema: str,
+    path: AnyPath = _json_default_path,
+    repertoire_date: str = date.today(),
 ) -> Optional[List[str]]:
     """
     Get repertoire for a specified cinema and date from www.cinema-city.pl
@@ -45,7 +45,7 @@ def get_repertoire(
 
 
 def get_cinemas_list(
-        path: AnyPath = _json_default_path,
+    path: AnyPath = _json_default_path,
 ) -> Optional[dict[str, int]]:
     """
     Get all available cinemas with their respective IDs from a json file
@@ -87,7 +87,7 @@ def download_cinemas_list() -> dict:
 
 
 def _update_cinemas_list(
-        updated_cinemas: dict, path: Union[str, Path] = _json_default_path
+    updated_cinemas: dict, path: Union[str, Path] = _json_default_path
 ) -> None:
     """
     Get all available cinemas with their respective IDs from www.cinema-city.pl
@@ -114,7 +114,7 @@ def _update_cinemas_list(
 
 
 def _match_cinema_name_id(
-        name: str, path: AnyPath = _json_default_path
+    name: str, path: AnyPath = _json_default_path
 ) -> Optional[int]:
     """
     Returns id of a cinema specified by name. Based on cinema-list.json

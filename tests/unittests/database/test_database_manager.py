@@ -3,9 +3,9 @@ from sqlite3 import Error
 
 import pytest
 import sqlalchemy
-from mockito import mock, when, args
+from mockito import args, mock, when
 from sqlalchemy.orm import Session
-from sqlalchemy.orm.query import RowReturningQuery, Query
+from sqlalchemy.orm.query import Query, RowReturningQuery
 
 from database.database_manager import DatabaseManager
 from database.models import CinemaVenues
@@ -39,9 +39,9 @@ def row_returning_query() -> RowReturningQuery:
 
 
 def test_get_cinema_venues_returns_venues_without_city_filter(
-        db_manager: DatabaseManager,
-        session: Session,
-        row_returning_query: RowReturningQuery,
+    db_manager: DatabaseManager,
+    session: Session,
+    row_returning_query: RowReturningQuery,
 ) -> None:
     expected = ["Cinema 1", "Cinema 2"]
 
@@ -59,9 +59,9 @@ def test_get_cinema_venues_returns_venues_without_city_filter(
 
 
 def test_get_cinema_venues_returns_venues_with_city_filter(
-        db_manager: DatabaseManager,
-        session: Session,
-        row_returning_query: RowReturningQuery,
+    db_manager: DatabaseManager,
+    session: Session,
+    row_returning_query: RowReturningQuery,
 ) -> None:
     expected = ["Cinema 1", "Cinema 2"]
 
@@ -79,7 +79,7 @@ def test_get_cinema_venues_returns_venues_with_city_filter(
 
 
 def test_update_cinema_venues_inserts_records_to_db(
-        db_manager: DatabaseManager, session: Session, query: Query
+    db_manager: DatabaseManager, session: Session, query: Query
 ) -> None:
     venues = ["Cinema Venue 1", "Cinema Venue 1"]
 
@@ -94,9 +94,9 @@ def test_update_cinema_venues_inserts_records_to_db(
 
 
 def test_get_repertoire_returns_repertoire(
-        db_manager: DatabaseManager,
-        session: Session,
-        row_returning_query: RowReturningQuery,
+    db_manager: DatabaseManager,
+    session: Session,
+    row_returning_query: RowReturningQuery,
 ) -> None:
     when(session).__enter__().thenReturn(session)
     when(session).__exit__(*args)

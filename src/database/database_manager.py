@@ -55,14 +55,14 @@ class DatabaseManager:
             session.add_all(venues)
 
     def get_repertoire(
-            self,
-            date: datetime.date,
-            cinema: Cinema,
-            *,
-            venue: str | None = None,
-            city: str | None = None,
-            format: str | None = None,
-            language: str | None = None,
+        self,
+        date: datetime.date,
+        cinema: Cinema,
+        *,
+        venue: str | None = None,
+        city: str | None = None,
+        format: str | None = None,
+        language: str | None = None,
     ) -> list[Repertoire]:
         """Get repertoire matching specified date and cinema."""
         with self._session_constructor() as session:
