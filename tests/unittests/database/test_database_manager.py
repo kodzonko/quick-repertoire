@@ -125,3 +125,18 @@ def test_database_manager_fails_to_create_instance_due_to_error() -> None:
 
     with pytest.raises(DBConnectionError, match="Failed to connect with the database."):
         DatabaseManager("some path")
+
+
+def test_get_venue_by_id_returns_venue(
+    db_manager: DatabaseManager,
+    session: Session,
+    row_returning_query: RowReturningQuery,
+) -> None:
+    when(session).__enter__().thenReturn(session)
+    when(session).__exit__(*args)
+    when(db_manager)._session_constructor().thenReturn(session)
+    when(session).query(CinemaVenues).thenReturn(row_returning_query)
+    when(row_returning_query).filter_by(venue_id=1).thenReturn(row_returning_query)
+    when(row_returning_query).one().thenReturn("some venue")
+
+    assert db_manager.get_venue_by_venue_id(1) == "some venue"

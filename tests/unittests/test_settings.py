@@ -9,8 +9,6 @@ from enums import CinemaChain
 from exceptions import SettingsLoadError
 from settings import load_config_for_cinema, load_settings
 
-pytestmark = pytest.mark.usefixtures("unstub")
-
 
 @pytest.fixture
 def loaded_settings_correct() -> dict[str, Any]:

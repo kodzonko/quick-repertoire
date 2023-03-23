@@ -1,7 +1,7 @@
 import pytest
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def unstub() -> None:
     from mockito import unstub
 
