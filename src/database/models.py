@@ -40,8 +40,8 @@ class Repertoire(Base):
     play_time = Column(DATETIME)
     play_cinema_id = Column(INTEGER, ForeignKey("cinema_venues.cinema_id"))
     movie_id = Column(INTEGER, ForeignKey("movies.movie_id"))
-    movie_format = Column(TEXT)
-    movie_language = Column(TEXT)
+    play_format = Column(TEXT)
+    play_language = Column(TEXT)
     UniqueConstraint(
         "play_time", "play_cinema_id", "movie_id", sqlite_on_conflict="IGNORE"
     )

@@ -14,3 +14,11 @@ class CinemaVenues(TypedDict):
 
 class CinemaConfig(TypedDict):
     """Dictionary structure of cinema configuration as parsed from the config file."""
+
+
+class MoviePlayDetails(TypedDict):
+    """Dictionary structure of movie play details as parsed from the cinema website."""
+
+    format: str
+    play_language: str
+    play_times: list[str]
