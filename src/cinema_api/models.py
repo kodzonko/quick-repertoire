@@ -1,8 +1,24 @@
 from typing import TypedDict
 
+from enums import CinemaChain
+
+
+class MoviePlayDetails(TypedDict):
+    """Dictionary structure of movie play details as parsed from the cinema website."""
+
+    format: str
+    play_language: str
+    play_times: list[str]
+
 
 class Repertoire(TypedDict):
     """Dictionary structure of repertoire as parsed from the cinema website."""
+
+    title: str
+    genres: str
+    play_length: int
+    original_language: str
+    play_details: list[MoviePlayDetails]
 
 
 class CinemaVenues(TypedDict):
@@ -15,10 +31,6 @@ class CinemaVenues(TypedDict):
 class CinemaConfig(TypedDict):
     """Dictionary structure of cinema configuration as parsed from the config file."""
 
-
-class MoviePlayDetails(TypedDict):
-    """Dictionary structure of movie play details as parsed from the cinema website."""
-
-    format: str
-    play_language: str
-    play_times: list[str]
+    cinema_chain: CinemaChain
+    repertoire_url: str
+    cinema_venues_url: str

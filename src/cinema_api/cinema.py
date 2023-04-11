@@ -11,7 +11,6 @@ Don't overuse these functions, as too many requests may result in a ban from the
 website.
 """
 import re
-import sys
 from datetime import datetime
 from typing import Protocol
 
@@ -57,17 +56,23 @@ class CinemaCity:
         output = []
         movies_details: list[Element] = soup.find_all("div", class_="qb-movie-details")
         for movie in movies_details:
-            if movie.find("h4", attrs={"text": "KUP BILET W PRZEDSPRZEDAŻY"}) is None:
-                continue
-            output.append(
-                {
-                    "title": self._parse_title(movie),
-                    "genres": self._parse_genres(movie),
-                    "play_length": self._parse_play_length(movie),
-                    "original_language": self._parse_original_language(movie),
-                    "play_details": self._parse_play_details(movie),
-                }
+            presale_header = movie.find("h4")
+            is_presale = (
+                presale_header is not None
+                and presale_header.text == "KUP BILET W PRZEDSPRZEDAŻY"
             )
+            # Presale movies in repertoire have different HTML structure
+            # and are not available on selected date, so we skip.
+            if not is_presale:
+                output.append(
+                    {
+                        "title": self._parse_title(movie),
+                        "genres": self._parse_genres(movie),
+                        "play_length": self._parse_play_length(movie),
+                        "original_language": self._parse_original_language(movie),
+                        "play_details": self._parse_play_details(movie),
+                    }
+                )
 
         return output
 
@@ -109,16 +114,9 @@ class CinemaCity:
     def _parse_play_format(self, html: Element) -> str:
         """Parse HTML element of a single movie to extract play format."""
         formats_section = html.find("ul", class_="qb-screening-attributes")
-        try:
-            formats = formats_section.find_all(
-                "span", attrs={"aria-label": re.compile("Screening type")}
-            )
-        except AttributeError:
-            import pdb
-
-            pdb.set_trace()
-            sys.exit()
-
+        formats = formats_section.find_all(
+            "span", attrs={"aria-label": re.compile("Screening type")}
+        )
         return " ".join([f.text.strip() for f in formats])
 
     def _parse_play_times(self, html: Element) -> list[str]:

@@ -107,6 +107,7 @@ def load_config_for_cinema(
     try:
         _loaded_settings: dict[str, Any] = toml.load(config_file)
         output: CinemaConfig = _loaded_settings["cinemas"][str(cinema_chain)]
+        output["cinema_chain"] = cinema_chain
         logger.info("Settings for cinema: %s loaded correctly." % cinema_chain.value)
         return output
     except OSError as e:

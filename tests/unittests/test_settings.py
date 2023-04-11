@@ -242,6 +242,7 @@ def test_load_settings_raises_error_on_non_existing_config_file() -> None:
         (
             CinemaChain.CINEMA_CITY,
             {
+                "cinema_chain": CinemaChain.CINEMA_CITY,
                 "repertoire_url": "https://www.example.com/cinema_city/repertoire",
                 "venues_list_url": "https://www.example.com/cinema_city/venues",
             },
@@ -249,6 +250,7 @@ def test_load_settings_raises_error_on_non_existing_config_file() -> None:
         (
             CinemaChain.MULTIKINO,
             {
+                "cinema_chain": CinemaChain.MULTIKINO,
                 "repertoire_url": "https://www.example.com/multikino/repertoire",
                 "venues_list_url": "https://www.example.com/multikino/venues",
             },
@@ -256,6 +258,7 @@ def test_load_settings_raises_error_on_non_existing_config_file() -> None:
         (
             CinemaChain.HELIOS,
             {
+                "cinema_chain": CinemaChain.HELIOS,
                 "repertoire_url": "https://www.example.com/helios/repertoire",
                 "venues_list_url": "https://www.example.com/helios/venues",
             },
