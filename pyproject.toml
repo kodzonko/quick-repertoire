@@ -3,33 +3,86 @@ name = "cinema-repertoire-analyzer"
 version = "0.1.0"
 description = ""
 authors = ["Jan Wadolowski <janwadolowski@gmail.com>"]
-license = "MIT"
-readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = ">=3.11,<3.12"
+typer = "^0.7.0"
 loguru = "^0.6.0"
+sqlalchemy = "^2.0.6"
 requests-html = "^0.10.0"
-requests = "^2.26.0"
-PyYAML = "^6.0"
-typer = "^0.4.0"
+beautifulsoup4 = "^4.12.0"
 
-[tool.poetry.dev-dependencies]
-pytest = "^6.2.5"
-types-PyYAML = "^6.0.1"
-types-requests = "^2.26.2"
-mypy = "^0.930"
-black = "^22.12.0"
+[tool.poetry.group.dev.dependencies]
+pydocstyle = "^6.3.0"
+pylama = { extras = ["all"], version = "^8.4.1" }
+mypy = "^0.991"
 bandit = "^1.7.4"
+pytest = "^7.2.1"
 isort = "^5.11.4"
-autoflake = "^2.0.0"
+black = "^22.12.0"
+flake8-pyproject = "^1.2.2"
+types-pyyaml = "^6.0.12.8"
+mockito = "^1.4.0"
+types-toml = "^0.10.8.5"
+pytest-cov = "^4.0.0"
+pre-commit = "^3.2.0"
+pyproject-autoflake = "^1.0.2"
+pytest-vcr = "^1.0.2"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
-[tool.mypy]
-python_version = "3.10"
-warn_return_any = true
-warn_unused_configs = true
-ignore_missing_imports = true
+[tool.isort]
+profile = "black"
+src_paths = ["src", "tests"]
+
+[tool.black]
+line-length = 88
+target-version = ['py311']
+include = '\.pyi?$'
+preview = true
+exclude = '''
+(
+    __pycache__,
+    .pytest_cache
+)
+'''
+
+[tool.flake8]
+max-line-length = 88
+count = true
+exclude = [".git", "__pycache__", ".pytest_cache"]
+per-file-ignores = ["__init__.py: F401"] # imported but unused
+max-complexity = 10
+exit-zero = true
+
+[tool.pylama]
+format = "pylint"
+skip = "*/.tox/*,*/.env/*"
+linters = [
+  "eradicate",
+  "mccabe",
+  "mypy",
+  "pycodestyle",
+  "pydocstyle",
+  "pylint",
+  "isort",
+]
+
+[tool.autoflake]
+# return error code if changes are needed
+check = false
+# make changes to files instead of printing diffs
+in-place = true
+# drill down directories recursively
+recursive = true
+expand-star-imports = true
+# remove all unused imports (not just those from the standard library)
+remove-all-unused-imports = true
+# exclude __init__.py when removing unused imports
+ignore-init-module-imports = true
+# remove all duplicate keys in objects
+remove-duplicate-keys = true
+# remove unused variables
+remove-unused-variables = true

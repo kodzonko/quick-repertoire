@@ -3,5 +3,6 @@
 .pytest_cache/
 __pycache__/
 venv/
+.coverage
 .github/
 .mypy_cache/

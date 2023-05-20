@@ -1,28 +1,30 @@
-from datetime import date, datetime, timedelta
+from loguru import logger
+
+from exceptions import SettingsLoadError
 
 
-def _validate_date_format(date_txt: str) -> str:
+def fill_string_template(text: str, **kwargs) -> str:
     """
-    Verify that the date conforms to a required format and return it (as a string) or raise an error.
+    Verify that all variables in string are matched in the variables dictionary.
 
-    raises:
-        ValueError: if the date does not conform to the required format.
+    Args:
+        text: A string to parse.
+        kwargs: Variables to format the string.
+
+    Returns:
+        True if all variables are present, False otherwise.
+
+    Raises:
+        SettingsLoadError: If some variables are missing.
     """
     try:
-        return datetime.strptime(date_txt, "%d.%m.%Y").strftime("%d.%m.%Y")
-    except ValueError:
-        raise ValueError("Niepoprawny format daty (dd.mm.rrrr lub dzisiaj, jutro, pojutrze)")
-
-
-def date_converter(date_txt: str) -> str:
-    match date_txt:
-        case _validate_date_str(date_txt):
-            return date_txt
-        case "today" | "dzisiaj":
-            return date.today().strftime("%d.%m.%Y")
-        case "tomorrow" | "jutro":
-            return (date.today() + timedelta(days=1)).strftime("%d.%m.%Y")
-        case "pojutrze":
-            return (date.today() + timedelta(days=2)).strftime("%d.%m.%Y")
-        case _:
-            raise ValueError("Niepoprawny format daty (dd.mm.rrrr lub dzisiaj, jutro, pojutrze)")
+        return text.format(**kwargs)
+    except IndexError:  # means no placeholders to substitute
+        logger.info(
+            "No placeholders to substitute in the url template. Returning unchanged."
+        )
+        return text
+    except KeyError as e:  # means some variables are missing
+        raise SettingsLoadError(
+            "Unable to fill url template to make a request. Missing variable: %s." % e
+        )
