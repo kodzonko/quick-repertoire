@@ -9,8 +9,8 @@ import requests
 from loguru import logger
 from requests_html import HTMLSession
 
-from repertoire_parser.cinema import Cinema
 from settings.settings import Settings
+from src.request_processor import Cinema
 
 
 class CinemaCity(Cinema):
@@ -92,7 +92,7 @@ class CinemaCity(Cinema):
 
         # TODO: Add exception handling
         cinemas = {}
-        with open(file=_path, mode="r", encoding="utf8") as f:
+        with open(file=_path, encoding="utf8") as f:
             try:
                 cinemas = json.load(fp=f)
             except JSONDecodeError:

@@ -1,5 +1,0 @@
-pyppeteer~=0.2.5
-pytest~=6.2.5
-PyYAML~=6.0
-requests~=2.26.0
-setuptools~=57.4.0

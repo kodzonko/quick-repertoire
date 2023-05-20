@@ -4,11 +4,11 @@ default_language_version:
 repos:
   # A tool to upgrade syntax for newer versions of Python
   - repo: https://github.com/asottile/pyupgrade
-    rev: v2.31.0
+    rev: v3.4.0
     hooks:
       - id: pyupgrade
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.0.1
+    rev: v4.4.0
     hooks:
       - id: debug-statements # checks for debugger imports and py37+ `breakpoint()` calls in python source
       - id: end-of-file-fixer # ensures that a file is either empty, or ends with one newline
@@ -26,18 +26,18 @@ repos:
       - id: name-tests-test # this verifies that test files are named correctly
   # Sort Python imports
   - repo: https://github.com/pycqa/isort
-    rev: 5.6.4
+    rev: 5.12.0
     hooks:
       - id: isort
         args: [--profile, black, --filter-files, --line-length, "120"]
   - repo: https://github.com/psf/black
-    rev: 21.12b0
+    rev: 23.3.0
     hooks:
       - id: black
         args: [--line-length, "120"]
   # Format frontend files
   - repo: https://github.com/pre-commit/mirrors-prettier
-    rev: v2.5.1
+    rev: v3.0.0-alpha.9-for-vscode
     hooks:
       - id: prettier
   - repo: https://github.com/Wonqu/sort_makefile/
@@ -46,6 +46,6 @@ repos:
       - id: sort_makefile
   # Git commit message linter written in Python: it checks your commit messages for style
   - repo: https://github.com/jorisroovers/gitlint
-    rev: v0.16.0
+    rev: v0.19.1
     hooks:
       - id: gitlint
