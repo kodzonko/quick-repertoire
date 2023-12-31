@@ -1,34 +1,16 @@
-"""Module containing logic interacting with cinema websites.
-
-Due to lack of official APIs for the supported cinemas, data is downloaded using web
-scraping. This module is the de-facto simplified API for the supported cinemas.
-
-Be mindful of the fact that the websites may change their structure at any time,
-urls have been abstracted away to the config file, but the logic may need to be affected
-as well.
-
-Don't overuse these functions, as too many requests may result in a ban from the
-website.
-"""
 import re
 from datetime import datetime
-from typing import Protocol
 
 from bs4 import BeautifulSoup
 from requests_html import Element, HTMLResponse, HTMLSession
 
-import utils
-from cinema_api.models import CinemaConfig, CinemaVenues, MoviePlayDetails, Repertoire
-from enums import CinemaChain
-from settings import load_config_for_cinema
-
-
-class Cinema(Protocol):
-    def fetch_repertoire(self, date: datetime, cinema_venue: str) -> list[Repertoire]:
-        """Download repertoire for a specified date from the cinema website."""
-
-    def fetch_cinema_venues_list(self) -> list[CinemaVenues]:
-        """Download list of cinema venues from the cinema website."""
+from cinema_repertoire_analyzer import utils
+from cinema_repertoire_analyzer.cinema_api.models import (
+    CinemaVenue,
+    MoviePlayDetails,
+    Repertoire,
+)
+from cinema_repertoire_analyzer.enums import CinemaChain
 
 
 class CinemaCity:
@@ -40,8 +22,7 @@ class CinemaCity:
         self.cinema_venues_url = cinema_venues_url
 
     def fetch_repertoire(self, date: datetime, venue_id: int) -> list[Repertoire]:
-        """Download repertoire for a specified date and venue from the cinema website.
-        """
+        """Download repertoire for a specified date and venue from the cinema website."""
         repertoire_date = date.strftime("%Y-%m-%d")
         session = HTMLSession()
         url = utils.fill_string_template(
@@ -64,19 +45,17 @@ class CinemaCity:
             # Presale movies in repertoire have different HTML structure
             # and are not available on selected date, so we skip.
             if not is_presale:
-                output.append(
-                    {
-                        "title": self._parse_title(movie),
-                        "genres": self._parse_genres(movie),
-                        "play_length": self._parse_play_length(movie),
-                        "original_language": self._parse_original_language(movie),
-                        "play_details": self._parse_play_details(movie),
-                    }
-                )
+                output.append({
+                    "title": self._parse_title(movie),
+                    "genres": self._parse_genres(movie),
+                    "play_length": self._parse_play_length(movie),
+                    "original_language": self._parse_original_language(movie),
+                    "play_details": self._parse_play_details(movie),
+                })
 
         return output
 
-    def fetch_cinema_venues_list(self) -> list[CinemaVenues]:
+    def fetch_cinema_venues_list(self) -> list[CinemaVenue]:
         """Download list of cinema venues from the cinema website."""
         session = HTMLSession()
         response = session.get(self.cinema_venues_url, verify=False)
@@ -85,7 +64,7 @@ class CinemaCity:
         venues = [cinema.element.get("data-tokens") for cinema in cinemas]
         ids = [int(cinema.element.get("value")) for cinema in cinemas]
 
-        output: list[CinemaVenues] = []
+        output: list[CinemaVenue] = []
         for venue, id_ in zip(venues, ids):
             output.append({"name": venue, "id": id_})
 
@@ -114,10 +93,13 @@ class CinemaCity:
     def _parse_play_format(self, html: Element) -> str:
         """Parse HTML element of a single movie to extract play format."""
         formats_section = html.find("ul", class_="qb-screening-attributes")
-        formats = formats_section.find_all(
-            "span", attrs={"aria-label": re.compile("Screening type")}
-        )
-        return " ".join([f.text.strip() for f in formats])
+        try:
+            formats = formats_section.find_all(
+                "span", attrs={"aria-label": re.compile("Screening type")}
+            )
+            return " ".join([f.text.strip() for f in formats])
+        except AttributeError:
+            return "Brak informacji"
 
     def _parse_play_times(self, html: Element) -> list[str]:
         """Parse HTML element of a single movie to extract play times."""
@@ -132,65 +114,21 @@ class CinemaCity:
         language = html.find(
             "span", attrs={"aria-label": re.compile("subbed-lang|dubbed-lang")}
         )
-
-        return (
-            f"{sub_dub_or_original_prefix.text.strip()}{': ' if language else ''}{language.text.strip() if language else ''}"
-        )
+        try:
+            return (
+                f"{sub_dub_or_original_prefix.text.strip()}{': ' if language else ''}{language.text.strip() if language else ''}"
+            )
+        except AttributeError:
+            return "Brak informacji"
 
     def _parse_play_details(self, html: Element) -> list[MoviePlayDetails]:
-        """Parse HTML element of a single movie to extract play formats, languages and respective play times.
-        """
+        """Parse HTML element of a single movie to extract play formats, languages and respective play times."""
         output = []
         play_details = html.find_all("div", class_="qb-movie-info-column")
         for html in play_details:
-            output.append(
-                {
-                    "format": self._parse_play_format(html),
-                    "play_times": self._parse_play_times(html),
-                    "play_language": self._parse_play_language(html),
-                }
-            )
+            output.append({
+                "format": self._parse_play_format(html),
+                "play_times": self._parse_play_times(html),
+                "play_language": self._parse_play_language(html),
+            })
         return output
-
-
-class Helios:
-    """Class handling interactions with Helios website."""
-
-    def __init__(self, repertoire_url: str, cinema_venues_url: str) -> None:
-        self.cinema_chain = CinemaChain.HELIOS
-        self.repertoire_url = repertoire_url
-        self.cinema_venues_url = cinema_venues_url
-        raise NotImplementedError
-
-    def fetch_repertoire(self, date: datetime, cinema_venue: str) -> list[Repertoire]:
-        raise NotImplementedError
-
-    def fetch_cinema_venues_list(self) -> list[CinemaVenues]:
-        raise NotImplementedError
-
-
-class Multikino:
-    """Class handling interactions with Multikino website."""
-
-    def __init__(self, repertoire_url: str, cinema_venues_url: str) -> None:
-        self.cinema_chain = CinemaChain.MULTIKINO
-        self.repertoire_url = repertoire_url
-        self.cinema_venues_url = cinema_venues_url
-        raise NotImplementedError
-
-    def fetch_repertoire(self, date: datetime, cinema_venue: str) -> list[Repertoire]:
-        raise NotImplementedError
-
-    def fetch_cinema_venues_list(self) -> list[CinemaVenues]:
-        raise NotImplementedError
-
-
-def cinema_factory(cinema_chain: CinemaChain) -> Cinema:
-    config: CinemaConfig = load_config_for_cinema(cinema_chain)
-    enum_class_mapping = {
-        CinemaChain.CINEMA_CITY: CinemaCity,
-        CinemaChain.HELIOS: Helios,
-        CinemaChain.MULTIKINO: Multikino,
-    }
-
-    return enum_class_mapping[cinema_chain](**config)

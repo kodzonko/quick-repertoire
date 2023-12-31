@@ -7,10 +7,10 @@ from mockito import args, mock, when
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.query import Query, RowReturningQuery
 
-from database.database_manager import DatabaseManager
-from database.models import CinemaVenues
-from enums import CinemaChain
-from exceptions import DBConnectionError
+from cinema_repertoire_analyzer.database.database_manager import DatabaseManager
+from cinema_repertoire_analyzer.database.models import CinemaVenues
+from cinema_repertoire_analyzer.enums import CinemaChain
+from cinema_repertoire_analyzer.exceptions import DBConnectionError
 
 
 @pytest.fixture

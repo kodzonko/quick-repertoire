@@ -4,14 +4,13 @@ import pytest
 from mockito import mock, when
 from requests_html import HTML, HTMLResponse, HTMLSession
 
-import cinema_api.cinema as tested_module
-from cinema_api.cinema import CinemaCity
-from unittests.conftest import RESOURCE_DIR
+import cinema_repertoire_analyzer.cinema_api.cinema as tested_module
+from unit.conftest import RESOURCE_DIR
 
 
 @pytest.fixture
-def cinema_city() -> CinemaCity:
-    return CinemaCity(
+def cinema_city() -> tested_module.CinemaCity:
+    return tested_module.CinemaCity(
         repertoire_url="https://www.cinema-city.pl/#/buy-tickets-by-cinema?in-cinema={cinema_venue_id}&at={repertoire_date}",
         cinema_venues_url="https://www.cinema-city.pl/#/buy-tickets-by-cinema",
     )
@@ -35,7 +34,7 @@ def response(session: HTMLSession) -> HTMLResponse:
 
 
 def test_fetch_repertoire_downloads_and_parses_repertoire_correctly(
-    cinema_city: CinemaCity, session: HTMLSession, response: HTMLResponse
+    cinema_city: tested_module.CinemaCity, session: HTMLSession, response: HTMLResponse
 ) -> None:
     when(tested_module).HTMLSession().thenReturn(session)
     when(session).get(

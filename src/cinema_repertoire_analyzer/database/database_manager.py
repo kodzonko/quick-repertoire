@@ -2,6 +2,7 @@
 
 In general, functions in this class will call the database directly.
 """
+
 import datetime
 from pathlib import Path
 from sqlite3 import Error
@@ -9,10 +10,10 @@ from sqlite3 import Error
 import sqlalchemy
 from loguru import logger
 
-import settings
-from database.models import CinemaVenues, Repertoire
-from enums import CinemaChain
-from exceptions import DBConnectionError
+from cinema_repertoire_analyzer import settings
+from cinema_repertoire_analyzer.database.models import CinemaVenues, Repertoire
+from cinema_repertoire_analyzer.enums import CinemaChain
+from cinema_repertoire_analyzer.exceptions import DBConnectionError
 
 
 class DatabaseManager:
@@ -77,9 +78,9 @@ class DatabaseManager:
             if city:
                 clauses.append(CinemaVenues.city == city)
             if format:
-                clauses.append(Repertoire.movie_format == format)
+                clauses.append(Repertoire.play_format == format)
             if language:
-                clauses.append(Repertoire.movie_language == language)
+                clauses.append(Repertoire.play_language == language)
             return session.query(Repertoire).filter(*clauses).all()
 
     def get_venue_by_venue_id(self, venue_id: int) -> CinemaVenues:

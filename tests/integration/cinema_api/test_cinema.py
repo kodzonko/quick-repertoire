@@ -1,6 +1,0 @@
-def test_fetch_repertoire_downloads_and_parses_repertoire_correctly() -> None:
-    ...
-
-
-def fetch_cinema_venues_list_downloads_list_of_cinema_venues_correctly() -> None:
-    ...

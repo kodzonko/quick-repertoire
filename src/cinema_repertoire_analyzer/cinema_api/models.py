@@ -1,6 +1,6 @@
 from typing import TypedDict
 
-from enums import CinemaChain
+from cinema_repertoire_analyzer.enums import CinemaChain
 
 
 class MoviePlayDetails(TypedDict):
@@ -21,7 +21,7 @@ class Repertoire(TypedDict):
     play_details: list[MoviePlayDetails]
 
 
-class CinemaVenues(TypedDict):
+class CinemaVenue(TypedDict):
     """Dictionary structure of cinema venues as parsed from the cinema website."""
 
     name: str

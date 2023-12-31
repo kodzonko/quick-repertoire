@@ -1,6 +1,6 @@
 from loguru import logger
 
-from exceptions import SettingsLoadError
+from cinema_repertoire_analyzer.exceptions import SettingsLoadError
 
 
 def fill_string_template(text: str, **kwargs) -> str:

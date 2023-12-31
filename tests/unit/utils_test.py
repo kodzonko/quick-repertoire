@@ -2,8 +2,8 @@ from typing import Any
 
 import pytest
 
-from exceptions import SettingsLoadError
-from utils import fill_string_template
+from cinema_repertoire_analyzer.exceptions import SettingsLoadError
+from cinema_repertoire_analyzer.utils import fill_string_template
 
 
 @pytest.mark.parametrize(
