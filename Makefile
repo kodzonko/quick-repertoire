@@ -1,29 +1,26 @@
-PROJ_DIR=$(dir $(abspath $(lastword $(MAKEFILE_LIST))))
-SRC=$(PROJ_DIR)src
-TESTS=$(PROJ_DIR)tests
-
-run:
-	poetry run python $(SRC)/main.py
-
-test-unit:
-	poetry run pytest --failed-first --new-first --cov=$(SRC) $(TESTS)/unittests
-
-test-int:
-	poetry run pytest $(TESTS)/integration
+PROJECT_ROOT := $(dir $(abspath $(firstword $(MAKEFILE_LIST))))
+SRC := $(PROJECT_ROOT)src
+TESTS := $(PROJECT_ROOT)tests
 
 install:
 	poetry install
 
-update:
-	poetry update
+format:
+	poetry run black --config $(PROJECT_ROOT)pyproject.toml $(SRC) $(TESTS)
+	poetry run isort --settings-path $(PROJECT_ROOT)pyproject.toml $(SRC) $(TESTS)
+	poetry run pautoflake --recursive --in-place --expand-star-imports --remove-all-unused-imports --ignore-init-module-imports $(SRC) $(TESTS)
 
 lint:
-	poetry run black $(SRC)
-	poetry run black $(TESTS)
-	poetry run isort $(SRC)
-	poetry run isort $(TESTS)
-	poetry run pautoflake $(SRC)
-	poetry run pautoflake $(TESTS)
-	poetry run flake8 --toml-config $(PROJ_DIR)pyproject.toml $(SRC)
-	poetry run flake8 --toml-config $(PROJ_DIR)pyproject.toml $(TESTS)
-	poetry run bandit -r $(SRC)
+	poetry run ruff $(SRC)
+
+run:
+	poetry run python $(SRC)/cinema_repertoire_analyzer/main.py
+
+test-int:
+	poetry run pytest $(TESTS)/integration
+
+test-unit:
+	poetry run pytest --failed-first --new-first --cov=$(SRC) $(TESTS)/unit
+
+update:
+	poetry update
