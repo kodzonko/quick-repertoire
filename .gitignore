@@ -6,3 +6,5 @@ venv/
 .coverage
 .github/
 .mypy_cache/
+.run/
+node_modules/
