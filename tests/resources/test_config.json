@@ -1,0 +1,20 @@
+{
+  "user_preferences": {
+    "default_cinema": "Cinema City",
+    "default_cinema_venue": "Wrocław - Wroclavia",
+    "default_day": "today",
+    "db_file": "tests/resources/test_db.sqlite"
+  },
+  "cinema_city_settings": {
+    "repertoire_url": "https://www.cinema-city.pl/#/buy-tickets-by-cinema?in-cinema={cinema_venue_id}&at={repertoire_date}",
+    "venues_list_url": "https://www.cinema-city.pl/#/buy-tickets-by-cinema"
+  },
+  "helios_settings": {
+    "repertoire_url": "https://www.helios.pl/{cinema_venue_id_name}/Repertuar/index/dzien/{repertoire_date}/kino/{cinema_venue_id}",
+    "venues_list_url": "https://www.helios.pl/47,Lodz/MapaKin/"
+  },
+  "multikino_settings": {
+    "repertoire_url": "https://multikino.pl/repertuar/{cinema_venue_id}?data={repertoire_date}",
+    "venues_list_url": "https://multikino.pl/nasze-kina"
+  }
+}
