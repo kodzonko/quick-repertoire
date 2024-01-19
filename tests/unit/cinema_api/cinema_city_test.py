@@ -4,7 +4,7 @@ import pytest
 from mockito import mock, when
 from requests_html import HTML, HTMLResponse, HTMLSession
 
-import cinema_repertoire_analyzer.cinema_api.cinema as tested_module
+import cinema_repertoire_analyzer.cinema_api.cinema_city as tested_module
 from unit.conftest import RESOURCE_DIR
 
 
@@ -33,6 +33,7 @@ def response(session: HTMLSession) -> HTMLResponse:
     return response
 
 
+@pytest.mark.unit
 def test_fetch_repertoire_downloads_and_parses_repertoire_correctly(
     cinema_city: tested_module.CinemaCity, session: HTMLSession, response: HTMLResponse
 ) -> None:
