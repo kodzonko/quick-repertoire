@@ -17,19 +17,15 @@ rich = "^13.7.0"
 
 [tool.poetry.group.dev.dependencies]
 pydocstyle = "^6.3.0"
-pylama = { extras = ["all"], version = "^8.4.1" }
 mypy = "^0.991"
-bandit = "^1.7.4"
 pytest = "^7.2.1"
 isort = "^5.11.4"
-black = "^22.12.0"
 flake8-pyproject = "^1.2.2"
 types-pyyaml = "^6.0.12.8"
 mockito = "^1.4.0"
 types-toml = "^0.10.8.5"
 pytest-cov = "^4.0.0"
 pre-commit = "^3.2.0"
-pyproject-autoflake = "^1.0.2"
 pytest-vcr = "^1.0.2"
 ruff = "^0.1.8"
 types-beautifulsoup4 = "^4.12.0.7"
@@ -39,22 +35,6 @@ autoflake = "^2.2.1"
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
-
-[tool.isort]
-profile = "black"
-src_paths = ["src", "tests"]
-
-[tool.black]
-line-length = 88
-target-version = ['py311']
-include = '\.pyi?$'
-preview = true
-exclude = '''
-(
-    __pycache__,
-    .pytest_cache
-)
-'''
 
 [tool.pytest]
 asyncio_mode = "auto"
@@ -78,46 +58,24 @@ target-version = "py310"
 task-tags = ["TODO"]
 ignore = ["D100", "D107"]
 
+[tool.ruff.format]
+quote-style = "double"
+docstring-code-line-length = 88
+line-ending = "lf"
+skip-magic-trailing-comma = true
+
 [tool.ruff.pydocstyle]
 convention = "google"
 
 [tool.ruff.pycodestyle]
 max-doc-length = 88
 
+[tool.ruff.lint.pylint]
+allow-dunder-method-names = ["__tablename__"]
+
 [tool.ruff.flake8-pytest-style]
 fixture-parentheses = false
+mark-parentheses = false
 
-[tool.flake8]
-max-line-length = 88
-count = true
-exclude = [".git", "__pycache__", ".pytest_cache"]
-per-file-ignores = ["__init__.py: F401"] # imported but unused
-max-complexity = 10
-exit-zero = true
-
-[tool.pylama]
-format = "pylint"
-skip = "*/.tox/*,*/.env/*"
-linters = [
-  "eradicate",
-  "mccabe",
-  "mypy",
-  "pycodestyle",
-  "pydocstyle",
-  "pylint",
-  "isort",
-]
-
-[tool.autoflake]
-# return error code if changes are needed
-check = false
-# make changes to files instead of printing diffs
-in-place = true
-# drill down directories recursively
-recursive = true
-expand-star-imports = true
-# remove all unused imports (not just those from the standard library)
-remove-all-unused-imports = true
-# exclude __init__.py when removing unused imports
-ignore-init-module-imports = true
-quiet = true
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"

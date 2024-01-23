@@ -7,9 +7,8 @@ install:
 	poetry install
 
 format:
-	poetry run black --config $(CONFIG_FILE) $(SRC) $(TESTS)
-	poetry run isort --settings-path $(CONFIG_FILE) $(SRC) $(TESTS)
-	poetry run pautoflake --recursive --in-place --expand-star-imports --remove-all-unused-imports --ignore-init-module-imports $(SRC) $(TESTS)
+	poetry run ruff format $(SRC) $(TESTS)
+	poetry run autoflake --recursive --in-place --expand-star-imports --remove-all-unused-imports --ignore-init-module-imports $(SRC) $(TESTS)
 
 lint:
 	poetry run ruff $(SRC)
