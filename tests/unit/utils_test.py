@@ -2,8 +2,8 @@ from typing import Any
 
 import pytest
 
+from cinema_repertoire_analyzer.cinema_api.cinema_utils import fill_string_template
 from cinema_repertoire_analyzer.exceptions import SettingsLoadError
-from cinema_repertoire_analyzer.utils import fill_string_template
 
 
 @pytest.mark.parametrize(
@@ -13,11 +13,7 @@ from cinema_repertoire_analyzer.utils import fill_string_template
         ("some{a}text{a}", {"a": "qwerty", "b": 123}, "someqwertytextqwerty"),
         (
             "lorem {a_placeholder} dolor://{other_placeholder_11}",
-            {
-                "a_placeholder": "ipsum",
-                "other_placeholder_11": "sit",
-                "redundant_var": False,
-            },
+            {"a_placeholder": "ipsum", "other_placeholder_11": "sit", "redundant_var": False},
             "lorem ipsum dolor://sit",
         ),
         ("{} no placeholders", {"fizz": "buzz"}, "{} no placeholders"),

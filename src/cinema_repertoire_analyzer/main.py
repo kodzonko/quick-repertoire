@@ -21,12 +21,8 @@ def make_app(settings: Settings = get_settings()) -> typer.Typer:
 
     @app.command()
     def repertoire(
-        cinema: Annotated[
-            str, typer.Argument()
-        ] = settings.user_preferences.default_cinema,
-        venue: Annotated[
-            str, typer.Argument()
-        ] = settings.user_preferences.default_cinema_venue,
+        cinema: Annotated[str, typer.Argument()] = settings.user_preferences.default_cinema,
+        venue: Annotated[str, typer.Argument()] = settings.user_preferences.default_cinema_venue,
         date: Annotated[str, typer.Argument()] = settings.user_preferences.default_day,
     ):
         cinema = cinema_input_parser(cinema)
@@ -36,9 +32,7 @@ def make_app(settings: Settings = get_settings()) -> typer.Typer:
 
     @app.command()
     def list_venues(
-        cinema: Annotated[
-            str, typer.Argument()
-        ] = settings.user_preferences.default_cinema,
+        cinema: Annotated[str, typer.Argument()] = settings.user_preferences.default_cinema,
     ):
         cinema_chain = cinema_input_parser(cinema)
         venues = db_manager.get_cinema_venues(cinema_chain)
@@ -46,9 +40,7 @@ def make_app(settings: Settings = get_settings()) -> typer.Typer:
 
     @app.command()
     def update_venues(
-        cinema_name: Annotated[
-            str, typer.Argument()
-        ] = settings.user_preferences.default_cinema,
+        cinema_name: Annotated[str, typer.Argument()] = settings.user_preferences.default_cinema,
     ):
         cinema_chain = cinema_input_parser(cinema_name)
         print(f"Updating venues for {cinema_chain.value}...")

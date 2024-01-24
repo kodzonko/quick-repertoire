@@ -4,16 +4,13 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 from requests_html import Element, HTMLResponse, HTMLSession
 
-from cinema_repertoire_analyzer import utils
-from cinema_repertoire_analyzer.cinema_api.models import (
-    CinemaVenue,
-    MoviePlayDetails,
-    Repertoire,
-)
+from cinema_repertoire_analyzer.cinema_api.cinema import Cinema
+from cinema_repertoire_analyzer.cinema_api.cinema_utils import fill_string_template
+from cinema_repertoire_analyzer.cinema_api.models import CinemaVenue, MoviePlayDetails, Repertoire
 from cinema_repertoire_analyzer.enums import CinemaChain
 
 
-class CinemaCity:
+class CinemaCity(Cinema):
     """Class handling interactions with www.cinema-city.pl website."""
 
     def __init__(self, repertoire_url: str, cinema_venues_url: str) -> None:
@@ -25,10 +22,8 @@ class CinemaCity:
         """Download repertoire for a specified date and venue from the cinema website."""
         repertoire_date = date.strftime("%Y-%m-%d")
         session = HTMLSession()
-        url = utils.fill_string_template(
-            self.repertoire_url,
-            cinema_venue_id=venue_id,
-            repertoire_date=repertoire_date,
+        url = fill_string_template(
+            self.repertoire_url, cinema_venue_id=venue_id, repertoire_date=repertoire_date
         )
         response: HTMLResponse = session.get(url)
         response.html.render()  # render JS elements
@@ -39,19 +34,20 @@ class CinemaCity:
         for movie in movies_details:
             presale_header = movie.find("h4")
             is_presale = (
-                presale_header is not None
-                and presale_header.text == "KUP BILET W PRZEDSPRZEDAŻY"
+                presale_header is not None and presale_header.text == "KUP BILET W PRZEDSPRZEDAŻY"
             )
             # Presale movies in repertoire have different HTML structure
             # and are not available on selected date, so we skip.
             if not is_presale:
-                output.append({
-                    "title": self._parse_title(movie),
-                    "genres": self._parse_genres(movie),
-                    "play_length": self._parse_play_length(movie),
-                    "original_language": self._parse_original_language(movie),
-                    "play_details": self._parse_play_details(movie),
-                })
+                output.append(
+                    {
+                        "title": self._parse_title(movie),
+                        "genres": self._parse_genres(movie),
+                        "play_length": self._parse_play_length(movie),
+                        "original_language": self._parse_original_language(movie),
+                        "play_details": self._parse_play_details(movie),
+                    }
+                )
 
         return output
 
@@ -111,13 +107,9 @@ class CinemaCity:
         sub_dub_or_original_prefix = html.find(
             "span", attrs={"aria-label": re.compile("subAbbr|dubAbbr|noSubs")}
         )
-        language = html.find(
-            "span", attrs={"aria-label": re.compile("subbed-lang|dubbed-lang")}
-        )
+        language = html.find("span", attrs={"aria-label": re.compile("subbed-lang|dubbed-lang")})
         try:
-            return (
-                f"{sub_dub_or_original_prefix.text.strip()}{': ' if language else ''}{language.text.strip() if language else ''}"
-            )
+            return f"{sub_dub_or_original_prefix.text.strip()}{': ' if language else ''}{language.text.strip() if language else ''}"
         except AttributeError:
             return "Brak informacji"
 
@@ -126,9 +118,11 @@ class CinemaCity:
         output = []
         play_details = html.find_all("div", class_="qb-movie-info-column")
         for html in play_details:
-            output.append({
-                "format": self._parse_play_format(html),
-                "play_times": self._parse_play_times(html),
-                "play_language": self._parse_play_language(html),
-            })
+            output.append(
+                {
+                    "format": self._parse_play_format(html),
+                    "play_times": self._parse_play_times(html),
+                    "play_language": self._parse_play_language(html),
+                }
+            )
         return output

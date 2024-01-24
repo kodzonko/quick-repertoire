@@ -24,9 +24,7 @@ def session() -> HTMLSession:
 @pytest.fixture
 def response(session: HTMLSession) -> HTMLResponse:
     response = mock(HTMLResponse)
-    with open(
-        RESOURCE_DIR / "cinema_city_example_repertoire.html", encoding="utf-8"
-    ) as f:
+    with open(RESOURCE_DIR / "cinema_city_example_repertoire.html", encoding="utf-8") as f:
         response.html = mock(HTML)
         response.html.html = f.read()
         response.session = session
@@ -45,7 +43,4 @@ def test_fetch_repertoire_downloads_and_parses_repertoire_correctly(
     when(session).close()
     expected = []
 
-    assert (
-        cinema_city.fetch_repertoire(date=datetime(2023, 4, 1), venue_id=1097)
-        == expected
-    )
+    assert cinema_city.fetch_repertoire(date=datetime(2023, 4, 1), venue_id=1097) == expected
