@@ -3,15 +3,14 @@
 In general, functions in this class will call the database directly.
 """
 
-import datetime
-from pathlib import Path
+from os import PathLike
 from sqlite3 import Error
 
 import sqlalchemy
 from loguru import logger
 
-from cinema_repertoire_analyzer import settings
-from cinema_repertoire_analyzer.database.models import CinemaVenues, Repertoire
+from cinema_repertoire_analyzer.database.db_utils import get_table_by_cinema_chain
+from cinema_repertoire_analyzer.database.models import CinemaVenuesBase
 from cinema_repertoire_analyzer.enums import CinemaChain
 from cinema_repertoire_analyzer.exceptions import DBConnectionError
 
@@ -19,7 +18,7 @@ from cinema_repertoire_analyzer.exceptions import DBConnectionError
 class DatabaseManager:
     """Class responsible for connecting to the database and executing queries."""
 
-    def __init__(self, db_file_path: Path | str = settings.DB_FILE_PATH) -> None:
+    def __init__(self, db_file_path: PathLike) -> None:
         try:
             engine = sqlalchemy.create_engine(f"sqlite:///{db_file_path}")
             self._session_constructor = sqlalchemy.orm.sessionmaker(engine)
@@ -28,62 +27,29 @@ class DatabaseManager:
             logger.error("Unable to connect with the database: %s.", e)
             raise DBConnectionError("Failed to connect with the database.")
 
-    def get_cinema_venues(
-        self, cinema: CinemaChain, city: str | None = None
-    ) -> list[str]:
-        """Get all cinema venues for a specified cinema chain from the database.
-
-        Optionally filter by city.
-        """
-        queries = [CinemaVenues.cinema_chain == str(cinema)]
-        if city:
-            queries.append(CinemaVenues.city == city)
-
+    def get_cinema_venues(self, cinema_chain: CinemaChain) -> list[CinemaVenuesBase]:
+        """Get all cinema venues for a specified cinema chain from the database."""
+        table = get_table_by_cinema_chain(cinema_chain)
         with self._session_constructor() as session:
-            results = (
-                session.query(CinemaVenues.venue_name)
-                .filter(*queries)
-                .group_by(CinemaVenues.city)
-                .all()
-            )
-            return [item[0] for item in results]
+            results = session.query(table).all()
+            return results
 
-    def update_cinema_venues(self, venues: list[CinemaVenues]) -> None:
+    def update_cinema_venues(
+        self, cinema_chain: CinemaChain, venues: list[CinemaVenuesBase]
+    ) -> None:
         """Update cinema venues in the database.
 
         Function will remove all records from the table and insert new ones.
         """
+        table = get_table_by_cinema_chain(cinema_chain)
         with self._session_constructor() as session:
-            session.query(CinemaVenues).delete()
+            session.query(table).delete()
             session.add_all(venues)
 
-    def get_repertoire(
-        self,
-        date: datetime.date,
-        cinema: CinemaChain,
-        *,
-        venue: str | None = None,
-        city: str | None = None,
-        format: str | None = None,
-        language: str | None = None,
-    ) -> list[Repertoire]:
-        """Get repertoire matching specified date and cinema."""
+    def get_venue_by_venue_name(
+        self, cinema_chain: CinemaChain, venue_name: str
+    ) -> CinemaVenuesBase:
+        """Get venue by name."""
+        table = get_table_by_cinema_chain(cinema_chain)
         with self._session_constructor() as session:
-            clauses = [
-                Repertoire.play_time == date,
-                CinemaVenues.cinema_chain == str(cinema),
-            ]
-            if venue:
-                clauses.append(CinemaVenues.venue_name == venue)
-            if city:
-                clauses.append(CinemaVenues.city == city)
-            if format:
-                clauses.append(Repertoire.play_format == format)
-            if language:
-                clauses.append(Repertoire.play_language == language)
-            return session.query(Repertoire).filter(*clauses).all()
-
-    def get_venue_by_venue_id(self, venue_id: int) -> CinemaVenues:
-        """Get venue by id."""
-        with self._session_constructor() as session:
-            return session.query(CinemaVenues).filter_by(venue_id=venue_id).one()
+            return session.query(table).filter_by(venue_name=venue_name).one()
