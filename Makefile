@@ -2,6 +2,7 @@ PROJECT_ROOT := $(dir $(abspath $(firstword $(MAKEFILE_LIST))))
 SRC := $(PROJECT_ROOT)src
 TESTS := $(PROJECT_ROOT)tests
 CONFIG_FILE := $(PROJECT_ROOT)pyproject.toml
+.PHONY: install format lint test-e2e test-int test-unit update
 
 install:
 	poetry install
@@ -12,9 +13,6 @@ format:
 
 lint:
 	poetry run ruff $(SRC)
-
-run:
-	poetry run python $(SRC)/cinema_repertoire_analyzer/main.py
 
 test-e2e:
 	poetry run pytest -m e2e
