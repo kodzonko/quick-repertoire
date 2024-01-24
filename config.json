@@ -3,7 +3,7 @@
     "default_cinema": "Cinema City",
     "default_cinema_venue": "Wrocław - Wroclavia",
     "default_day": "today",
-    "db_file_path": "./db.sqlite"
+    "_db_file_path_relative": "db.sqlite"
   },
   "cinema_city_settings": {
     "repertoire_url": "https://www.cinema-city.pl/#/buy-tickets-by-cinema?in-cinema={cinema_venue_id}&at={repertoire_date}",
