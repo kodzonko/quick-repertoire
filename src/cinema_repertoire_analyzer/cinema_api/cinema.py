@@ -11,18 +11,18 @@ Don't overuse these functions, as too many requests may result in a ban from the
 website.
 """
 
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Protocol
 
-from cinema_repertoire_analyzer.cinema_api.models import CinemaVenue, Repertoire
+from cinema_repertoire_analyzer.cinema_api.models import Repertoire
+from cinema_repertoire_analyzer.database.models import CinemaVenuesBase
 
 
-class Cinema(Protocol):
+class Cinema(ABC):
     @abstractmethod
     def fetch_repertoire(self, date: datetime, cinema_venue: str) -> list[Repertoire]:
         """Download repertoire for a specified date from the cinema website."""
 
     @abstractmethod
-    def fetch_cinema_venues_list(self) -> list[CinemaVenue]:
+    def fetch_cinema_venues_list(self) -> list[CinemaVenuesBase]:
         """Download list of cinema venues from the cinema website."""
