@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import TypeAlias
 
-from pydantic import AnyHttpUrl, PrivateAttr, computed_field
+from pydantic import AnyHttpUrl, PrivateAttr, computed_field, ConfigDict
 from pydantic_settings import BaseSettings
 
 from cinema_repertoire_analyzer.enums import CinemaChain
@@ -53,14 +53,13 @@ class Settings(BaseSettings):
     helios_settings: CinemaCitySettings
     multikino_settings: MultikinoSettings
 
+    model_config = ConfigDict(extra="ignore")
+
     @classmethod
     def from_file(cls, file_path: str):
         with open(file_path, encoding="utf-8") as file:
             data = json.load(file)
         return cls.model_validate(data)
-
-    class Config:
-        extra = "ignore"
 
 
 @lru_cache
