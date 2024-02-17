@@ -45,6 +45,7 @@ class DatabaseManager:
         with self._session_constructor() as session:
             session.query(table).delete()
             session.add_all(venues)
+            session.commit()
 
     def get_venue_by_venue_name(
         self, cinema_chain: CinemaChain, venue_name: str

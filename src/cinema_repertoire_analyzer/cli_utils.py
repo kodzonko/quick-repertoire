@@ -53,7 +53,7 @@ def _venue_results_to_table_title(venue: CinemaVenuesBase) -> str:
     return f"Kina sieci {venues_class_to_table_title_mapping[venue.__table__.name]}"
 
 
-def db_venues_to_cli(venues: list[CinemaVenuesBase], sink: Console) -> str:
+def db_venues_to_cli(venues: list[CinemaVenuesBase], sink: Console) -> None:
     """Convert list of venues to a string."""
     if not venues:
         sink.print("Brak kin tej sieci w bazie danych.")
