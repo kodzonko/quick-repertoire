@@ -5,8 +5,9 @@ from bs4 import BeautifulSoup
 from requests_html import Element, HTMLResponse, HTMLSession
 
 from cinema_repertoire_analyzer.cinema_api.cinema import Cinema
-from cinema_repertoire_analyzer.cinema_api.cinema_utils import fill_string_template
-from cinema_repertoire_analyzer.cinema_api.models import CinemaVenue, MoviePlayDetails, Repertoire
+from cinema_repertoire_analyzer.cinema_api.models import MoviePlayDetails, Repertoire
+from cinema_repertoire_analyzer.cinema_api.template_utils import fill_string_template
+from cinema_repertoire_analyzer.database.models import CinemaCityVenues
 from cinema_repertoire_analyzer.enums import CinemaChain
 
 
@@ -51,7 +52,7 @@ class CinemaCity(Cinema):
 
         return output
 
-    def fetch_cinema_venues_list(self) -> list[CinemaVenue]:
+    def fetch_cinema_venues_list(self) -> list[CinemaCityVenues]:
         """Download list of cinema venues from the cinema website."""
         session = HTMLSession()
         response = session.get(self.cinema_venues_url, verify=False)
@@ -60,7 +61,7 @@ class CinemaCity(Cinema):
         venues = [cinema.element.get("data-tokens") for cinema in cinemas]
         ids = [int(cinema.element.get("value")) for cinema in cinemas]
 
-        output: list[CinemaVenue] = []
+        output: list[CinemaCityVenues] = []
         for venue, id_ in zip(venues, ids):
             output.append({"name": venue, "id": id_})
 
@@ -100,7 +101,10 @@ class CinemaCity(Cinema):
     def _parse_play_times(self, html: Element) -> list[str]:
         """Parse HTML element of a single movie to extract play times."""
         times = html.find_all("a", class_="btn btn-primary btn-lg")
-        return [t.text.strip() for t in times]
+        parsed_times = [re.sub(r"\s+", " ", t.text) for t in times]
+        parsed_times = [t.strip() for t in parsed_times]
+        print(parsed_times)
+        return parsed_times
 
     def _parse_play_language(self, html: Element) -> str:
         """Parse HTML element of a single movie to extract play language."""

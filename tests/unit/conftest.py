@@ -4,8 +4,6 @@ from typing import Any
 import pytest
 from vcr import VCR
 
-RESOURCE_DIR = Path(__file__).parent.parent / "resources"
-
 
 @pytest.fixture(autouse=True)
 def unstub() -> None:

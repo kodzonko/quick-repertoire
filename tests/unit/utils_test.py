@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 
-from cinema_repertoire_analyzer.cinema_api.cinema_utils import fill_string_template
+from cinema_repertoire_analyzer.cinema_api.template_utils import fill_string_template
 from cinema_repertoire_analyzer.exceptions import SettingsLoadError
 
 

@@ -1,4 +1,3 @@
-from datetime import datetime
 from sqlite3 import Error
 
 import pytest
@@ -7,15 +6,16 @@ from mockito import args, mock, when
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.query import Query, RowReturningQuery
 
+import cinema_repertoire_analyzer.database.db_utils as db_utils
 from cinema_repertoire_analyzer.database.database_manager import DatabaseManager
-from cinema_repertoire_analyzer.database.models import CinemaVenues
+from cinema_repertoire_analyzer.database.models import CinemaCityVenues
 from cinema_repertoire_analyzer.enums import CinemaChain
 from cinema_repertoire_analyzer.exceptions import DBConnectionError
 
 
 @pytest.fixture
 def db_manager() -> DatabaseManager:
-    return DatabaseManager()
+    return DatabaseManager("sqlite:///some path")
 
 
 @pytest.fixture
@@ -38,70 +38,31 @@ def row_returning_query() -> RowReturningQuery:
     return mock(RowReturningQuery)
 
 
-def test_get_cinema_venues_returns_venues_without_city_filter(
-    db_manager: DatabaseManager, session: Session, row_returning_query: RowReturningQuery
-) -> None:
-    expected = ["Cinema 1", "Cinema 2"]
-
-    when(session).__enter__().thenReturn(session)
-    when(session).__exit__(*args)
-    when(db_manager)._session_constructor().thenReturn(session)
-    when(session).query(CinemaVenues.venue_name).thenReturn(row_returning_query)
-    when(row_returning_query).filter(...).thenReturn(row_returning_query)
-    when(row_returning_query).group_by(CinemaVenues.city).thenReturn(row_returning_query)
-    when(row_returning_query).all().thenReturn([("Cinema 1",), ("Cinema 2",)])
-
-    assert db_manager.get_cinema_venues(CinemaChain.CINEMA_CITY) == expected
+@pytest.fixture
+def cinema_venues() -> list[CinemaCityVenues]:
+    return [mock(CinemaCityVenues), mock(CinemaCityVenues)]
 
 
-def test_get_cinema_venues_returns_venues_with_city_filter(
-    db_manager: DatabaseManager, session: Session, row_returning_query: RowReturningQuery
-) -> None:
-    expected = ["Cinema 1", "Cinema 2"]
-
-    when(session).__enter__().thenReturn(session)
-    when(session).__exit__(*args)
-    when(db_manager)._session_constructor().thenReturn(session)
-    when(session).query(CinemaVenues.venue_name).thenReturn(row_returning_query)
-    when(row_returning_query).filter(...).thenReturn(row_returning_query)
-    when(row_returning_query).group_by(CinemaVenues.city).thenReturn(row_returning_query)
-    when(row_returning_query).all().thenReturn([("Cinema 1",), ("Cinema 2",)])
-
-    assert db_manager.get_cinema_venues(CinemaChain.CINEMA_CITY, "some city") == expected
+@pytest.fixture
+def cinema_venue() -> CinemaCityVenues:
+    return mock(CinemaCityVenues)
 
 
 def test_update_cinema_venues_inserts_records_to_db(
-    db_manager: DatabaseManager, session: Session, query: Query
+    db_manager: DatabaseManager,
+    session: Session,
+    query: Query,
+    cinema_venues: list[CinemaCityVenues],
 ) -> None:
-    venues = ["Cinema Venue 1", "Cinema Venue 1"]
-
     when(session).__enter__().thenReturn(session)
     when(session).__exit__(*args)
     when(db_manager)._session_constructor().thenReturn(session)
-    when(session).query(CinemaVenues).thenReturn(query)
+    when(db_utils).get_table_by_cinema_chain(CinemaChain.CINEMA_CITY).thenReturn(CinemaCityVenues)
+    when(session).query(CinemaCityVenues).thenReturn(query)
     when(query).delete()
-    when(session).add_all(venues)
+    when(session).add_all(cinema_venues)
 
-    db_manager.update_cinema_venues(venues)
-
-
-def test_get_repertoire_returns_repertoire(
-    db_manager: DatabaseManager, session: Session, row_returning_query: RowReturningQuery
-) -> None:
-    when(session).__enter__().thenReturn(session)
-    when(session).__exit__(*args)
-    when(db_manager)._session_constructor().thenReturn(session)
-    when(session).query(...).thenReturn(row_returning_query)
-    when(row_returning_query).filter(...).thenReturn(row_returning_query)
-    when(row_returning_query).all().thenReturn([("Repertoire Entry 1",), ("Repertoire Entry  2",)])
-    db_manager.get_repertoire(
-        datetime(2022, 1, 1),
-        CinemaChain.CINEMA_CITY,
-        venue="some venue",
-        city="some city",
-        format="some format",
-        language="some language",
-    )
+    db_manager.update_cinema_venues(CinemaChain.CINEMA_CITY, cinema_venues)
 
 
 def test_database_manager_fails_to_create_instance_due_to_error() -> None:
@@ -111,14 +72,17 @@ def test_database_manager_fails_to_create_instance_due_to_error() -> None:
         DatabaseManager("some path")
 
 
-def test_get_venue_by_id_returns_venue(
-    db_manager: DatabaseManager, session: Session, row_returning_query: RowReturningQuery
+def test_get_venue_by_name_returns_venue(
+    db_manager: DatabaseManager,
+    session: Session,
+    row_returning_query: RowReturningQuery,
+    cinema_venue: CinemaCityVenues,
 ) -> None:
     when(session).__enter__().thenReturn(session)
     when(session).__exit__(*args)
     when(db_manager)._session_constructor().thenReturn(session)
-    when(session).query(CinemaVenues).thenReturn(row_returning_query)
-    when(row_returning_query).filter_by(venue_id=1).thenReturn(row_returning_query)
-    when(row_returning_query).one().thenReturn("some venue")
+    when(session).query(CinemaCityVenues).thenReturn(row_returning_query)
+    when(row_returning_query).filter_by(venue_name="some name").thenReturn(row_returning_query)
+    when(row_returning_query).one().thenReturn(cinema_venue)
 
-    assert db_manager.get_venue_by_venue_id(1) == "some venue"
+    assert db_manager.get_venue_by_venue_name(CinemaChain.CINEMA_CITY, "some name") == cinema_venue
