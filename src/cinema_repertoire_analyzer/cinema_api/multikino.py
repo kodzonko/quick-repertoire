@@ -1,7 +1,8 @@
 from datetime import datetime
 
 from cinema_repertoire_analyzer.cinema_api.cinema import Cinema
-from cinema_repertoire_analyzer.cinema_api.models import CinemaVenue, Repertoire
+from cinema_repertoire_analyzer.cinema_api.models import Repertoire
+from cinema_repertoire_analyzer.database.models import CinemaVenuesBase
 from cinema_repertoire_analyzer.enums import CinemaChain
 
 
@@ -16,5 +17,5 @@ class Multikino(Cinema):
     def fetch_repertoire(self, date: datetime, cinema_venue: str) -> list[Repertoire]:
         pass
 
-    def fetch_cinema_venues_list(self) -> list[CinemaVenue]:
+    def fetch_cinema_venues_list(self) -> list[CinemaVenuesBase]:
         pass
