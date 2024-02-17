@@ -2,10 +2,10 @@ import json
 from enum import StrEnum, auto
 from functools import lru_cache
 from pathlib import Path
-from typing import TypeAlias
+from typing import TypeAlias, Any
 
-from pydantic import AnyHttpUrl, PrivateAttr, computed_field, ConfigDict
-from pydantic_settings import BaseSettings
+from pydantic import AnyHttpUrl, PrivateAttr, computed_field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from cinema_repertoire_analyzer.enums import CinemaChain
 
@@ -24,10 +24,14 @@ class UserPreferences(BaseSettings):
     default_day: _AllowedDefaultDays
     _db_file_path_relative: str = PrivateAttr()
 
-    @computed_field  # type: ignore
+    @computed_field  # type: ignore[misc]
     @property
     def db_file_path(self) -> Path:
         return PROJECT_ROOT / self._db_file_path_relative
+
+    def __init__(self, _db_file_path_relative: str, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self._db_file_path_relative = _db_file_path_relative
 
 
 class CinemaCitySettings(BaseSettings):
@@ -52,8 +56,6 @@ class Settings(BaseSettings):
     cinema_city_settings: CinemaCitySettings
     helios_settings: CinemaCitySettings
     multikino_settings: MultikinoSettings
-
-    model_config = ConfigDict(extra="ignore")
 
     @classmethod
     def from_file(cls, file_path: str):
