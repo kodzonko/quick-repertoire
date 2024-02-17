@@ -9,6 +9,10 @@ class CinemaVenuesBase(Base):
 
     venue_name = Column(TEXT, primary_key=True)
 
+    def list_values(self) -> list:
+        """Return list of values for a single venue."""
+        return [getattr(self, column.name) for column in self.__table__.columns]
+
 
 class CinemaCityVenues(CinemaVenuesBase):
     __tablename__ = "cinema_city_venues"

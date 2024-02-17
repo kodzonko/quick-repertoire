@@ -53,4 +53,4 @@ def make_app(settings: Settings = get_settings()) -> typer.Typer:
 
 
 if __name__ == "__main__":
-    make_app()
+    make_app()()

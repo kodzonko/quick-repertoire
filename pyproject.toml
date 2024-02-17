@@ -31,7 +31,6 @@ ruff = "^0.1.8"
 types-beautifulsoup4 = "^4.12.0.7"
 types-html5lib = "^1.1.11.15"
 autoflake = "^2.2.1"
-sqlalchemy-stubs = "^0.4"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -47,9 +46,9 @@ pythonpath = ["src"]
 python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
-#ignore_missing_imports = true
+ignore_missing_imports = true
 check_untyped_defs = true
-plugins = ["sqlmypy"]
+#plugins = ["sqlmypy"]
 testpaths = ["tests"]
 
 [tool.mypy-tests.unit."*"]
