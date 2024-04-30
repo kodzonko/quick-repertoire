@@ -61,6 +61,7 @@ def test_update_cinema_venues_inserts_records_to_db(
     when(session).query(CinemaCityVenues).thenReturn(query)
     when(query).delete()
     when(session).add_all(cinema_venues)
+    when(session).commit()
 
     db_manager.update_cinema_venues(CinemaChain.CINEMA_CITY, cinema_venues)
 

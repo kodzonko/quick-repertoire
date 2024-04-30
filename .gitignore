@@ -8,4 +8,5 @@ venv/
 .mypy_cache/
 .run/
 node_modules/
-*.sqlite # empty db and test db are committed but we don't want to track updates
+# empty db and test db are committed but we don't want to track updates
+*.sqlite

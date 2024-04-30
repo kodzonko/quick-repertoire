@@ -103,7 +103,6 @@ class CinemaCity(Cinema):
         times = html.find_all("a", class_="btn btn-primary btn-lg")
         parsed_times = [re.sub(r"\s+", " ", t.text) for t in times]
         parsed_times = [t.strip() for t in parsed_times]
-        print(parsed_times)
         return parsed_times
 
     def _parse_play_language(self, html: Element) -> str:
