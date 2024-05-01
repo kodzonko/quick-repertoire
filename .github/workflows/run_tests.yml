@@ -11,7 +11,7 @@ jobs:
       #----------------------------------------------
       - name: Check out repository
         uses: actions/checkout@v4
-        run: cat .env >> $GITHUB_ENV
+      - run: cat .env >> $GITHUB_ENV
       - name: Set up python
         id: setup-python
         uses: actions/setup-python@v5
