@@ -20,7 +20,11 @@ def test_fetch_repertoire_downloads_and_parses_cinema_city_repertoire_correctly(
 ) -> None:
     repertoire = cinema.fetch_repertoire(date=datetime.now(), venue_id=1097)
     assert len(repertoire) > 0
-    assert type(repertoire[0]) is Repertoire
+    assert repertoire[0].get("title", None)
+    assert repertoire[0].get("genres", None)
+    assert repertoire[0].get("play_length", None)
+    assert repertoire[0].get("original_language", None)
+    assert repertoire[0].get("play_details", None)
 
 
 @pytest.mark.integration

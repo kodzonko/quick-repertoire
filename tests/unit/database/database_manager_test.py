@@ -48,6 +48,7 @@ def cinema_venue() -> CinemaCityVenues:
     return mock(CinemaCityVenues)
 
 
+@pytest.mark.unit
 def test_update_cinema_venues_inserts_records_to_db(
     db_manager: DatabaseManager,
     session: Session,
@@ -66,6 +67,7 @@ def test_update_cinema_venues_inserts_records_to_db(
     db_manager.update_cinema_venues(CinemaChain.CINEMA_CITY, cinema_venues)
 
 
+@pytest.mark.unit
 def test_database_manager_fails_to_create_instance_due_to_error() -> None:
     when(sqlalchemy).create_engine("sqlite:///some path").thenRaise(Error("some connection error"))
 
@@ -73,6 +75,7 @@ def test_database_manager_fails_to_create_instance_due_to_error() -> None:
         DatabaseManager("some path")
 
 
+@pytest.mark.unit
 def test_get_venue_by_name_returns_venue(
     db_manager: DatabaseManager,
     session: Session,

@@ -4,6 +4,8 @@ from typing import Any
 import pytest
 from vcr import VCR
 
+from conftest import RESOURCE_DIR
+
 
 @pytest.fixture(autouse=True)
 def unstub() -> None:

@@ -14,7 +14,7 @@ pydantic-settings = "^2.1.0"
 pydantic = "^2.5.3"
 sqlalchemy = "^2.0.24"
 rich = "^13.7.0"
-lxml = {extras = ["html-clean"], version = "^5.2.1"}
+lxml = { extras = ["html-clean"], version = "^5.2.1" }
 
 [tool.poetry.group.dev.dependencies]
 pydocstyle = "^6.3.0"
@@ -43,8 +43,9 @@ asyncio_mode = "auto"
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 markers = [
-    "unit: unit tests",
-    "e2e: end-to-end tests",
+  "unit: unit tests",
+  "integration: integration tests",
+  "e2e: end-to-end tests",
 ]
 
 [tool.mypy]

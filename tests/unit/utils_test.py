@@ -6,6 +6,7 @@ from cinema_repertoire_analyzer.cinema_api.template_utils import fill_string_tem
 from cinema_repertoire_analyzer.exceptions import SettingsLoadError
 
 
+@pytest.mark.unit
 @pytest.mark.parametrize(
     "text, variables, expected",
     [
@@ -25,6 +26,7 @@ def test_fill_string_template_returns_correctly_filled_string(
     assert fill_string_template(text, **variables) == expected
 
 
+@pytest.mark.unit
 def test_fill_string_template_raises_error_on_missing_variable() -> None:
     with pytest.raises(
         SettingsLoadError,

@@ -54,6 +54,7 @@ jobs:
       #----------------------------------------------
       - name: Run tests
         run: |
-          poetry run pytest --failed-first --new-first -m unit
-          poetry run pytest --failed-first --new-first -m e2e
+          poetry run pytest --failed-first --new-first --no-header -m unit
+          poetry run pytest --failed-first --new-first --no-header -m integration
+          poetry run pytest --failed-first --new-first --no-header -m e2e
           poetry run coverage report
