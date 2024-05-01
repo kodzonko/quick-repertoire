@@ -4,11 +4,11 @@ default_language_version:
 repos:
   # A tool to upgrade syntax for newer versions of Python
   - repo: https://github.com/asottile/pyupgrade
-    rev: v3.15.0
+    rev: v3.15.2
     hooks:
       - id: pyupgrade
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v4.6.0
     hooks:
       - id: debug-statements # checks for debugger imports and py37+ `breakpoint()` calls in python source
       - id: end-of-file-fixer # ensures that a file is either empty, or ends with one newline
@@ -25,7 +25,7 @@ repos:
       - id: requirements-txt-fixer # sorts entries in requirements.txt
       - id: name-tests-test # this verifies that test files are named correctly
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.1.14
+    rev: v0.4.2
     hooks:
       - id: ruff-format
         types_or: [python, pyi]
@@ -33,6 +33,7 @@ repos:
     rev: v4.0.0-alpha.8
     hooks:
       - id: prettier
+        exclude: .sqlite
   # Git commit message linter written in Python: it checks your commit messages for style
   - repo: https://github.com/jorisroovers/gitlint
     rev: v0.19.1
