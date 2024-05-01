@@ -6,6 +6,7 @@ CONFIG_FILE := $(PROJECT_ROOT)pyproject.toml
 
 install:
 	poetry install
+	poetry self add poetry-dotenv-plugin
 
 format:
 	poetry run ruff format $(SRC) $(TESTS)

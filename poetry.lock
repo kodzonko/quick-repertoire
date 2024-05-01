@@ -708,12 +708,30 @@ files = [
     {file = "lxml-5.2.1.tar.gz", hash = "sha256:3f7765e69bbce0906a7c74d5fe46d2c7a7596147318dbc08e4a2431f3060e306"},
 ]
 
+[package.dependencies]
+lxml-html-clean = {version = "*", optional = true, markers = "extra == \"html-clean\""}
+
 [package.extras]
 cssselect = ["cssselect (>=0.7)"]
 html-clean = ["lxml-html-clean"]
 html5 = ["html5lib"]
 htmlsoup = ["BeautifulSoup4"]
 source = ["Cython (>=3.0.10)"]
+
+[[package]]
+name = "lxml-html-clean"
+version = "0.1.1"
+description = "HTML cleaner from lxml project"
+category = "main"
+optional = false
+python-versions = "*"
+files = [
+    {file = "lxml_html_clean-0.1.1-py3-none-any.whl", hash = "sha256:58c04176593c9caf72ec92e033d2f38859e918b3eff0cc0f8051ad27dc2ab8ef"},
+    {file = "lxml_html_clean-0.1.1.tar.gz", hash = "sha256:8a644ed01dbbe132fabddb9467f077f6dad12a1d4f3a6a553e280f3815fa46df"},
+]
+
+[package.dependencies]
+lxml = "*"
 
 [[package]]
 name = "markdown-it-py"
@@ -2089,4 +2107,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.11,<3.12"
-content-hash = "5a2db68426608dcb15cdf78b3de2c874e507bfb717258e4b45183e9cac09b21b"
+content-hash = "3afd4c0bdea5fb1e32d2fa4ca27084d0ac142cc71c01776253ceb8d74b734d1c"
