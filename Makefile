@@ -16,13 +16,13 @@ lint:
 	poetry run ruff $(SRC)
 
 test-e2e:
-	poetry run pytest -m e2e
+	poetry run pytest --failed-first --no-header --cov=$(SRC) -m e2e
 
 test-int:
-	poetry run pytest -m integration
+	poetry run pytest --failed-first --no-header --cov=$(SRC) -m integration
 
 test-unit:
-	poetry run pytest --failed-first --new-first --cov=$(SRC) -m unit
+	poetry run pytest --failed-first --no-header --cov=$(SRC) -m unit
 
 update:
 	poetry update

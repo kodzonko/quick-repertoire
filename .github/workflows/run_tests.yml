@@ -53,9 +53,9 @@ jobs:
       #              run test suite
       #----------------------------------------------
       - name: Run unit tests
-        run: poetry run pytest --failed-first --new-first --no-header -m unit
+        run: make test-unit
       - name: Run integration tests
-        run:  poetry run pytest --failed-first --new-first --no-header -m integration
+        run:  make test-int
       - name: Run e2e tests
-        run: poetry run pytest --failed-first --new-first --no-header -m e2e
+        run: make test-e2e
       - run: poetry run coverage report
