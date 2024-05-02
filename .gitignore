@@ -7,5 +7,3 @@ __pycache__/
 .mypy_cache/
 .run/
 node_modules/
-# empty db and test db are committed but we don't want to track updates
-*.sqlite
