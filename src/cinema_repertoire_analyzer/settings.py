@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import TypeAlias, Any
 
 from pydantic import AnyHttpUrl, PrivateAttr, computed_field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings
 
 from cinema_repertoire_analyzer.enums import CinemaChain
 

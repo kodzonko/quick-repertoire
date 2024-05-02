@@ -3,7 +3,6 @@ from datetime import datetime
 import pytest
 
 from cinema_repertoire_analyzer.cinema_api.cinema_city import CinemaCity
-from cinema_repertoire_analyzer.cinema_api.models import Repertoire
 
 
 @pytest.fixture
@@ -28,5 +27,4 @@ def test_fetch_repertoire_downloads_and_parses_cinema_city_repertoire_correctly(
 
 
 @pytest.mark.integration
-def test_fetch_cinema_venues_list_downloads_list_of_cinema_venues_correctly() -> None:
-    ...
+def test_fetch_cinema_venues_list_downloads_list_of_cinema_venues_correctly() -> None: ...
