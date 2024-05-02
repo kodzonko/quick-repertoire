@@ -1,4 +1,4 @@
-name: Run tests and linter or each push
+name: All tests + linter
 
 on: push
 
