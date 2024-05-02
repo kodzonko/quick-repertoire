@@ -41,13 +41,13 @@ class CinemaCity(Cinema):
             # and are not available on selected date, so we skip.
             if not is_presale:
                 output.append(
-                    {
-                        "title": self._parse_title(movie),
-                        "genres": self._parse_genres(movie),
-                        "play_length": self._parse_play_length(movie),
-                        "original_language": self._parse_original_language(movie),
-                        "play_details": self._parse_play_details(movie),
-                    }
+                    Repertoire(
+                        title=self._parse_title(movie),
+                        genres=self._parse_genres(movie),
+                        play_length=self._parse_play_length(movie),
+                        original_language=self._parse_original_language(movie),
+                        play_details=self._parse_play_details(movie),
+                    )
                 )
 
         return output
@@ -112,20 +112,23 @@ class CinemaCity(Cinema):
         )
         language = html.find("span", attrs={"aria-label": re.compile("subbed-lang|dubbed-lang")})
         try:
-            return f"{sub_dub_or_original_prefix.text.strip()}{': ' if language else ''}{language.text.strip() if language else ''}"
+            return (
+                f"{sub_dub_or_original_prefix.text.strip()}{': ' if language else ''}"
+                f"{language.text.strip() if language else ''}"
+            )
         except AttributeError:
             return "Brak informacji"
 
     def _parse_play_details(self, html: Element) -> list[MoviePlayDetails]:
-        """Parse HTML element of a single movie to extract play formats, languages and respective play times."""
+        """Parse HTML element of a single movie to extract play formats, languages and respective play times."""  # noqa: E501
         output = []
         play_details = html.find_all("div", class_="qb-movie-info-column")
         for html in play_details:
             output.append(
-                {
-                    "format": self._parse_play_format(html),
-                    "play_times": self._parse_play_times(html),
-                    "play_language": self._parse_play_language(html),
-                }
+                MoviePlayDetails(
+                    format=self._parse_play_format(html),
+                    play_times=self._parse_play_times(html),
+                    play_language=self._parse_play_language(html),
+                )
             )
         return output

@@ -5,6 +5,8 @@ Base = declarative_base()
 
 
 class CinemaVenuesBase(Base):
+    """Base class for cinema venues models."""
+
     __abstract__ = True
 
     venue_name = Column(TEXT, primary_key=True)
@@ -15,14 +17,20 @@ class CinemaVenuesBase(Base):
 
 
 class CinemaCityVenues(CinemaVenuesBase):
+    """Model for Cinema City venues."""
+
     __tablename__ = "cinema_city_venues"
     venue_id = Column(TEXT, unique=True)
 
 
 class HeliosVenues(CinemaVenuesBase):
+    """Model for Helios venues."""
+
     __tablename__ = "helios_venues"
     venue_id = Column(TEXT, unique=True)
 
 
 class MultikinoVenues(CinemaVenuesBase):
+    """Model for Multikino venues."""
+
     __tablename__ = "multikino_venues"

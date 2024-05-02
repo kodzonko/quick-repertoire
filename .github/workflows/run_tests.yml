@@ -16,7 +16,7 @@ jobs:
         id: setup-python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
       #----------------------------------------------
       #  -----  install & configure poetry  -----
       #----------------------------------------------
@@ -48,14 +48,16 @@ jobs:
       # install your root project, if required
       #----------------------------------------------
       - name: Install project
-        run: poetry install --no-interaction
+        run: |
+          poetry install --no-interaction
+          poetry self add poetry-dotenv-plugin
       #----------------------------------------------
       #              run test suite
       #----------------------------------------------
-      - name: Run unit tests
-        run: make test-unit
-      - name: Run integration tests
-        run:  make test-int
-      - name: Run e2e tests
-        run: make test-e2e
-      - run: poetry run coverage report
+      - name: Run tests
+        run: make tests
+      #----------------------------------------------
+      #              lint code
+      #----------------------------------------------
+      - name: Run linter
+        run: make lint

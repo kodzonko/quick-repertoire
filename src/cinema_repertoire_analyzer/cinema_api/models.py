@@ -1,7 +1,7 @@
-from typing import TypedDict
+from pydantic import BaseModel
 
 
-class MoviePlayDetails(TypedDict):
+class MoviePlayDetails(BaseModel):
     """Dictionary structure of movie play details as parsed from the cinema website."""
 
     format: str
@@ -9,11 +9,11 @@ class MoviePlayDetails(TypedDict):
     play_times: list[str]
 
 
-class Repertoire(TypedDict):
+class Repertoire(BaseModel):
     """Dictionary structure of repertoire as parsed from the cinema website."""
 
     title: str
     genres: str
     play_length: int
-    original_language: str
+    original_language: str | None
     play_details: list[MoviePlayDetails]

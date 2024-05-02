@@ -2,8 +2,7 @@ from cinema_repertoire_analyzer.exceptions import SettingsLoadError
 
 
 def fill_string_template(text: str, **kwargs) -> str:
-    """
-    Verify that all variables in string are matched in the variables dictionary.
+    """Verify that all variables in string are matched in the variables dictionary.
 
     Args:
         text: A string to parse.
@@ -21,5 +20,5 @@ def fill_string_template(text: str, **kwargs) -> str:
         return text
     except KeyError as e:  # means some variables are missing
         raise SettingsLoadError(
-            "Unable to fill url template to make a request. Missing variable: %s." % e
+            f"Unable to fill url template to make a request. Missing variable: {e}."
         )

@@ -2,7 +2,7 @@ import json
 from enum import StrEnum, auto
 from functools import lru_cache
 from pathlib import Path
-from typing import TypeAlias, Any
+from typing import Any, TypeAlias
 
 from pydantic import AnyHttpUrl, PrivateAttr, computed_field
 from pydantic_settings import BaseSettings
@@ -19,6 +19,8 @@ class _AllowedDefaultDays(StrEnum):
 
 
 class UserPreferences(BaseSettings):
+    """User preferences for the application."""
+
     default_cinema: CinemaChain
     default_cinema_venue: str
     default_day: _AllowedDefaultDays
@@ -26,7 +28,7 @@ class UserPreferences(BaseSettings):
 
     @computed_field  # type: ignore[misc]
     @property
-    def db_file_path(self) -> Path:
+    def db_file_path(self) -> Path:  # noqa: D102
         return PROJECT_ROOT / self._db_file_path_relative
 
     def __init__(self, _db_file_path_relative: str, **kwargs: Any) -> None:
@@ -35,16 +37,22 @@ class UserPreferences(BaseSettings):
 
 
 class CinemaCitySettings(BaseSettings):
+    """Settings for Cinema City cinema chain."""
+
     repertoire_url: AnyHttpUrl
     venues_list_url: AnyHttpUrl
 
 
 class HeliosSettings(BaseSettings):
+    """Settings for Helios cinema chain."""
+
     repertoire_url: AnyHttpUrl
     venues_list_url: AnyHttpUrl
 
 
 class MultikinoSettings(BaseSettings):
+    """Settings for Multikino cinema chain."""
+
     repertoire_url: AnyHttpUrl
     venues_list_url: AnyHttpUrl
 
@@ -59,6 +67,7 @@ class Settings(BaseSettings):
 
     @classmethod
     def from_file(cls, file_path: str):
+        """Load settings from a JSON file."""
         with open(file_path, encoding="utf-8") as file:
             data = json.load(file)
         return cls.model_validate(data)

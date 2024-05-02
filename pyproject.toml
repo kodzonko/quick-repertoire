@@ -1,37 +1,34 @@
 [tool.poetry]
 name = "cinema-repertoire-analyzer"
 version = "0.1.0"
-description = ""
+description = "Quickly get repertoires of major Polish cinema chains - Cinema City, Multikino & Helios from the comfort of your terminal. Movie info is enriched with IMDb, Filmweb & Rotten Tomato ratings."
 authors = ["Jan Wadolowski <janwadolowski@gmail.com>"]
+readme = "README.md"
 
 [tool.poetry.dependencies]
-python = ">=3.11,<3.12"
-typer = "^0.9.0"
+python = "^3.12"
+typer = "^0.12.3"
 loguru = "^0.7.2"
 requests-html = "^0.10.0"
-beautifulsoup4 = "^4.12.0"
 pydantic-settings = "^2.1.0"
 pydantic = "^2.5.3"
 sqlalchemy = "^2.0.24"
 rich = "^13.7.0"
 lxml = { extras = ["html-clean"], version = "^5.2.1" }
+beautifulsoup4 = "^4.12.3"
 
 [tool.poetry.group.dev.dependencies]
-pydocstyle = "^6.3.0"
-mypy = "^0.991"
-pytest = "^7.2.1"
-isort = "^5.11.4"
-flake8-pyproject = "^1.2.2"
+mypy = "^1.10.0"
+pytest = "^8.2.0"
 types-pyyaml = "^6.0.12.8"
 mockito = "^1.4.0"
 types-toml = "^0.10.8.5"
-pytest-cov = "^4.0.0"
+pytest-cov = "^5.0.0"
 pre-commit = "^3.2.0"
 pytest-vcr = "^1.0.2"
-ruff = "^0.1.8"
-types-beautifulsoup4 = "^4.12.0.7"
-types-html5lib = "^1.1.11.15"
-autoflake = "^2.2.1"
+ruff = "^0.4.2"
+types-beautifulsoup4 = "^4.12.0.20240229"
+types-html5lib = "^1.1.11.20240228"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -65,20 +62,23 @@ ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 100
+indent-width = 4
 fix = true
 src = ["src", "tests"]
 target-version = "py310"
+exclude = [
+  "__pycache__"
+]
 
 [tool.ruff.lint]
 ignore-init-module-imports = true
 ignore = ["D100", "D107"]
 task-tags = ["TODO"]
+fixable = ["ALL"]
+select = ["F", "E", "W", "I", "C", "N", "D", "UP"]
 
-[tool.ruff.format]
-quote-style = "double"
-docstring-code-line-length = 100
-line-ending = "lf"
-skip-magic-trailing-comma = true
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["D104"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -90,5 +90,17 @@ allow-dunder-method-names = ["__tablename__"]
 fixture-parentheses = false
 mark-parentheses = false
 
+[tool.ruff.lint.flake8-quotes]
+docstring-quotes = "double"
+
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
+
+[tool.ruff.lint.isort]
+split-on-trailing-comma = false
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+skip-magic-trailing-comma = true

@@ -19,6 +19,8 @@ from cinema_repertoire_analyzer.database.models import CinemaVenuesBase
 
 
 class Cinema(ABC):
+    """Base class for cinema websites interactions."""
+
     @abstractmethod
     def fetch_repertoire(self, date: datetime, cinema_venue: str) -> list[Repertoire]:
         """Download repertoire for a specified date from the cinema website."""

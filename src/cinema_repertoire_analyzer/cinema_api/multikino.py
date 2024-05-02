@@ -15,7 +15,7 @@ class Multikino(Cinema):
         self.cinema_venues_url = cinema_venues_url
 
     def fetch_repertoire(self, date: datetime, cinema_venue: str) -> list[Repertoire]:
-        pass
+        """Download repertoire for a specified date and venue from the cinema website."""
 
     def fetch_cinema_venues_list(self) -> list[CinemaVenuesBase]:
-        pass
+        """Download list of cinema venues from the cinema website."""

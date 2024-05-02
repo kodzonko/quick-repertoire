@@ -24,7 +24,7 @@ class DatabaseManager:
             self._session_constructor = sqlalchemy.orm.sessionmaker(engine)
             logger.info("Connection to the database successful.")
         except Error as e:
-            logger.error("Unable to connect with the database: %s.", e)
+            logger.error(f"Unable to connect with the database: {e}")
             raise DBConnectionError("Failed to connect with the database.")
 
     def get_cinema_venues(self, cinema_chain: CinemaChain) -> list[CinemaVenuesBase]:

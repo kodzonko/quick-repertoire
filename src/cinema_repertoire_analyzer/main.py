@@ -15,6 +15,7 @@ from cinema_repertoire_analyzer.settings import Settings, get_settings
 
 
 def make_app(settings: Settings = get_settings()) -> typer.Typer:
+    """Create the Typer application."""
     app = typer.Typer()
     db_manager = DatabaseManager(settings.user_preferences.db_file_path)
     console = Console()
