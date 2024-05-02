@@ -1,6 +1,7 @@
 from datetime import datetime
 
 import pytest
+
 from cinema_repertoire_analyzer.cinema_api.cinema_city import CinemaCity
 from cinema_repertoire_analyzer.cinema_api.models import Repertoire
 

@@ -79,6 +79,7 @@ select = ["F", "E", "W", "I", "C", "N", "D", "UP"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["D104"]
+"tests/*" = ["D"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

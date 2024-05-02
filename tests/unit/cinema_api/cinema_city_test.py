@@ -5,7 +5,7 @@ from mockito import mock, when
 from requests_html import HTML, HTMLResponse, HTMLSession
 
 import cinema_repertoire_analyzer.cinema_api.cinema_city as tested_module
-from cinema_repertoire_analyzer.cinema_api.models import Repertoire, MoviePlayDetails
+from cinema_repertoire_analyzer.cinema_api.models import MoviePlayDetails, Repertoire
 from conftest import RESOURCE_DIR
 
 
