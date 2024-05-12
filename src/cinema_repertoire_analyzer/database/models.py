@@ -4,7 +4,7 @@ from sqlalchemy.orm import declarative_base
 Base = declarative_base()
 
 
-class CinemaVenuesBase(Base):
+class CinemaVenuesBase(Base):  # type: ignore
     """Base class for cinema venues models."""
 
     __abstract__ = True
@@ -34,3 +34,6 @@ class MultikinoVenues(CinemaVenuesBase):
     """Model for Multikino venues."""
 
     __tablename__ = "multikino_venues"
+
+
+type VenueData = CinemaCityVenues | HeliosVenues | MultikinoVenues

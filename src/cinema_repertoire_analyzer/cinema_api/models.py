@@ -17,3 +17,11 @@ class Repertoire(BaseModel):
     play_length: int
     original_language: str | None
     play_details: list[MoviePlayDetails]
+
+
+class RepertoireCliTableMetadata(BaseModel):
+    """Metadata for the repertoire table representation in CLI."""
+
+    repertoire_date: str
+    cinema_chain_name: str
+    cinema_venue_name: str

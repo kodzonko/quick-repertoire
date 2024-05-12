@@ -1,14 +1,16 @@
 from typing import Annotated
 
+import rich
 import typer
-from rich.console import Console
 
 from cinema_repertoire_analyzer.cinema_api.cinema_utils import cinema_factory
+from cinema_repertoire_analyzer.cinema_api.models import RepertoireCliTableMetadata
 from cinema_repertoire_analyzer.cli_utils import (
     cinema_input_parser,
     cinema_venue_input_parser,
     date_input_parser,
     db_venues_to_cli,
+    repertoire_to_cli,
 )
 from cinema_repertoire_analyzer.database.database_manager import DatabaseManager
 from cinema_repertoire_analyzer.settings import Settings, get_settings
@@ -16,39 +18,58 @@ from cinema_repertoire_analyzer.settings import Settings, get_settings
 
 def make_app(settings: Settings = get_settings()) -> typer.Typer:
     """Create the Typer application."""
+    venues_app = typer.Typer()
     app = typer.Typer()
-    db_manager = DatabaseManager(settings.user_preferences.db_file_path)
-    console = Console()
+    app.add_typer(venues_app, name="venues")
+    db_manager = DatabaseManager(settings.DB_FILE)
+    console = rich.console.Console()
 
     @app.command()
     def repertoire(
-        cinema: Annotated[str, typer.Argument()] = settings.user_preferences.default_cinema,
-        venue: Annotated[str, typer.Argument()] = settings.user_preferences.default_cinema_venue,
-        date: Annotated[str, typer.Argument()] = settings.user_preferences.default_day,
+        cinema_chain: Annotated[str, typer.Argument()] = settings.USER_PREFERENCES.DEFAULT_CINEMA,
+        venue_name: Annotated[
+            str, typer.Argument()
+        ] = settings.USER_PREFERENCES.DEFAULT_CINEMA_VENUE,
+        date: Annotated[str, typer.Argument()] = settings.USER_PREFERENCES.DEFAULT_DAY,
     ):
-        cinema = cinema_input_parser(cinema)
-        cinema_venue_input_parser(venue)
-        date = date_input_parser(date)
-        print(date)
+        cinema_chain = cinema_input_parser(cinema_chain)
+        venue_name_parsed = cinema_venue_input_parser(venue_name)
+        venue = db_manager.find_venue_by_name(cinema_chain, venue_name_parsed)
 
-    @app.command()
-    def list_venues(
-        cinema: Annotated[str, typer.Argument()] = settings.user_preferences.default_cinema,
-    ):
+        date_parsed: str = date_input_parser(date)
+
+        cinema_instance = cinema_factory(cinema_chain, settings)
+        fetched_repertoire = cinema_instance.fetch_repertoire(date_parsed, venue)
+
+        table_metadata = RepertoireCliTableMetadata(
+            repertoire_date=date_parsed,
+            cinema_chain_name=cinema_chain.value,
+            cinema_venue_name=venue.venue_name,
+        )
+        repertoire_to_cli(fetched_repertoire, table_metadata, console)
+
+    @venues_app.command()
+    def list(cinema: Annotated[str, typer.Argument()] = settings.USER_PREFERENCES.DEFAULT_CINEMA):
         cinema_chain = cinema_input_parser(cinema)
-        venues = db_manager.get_cinema_venues(cinema_chain)
+        venues = db_manager.get_all_venues(cinema_chain)
         db_venues_to_cli(venues, console)
 
-    @app.command()
-    def update_venues(
-        cinema_name: Annotated[str, typer.Argument()] = settings.user_preferences.default_cinema,
+    @venues_app.command()
+    def update(
+        cinema_name: Annotated[str, typer.Argument()] = settings.USER_PREFERENCES.DEFAULT_CINEMA,
     ):
         cinema_chain = cinema_input_parser(cinema_name)
-        print(f"Updating venues for {cinema_chain.value}...")
+        typer.echo(f"Aktualizowanie lokali dla kina: {cinema_chain.value}...")
         cinema = cinema_factory(cinema_chain, settings)
         venues = cinema.fetch_cinema_venues_list()
         db_manager.update_cinema_venues(cinema_chain, venues)
-        print("Venues updated in the local database.")
+        typer.echo("Lokale zaktualizowane w lokalnej bazie danych.")
+
+    @venues_app.command()
+    def search(
+        venue_name: Annotated[str, typer.Argument()],
+        cinema_name: Annotated[str, typer.Argument()] = settings.USER_PREFERENCES.DEFAULT_CINEMA,
+    ): ...
 
     return app
 
