@@ -1,7 +1,7 @@
 import re
-from datetime import datetime
 
 from bs4 import BeautifulSoup
+from pydantic_core import Url
 from requests_html import Element, HTMLResponse, HTMLSession
 
 from cinema_repertoire_analyzer.cinema_api.cinema import Cinema
@@ -14,28 +14,27 @@ from cinema_repertoire_analyzer.enums import CinemaChain
 class CinemaCity(Cinema):
     """Class handling interactions with www.cinema-city.pl website."""
 
-    def __init__(self, repertoire_url: str, cinema_venues_url: str) -> None:
+    def __init__(self, repertoire_url: Url, cinema_venues_url: Url) -> None:
         self.cinema_chain = CinemaChain.CINEMA_CITY
         self.repertoire_url = repertoire_url
         self.cinema_venues_url = cinema_venues_url
 
-    def fetch_repertoire(self, date: datetime, venue_id: int) -> list[Repertoire]:
+    def fetch_repertoire(self, date: str, venue_data: CinemaCityVenues) -> list[Repertoire]:
         """Download repertoire for a specified date and venue from the cinema website."""
-        repertoire_date = date.strftime("%Y-%m-%d")
         session = HTMLSession()
         url = fill_string_template(
-            self.repertoire_url, cinema_venue_id=venue_id, repertoire_date=repertoire_date
+            self.repertoire_url, cinema_venue_id=venue_data.venue_id, repertoire_date=date
         )
         response: HTMLResponse = session.get(url)
         response.html.render()  # render JS elements
         session.close()  # otherwise Chromium process will leak
         soup = BeautifulSoup(response.html.html, "lxml")
         output = []
-        movies_details: list[Element] = soup.find_all("div", class_="qb-movie-details")
+        movies_details: list[Element] = soup.find_all("div", class_="row qb-movie")
         for movie in movies_details:
-            presale_header = movie.find("h4")
+            presale_header = movie.find("div", class_="qb-movie-info-column").find("h4")
             is_presale = (
-                presale_header is not None and presale_header.text == "KUP BILET W PRZEDSPRZEDAŻY"
+                presale_header is not None and presale_header.text == "KUP BILET W PRZEDSPRZEDAŻY "
             )
             # Presale movies in repertoire have different HTML structure
             # and are not available on selected date, so we skip.
@@ -96,7 +95,7 @@ class CinemaCity(Cinema):
             )
             return " ".join([f.text.strip() for f in formats])
         except AttributeError:
-            return "Brak informacji"
+            return "N/A"
 
     def _parse_play_times(self, html: Element) -> list[str]:
         """Parse HTML element of a single movie to extract play times."""
@@ -117,7 +116,7 @@ class CinemaCity(Cinema):
                 f"{language.text.strip() if language else ''}"
             )
         except AttributeError:
-            return "Brak informacji"
+            return "N/A"
 
     def _parse_play_details(self, html: Element) -> list[MoviePlayDetails]:
         """Parse HTML element of a single movie to extract play formats, languages and respective play times."""  # noqa: E501
