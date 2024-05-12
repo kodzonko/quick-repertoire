@@ -1,16 +1,18 @@
-import json
+import os
+import sys
 from enum import StrEnum, auto
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, TypeAlias
+from typing import Literal
 
-from pydantic import AnyHttpUrl, PrivateAttr, computed_field
-from pydantic_settings import BaseSettings
+import typer
+from loguru import logger
+from pydantic import AnyHttpUrl, FilePath, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from cinema_repertoire_analyzer.enums import CinemaChain
 
 PROJECT_ROOT = Path(__file__).parents[2]
-_SETTINGS_FILE = PROJECT_ROOT / "config.json"
 
 
 class _AllowedDefaultDays(StrEnum):
@@ -21,62 +23,68 @@ class _AllowedDefaultDays(StrEnum):
 class UserPreferences(BaseSettings):
     """User preferences for the application."""
 
-    default_cinema: CinemaChain
-    default_cinema_venue: str
-    default_day: _AllowedDefaultDays
-    _db_file_path_relative: str = PrivateAttr()
-
-    @computed_field  # type: ignore[misc]
-    @property
-    def db_file_path(self) -> Path:  # noqa: D102
-        return PROJECT_ROOT / self._db_file_path_relative
-
-    def __init__(self, _db_file_path_relative: str, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
-        self._db_file_path_relative = _db_file_path_relative
+    DEFAULT_CINEMA: CinemaChain
+    DEFAULT_CINEMA_VENUE: str
+    DEFAULT_DAY: _AllowedDefaultDays
 
 
 class CinemaCitySettings(BaseSettings):
     """Settings for Cinema City cinema chain."""
 
-    repertoire_url: AnyHttpUrl
-    venues_list_url: AnyHttpUrl
+    REPERTOIRE_URL: AnyHttpUrl
+    VENUES_LIST_URL: AnyHttpUrl
 
 
 class HeliosSettings(BaseSettings):
     """Settings for Helios cinema chain."""
 
-    repertoire_url: AnyHttpUrl
-    venues_list_url: AnyHttpUrl
+    REPERTOIRE_URL: AnyHttpUrl
+    VENUES_LIST_URL: AnyHttpUrl
 
 
 class MultikinoSettings(BaseSettings):
     """Settings for Multikino cinema chain."""
 
-    repertoire_url: AnyHttpUrl
-    venues_list_url: AnyHttpUrl
+    REPERTOIRE_URL: AnyHttpUrl
+    VENUES_LIST_URL: AnyHttpUrl
 
 
 class Settings(BaseSettings):
     """Settings for the application."""
 
-    user_preferences: UserPreferences
-    cinema_city_settings: CinemaCitySettings
-    helios_settings: CinemaCitySettings
-    multikino_settings: MultikinoSettings
+    DB_FILE: FilePath
+    USER_PREFERENCES: UserPreferences
+    CINEMA_CITY_SETTINGS: CinemaCitySettings
+    HELIOS_SETTINGS: CinemaCitySettings
+    MULTIKINO_SETTINGS: MultikinoSettings
+    LOGURU_LEVEL: Literal["TRACE", "WARNING", "DEBUG", "INFO", "ERROR", "CRITICAL"] = "INFO"
 
-    @classmethod
-    def from_file(cls, file_path: str):
-        """Load settings from a JSON file."""
-        with open(file_path, encoding="utf-8") as file:
-            data = json.load(file)
-        return cls.model_validate(data)
+    @field_validator("LOGURU_LEVEL")
+    def set_env_for_loguru(cls, LOGURU_LEVEL: str):  # noqa: N803, N805
+        """Set the environment variable for Loguru log level.
+
+        This handles environment variable that is not directly supported by Pydantic.
+        """
+        logger.remove()
+        logger.add(sys.stdout, level=LOGURU_LEVEL)
+        # os.environ["LOGURU_LEVEL"] = LOGURU_LEVEL
+        return LOGURU_LEVEL
+
+    model_config = SettingsConfigDict(extra="allow")
 
 
 @lru_cache
-def get_settings(file_path: Path = _SETTINGS_FILE) -> Settings:
+def get_settings() -> Settings:
     """Get the settings for the application."""
-    return Settings.from_file(str(file_path))
+    ENV_PATH = None  # noqa: N806
+    if os.environ.get("ENV_PATH", None) and Path(os.environ["ENV_PATH"]).exists():
+        ENV_PATH = Path(os.environ["ENV_PATH"])  # noqa: N806
+    elif Path(PROJECT_ROOT / ".env").exists():
+        ENV_PATH = PROJECT_ROOT / ".env"  # noqa: N806
+    else:
+        typer.echo(f"Podany plik konfiguracyjny: {ENV_PATH=} nie istnieje.")
+        raise typer.Exit(code=1)
+    return Settings(_env_file=ENV_PATH, _env_file_encoding="utf-8", _env_nested_delimiter="__")  # type: ignore
 
 
-CinemaSettings: TypeAlias = CinemaCitySettings | HeliosSettings | MultikinoSettings
+type CinemaSettings = CinemaCitySettings | HeliosSettings | MultikinoSettings
