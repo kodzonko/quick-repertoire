@@ -13,6 +13,10 @@ from cinema_repertoire_analyzer.cli_utils import (
     repertoire_to_cli,
 )
 from cinema_repertoire_analyzer.database.database_manager import DatabaseManager
+from cinema_repertoire_analyzer.ratings_api.tmdb import (
+    get_movie_ratings_and_summaries,
+    verify_api_key,
+)
 from cinema_repertoire_analyzer.settings import Settings, get_settings
 
 
@@ -40,13 +44,26 @@ def make_app(settings: Settings = get_settings()) -> typer.Typer:
 
         cinema_instance = cinema_factory(cinema_chain, settings)
         fetched_repertoire = cinema_instance.fetch_repertoire(date_parsed, venue)
+        tmdb_enabled = verify_api_key(settings.USER_PREFERENCES.TMDB_ACCESS_TOKEN)
+        ratings = {}
+        if tmdb_enabled:
+            movie_titles = [repertoire.title for repertoire in fetched_repertoire]
+            ratings = get_movie_ratings_and_summaries(
+                movie_titles, settings.USER_PREFERENCES.TMDB_ACCESS_TOKEN
+            )
+        else:
+            console.print(
+                "Klucz API do usługi TMDB nie jest skonfigurowany. "
+                "Niektóre funkcje mogą być niedostępne.",
+                style="bold red",
+            )
 
         table_metadata = RepertoireCliTableMetadata(
             repertoire_date=date_parsed,
             cinema_chain_name=cinema_chain.value,
-            cinema_venue_name=venue.venue_name,
+            cinema_venue_name=venue.venue_name,  # type: ignore
         )
-        repertoire_to_cli(fetched_repertoire, table_metadata, console)
+        repertoire_to_cli(fetched_repertoire, table_metadata, ratings, console)
 
     @venues_app.command()
     def list(cinema: Annotated[str, typer.Argument()] = settings.USER_PREFERENCES.DEFAULT_CINEMA):
