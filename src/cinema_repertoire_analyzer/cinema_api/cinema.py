@@ -12,17 +12,21 @@ website.
 """
 
 from abc import ABC, abstractmethod
-from datetime import datetime
+
+from pydantic_core import Url
 
 from cinema_repertoire_analyzer.cinema_api.models import Repertoire
-from cinema_repertoire_analyzer.database.models import CinemaVenuesBase
+from cinema_repertoire_analyzer.database.models import CinemaVenuesBase, VenueData
 
 
 class Cinema(ABC):
     """Base class for cinema websites interactions."""
 
     @abstractmethod
-    def fetch_repertoire(self, date: datetime, cinema_venue: str) -> list[Repertoire]:
+    def __init__(self, repertoire_url: Url, cinema_venues_url: Url): ...
+
+    @abstractmethod
+    def fetch_repertoire(self, date: str, venue_data: VenueData) -> list[Repertoire]:
         """Download repertoire for a specified date from the cinema website."""
 
     @abstractmethod
