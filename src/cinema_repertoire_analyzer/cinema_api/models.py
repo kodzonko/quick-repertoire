@@ -14,8 +14,8 @@ class Repertoire(BaseModel):
 
     title: str
     genres: str
-    play_length: int
-    original_language: str | None
+    play_length: str
+    original_language: str
     play_details: list[MoviePlayDetails]
 
 
