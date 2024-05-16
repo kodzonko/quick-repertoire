@@ -35,9 +35,9 @@ def date_input_parser(date: str) -> str:
     Returns:
         Date in the format YYYY-MM-DD.
     """
-    if date == "today":
+    if date in {"dziś", "dzis", "dzisiaj", "today"}:
         return datetime.now().strftime("%Y-%m-%d")
-    if date == "tomorrow":
+    if date in {"jutro", "tomorrow"}:
         return (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
     try:
         # If date is given, verify if it's in the expected format
@@ -45,7 +45,7 @@ def date_input_parser(date: str) -> str:
         return date
     except ValueError:
         raise typer.BadParameter(
-            f"Data: {date} nie jest we wspieranym formacie: YYYY-MM-DD | today | tomorrow"
+            f"Data: {date} nie jest we wspieranym formacie: YYYY-MM-DD | dzis | jutro | itp..."
         )
 
 

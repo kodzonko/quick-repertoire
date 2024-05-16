@@ -1,6 +1,5 @@
 import os
 import sys
-from enum import StrEnum, auto
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -15,9 +14,7 @@ from cinema_repertoire_analyzer.enums import CinemaChain
 PROJECT_ROOT = Path(__file__).parents[2]
 
 
-class _AllowedDefaultDays(StrEnum):
-    TODAY = auto()
-    TOMORROW = auto()
+AllowedDefaultDays = Literal["dziś", "dzis", "dzisiaj", "today", "jutro", "tomorrow"]
 
 
 class UserPreferences(BaseSettings):
@@ -25,7 +22,8 @@ class UserPreferences(BaseSettings):
 
     DEFAULT_CINEMA: CinemaChain
     DEFAULT_CINEMA_VENUE: str
-    DEFAULT_DAY: _AllowedDefaultDays
+    DEFAULT_DAY: AllowedDefaultDays
+    TMDB_ACCESS_TOKEN: str | None = None
 
 
 class CinemaCitySettings(BaseSettings):
@@ -67,7 +65,6 @@ class Settings(BaseSettings):
         """
         logger.remove()
         logger.add(sys.stdout, level=LOGURU_LEVEL)
-        # os.environ["LOGURU_LEVEL"] = LOGURU_LEVEL
         return LOGURU_LEVEL
 
     model_config = SettingsConfigDict(extra="allow")
