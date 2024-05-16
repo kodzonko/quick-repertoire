@@ -74,7 +74,10 @@ class CinemaCity(Cinema):
         """Parse HTML element of a single movie to extract genres."""
         try:
             raw_str = html.find("div", class_="qb-movie-info-wrapper").find("span").text
-            return raw_str.replace("|", "").strip()
+            if "|" not in raw_str:  # means no info about genres
+                return "N/A"
+            else:
+                return raw_str.replace("|", "").strip()
         except AttributeError:
             return "N/A"
 
