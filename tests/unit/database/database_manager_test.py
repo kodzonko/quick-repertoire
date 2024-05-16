@@ -86,7 +86,7 @@ def test_get_venue_by_name_returns_venue(
     when(session).__exit__(*args)
     when(db_manager)._session_constructor().thenReturn(session)
     when(session).query(CinemaCityVenues).thenReturn(row_returning_query)
-    when(row_returning_query).filter_by(venue_name="some name").thenReturn(row_returning_query)
+    when(row_returning_query).filter(...).thenReturn(row_returning_query)
     when(row_returning_query).one().thenReturn(cinema_venue)
 
-    assert db_manager.get_venue_by_venue_name(CinemaChain.CINEMA_CITY, "some name") == cinema_venue
+    assert db_manager.find_venue_by_name(CinemaChain.CINEMA_CITY, "some-name") == cinema_venue
