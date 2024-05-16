@@ -8,6 +8,7 @@ from rich.table import Table
 from cinema_repertoire_analyzer.cinema_api.models import Repertoire, RepertoireCliTableMetadata
 from cinema_repertoire_analyzer.database.models import CinemaVenuesBase
 from cinema_repertoire_analyzer.enums import CinemaChain
+from cinema_repertoire_analyzer.ratings_api.models import TmdbMovieDetails
 
 
 def cinema_input_parser(cinema_name: str) -> CinemaChain:
@@ -76,6 +77,7 @@ def db_venues_to_cli(venues: list[CinemaVenuesBase], sink: rich.console.Console)
 def repertoire_to_cli(
     repertoire: list[Repertoire],
     table_metadata: RepertoireCliTableMetadata,
+    ratings: dict[str, TmdbMovieDetails],
     sink: rich.console.Console,
 ) -> None:
     """Print a repertoire as a pretty-printed table in a console."""
@@ -88,22 +90,30 @@ def repertoire_to_cli(
         show_lines=True,
         header_style="bold",
     )
-    table.add_column("Tytuł")
-    table.add_column("Gatunki")
+    table.add_column("Tytuł", max_width=20)
+    table.add_column("Gatunki", max_width=15)
     table.add_column("Długość")
-    table.add_column("Język oryg.")
-    table.add_column("Seanse")
+    table.add_column("Język\noryg.")
+    table.add_column("Seanse", max_width=20)
+    if ratings:
+        table.add_column("Ocena z TMDB")
+        table.add_column("Opis z TMDB")
     for movie in repertoire:
-        table.add_row(
+        row_content = [
             movie.title,
             movie.genres,
-            f"{movie.play_length} min",
-            movie.original_language or "N/A",
-            ", ".join(
+            movie.play_length,
+            movie.original_language,
+            "\n".join(
                 [
-                    f"{play.format} - {play.play_language} - {play.play_times}"
+                    f"[{play.format}, {play.play_language}]:\n{" ".join(play.play_times)}"
                     for play in movie.play_details
                 ]
             ),
-        )
+        ]
+        if ratings:
+            row_content.append(ratings[movie.title].rating)
+            row_content.append(ratings[movie.title].summary)
+
+        table.add_row(*row_content)
     sink.print(table)
