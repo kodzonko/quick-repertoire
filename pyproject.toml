@@ -14,14 +14,14 @@ pydantic-settings = "^2.1.0"
 pydantic = "^2.5.3"
 sqlalchemy = "^2.0.30"
 rich = "^13.7.0"
-lxml = { extras = ["html-clean"], version = "^5.2.1" }
+lxml = { extras = ["html-clean"], version = "^5.2.2" }
 beautifulsoup4 = "^4.12"
 pyppeteer = "^2.0.0"  # due to its sub-dependency issues we need to make this sub-dependency a direct dependency
+aiohttp = "^3.9.5"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.10.0"
 pytest = "^8.2.0"
-types-pyyaml = "^6.0.12.8"
 mockito = "^1.4.0"
 types-toml = "^0.10.8.5"
 pytest-cov = "^5.0.0"
@@ -51,7 +51,6 @@ warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true
 check_untyped_defs = true
-#plugins = ["sqlmypy"]
 testpaths = ["tests"]
 
 [tool.mypy-tests.unit."*"]
