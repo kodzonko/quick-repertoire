@@ -72,19 +72,29 @@ class CinemaCity(Cinema):
 
     def _parse_genres(self, html: Element) -> str:
         """Parse HTML element of a single movie to extract genres."""
-        raw_str = html.find("div", class_="qb-movie-info").find("span").text
-        return raw_str.replace("|", "").strip()
+        try:
+            raw_str = html.find("div", class_="qb-movie-info-wrapper").find("span").text
+            return raw_str.replace("|", "").strip()
+        except AttributeError:
+            return "N/A"
 
-    def _parse_original_language(self, html: Element) -> str | None:
+    def _parse_original_language(self, html: Element) -> str:
         """Parse HTML element of a single movie to extract original language."""
-        element = html.find("span", attrs={"aria-label": re.compile("original-lang")})
-        return element.text.strip() if element else None
+        try:
+            element = html.find("span", attrs={"aria-label": re.compile("original-lang")})
+            return element.text.strip()
+        except AttributeError:
+            return "N/A"
 
-    def _parse_play_length(self, html: Element) -> int:
+    def _parse_play_length(self, html: Element) -> str:
         """Parse HTML element of a single movie to extract play length."""
-        time_raw = html.find("div", class_="qb-movie-info").find_all("span")[1].text
-        time_raw = time_raw.strip()
-        return int(re.sub(r"\D", "", time_raw))
+        try:
+            target_tag = html.find("div", class_="qb-movie-info-wrapper").find(
+                "span", text=re.compile(r"^\d+ min")
+            )
+            return target_tag.text
+        except AttributeError:
+            return "N/A"
 
     def _parse_play_format(self, html: Element) -> str:
         """Parse HTML element of a single movie to extract play format."""
