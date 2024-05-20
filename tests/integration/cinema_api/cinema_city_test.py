@@ -1,24 +1,37 @@
 from datetime import datetime
 
 import pytest
+from pydantic_core import Url
 
 from cinema_repertoire_analyzer.cinema_api.cinema_city import CinemaCity
 from cinema_repertoire_analyzer.cinema_api.models import Repertoire
+from cinema_repertoire_analyzer.database.models import CinemaCityVenues
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def cinema() -> CinemaCity:
     return CinemaCity(
-        repertoire_url="https://www.cinema-city.pl/#/buy-tickets-by-cinema?in-cinema={cinema_venue_id}&at={repertoire_date}",
-        cinema_venues_url="https://www.cinema-city.pl/#/buy-tickets-by-cinema",
+        repertoire_url=Url(
+            "https://www.cinema-city.pl/#/buy-tickets-by-cinema?in-cinema="
+            "{cinema_venue_id}&at={repertoire_date}"
+        ),
+        cinema_venues_url=Url("https://www.cinema-city.pl/#/buy-tickets-by-cinema"),
     )
 
 
+@pytest.fixture(scope="module")
+def venue_data() -> CinemaCityVenues:
+    return CinemaCityVenues(venue_id="1080", venue_name="Łódź Manufaktura")
+
+
+# @pytest.mark.vcr
 @pytest.mark.integration
 def test_fetch_repertoire_downloads_and_parses_cinema_city_repertoire_correctly(
-    cinema: CinemaCity,
+    cinema: CinemaCity, venue_data: CinemaCityVenues
 ) -> None:
-    repertoire = cinema.fetch_repertoire(date=datetime.now(), venue_id=1097)
+    repertoire = cinema.fetch_repertoire(
+        date=datetime.now().strftime("%Y-%m-%d"), venue_data=venue_data
+    )
     assert len(repertoire) > 0
     assert isinstance(repertoire[0], Repertoire)
 

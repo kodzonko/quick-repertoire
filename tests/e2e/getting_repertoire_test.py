@@ -1,5 +1,3 @@
-import os
-
 import pytest
 from typer import Typer
 from typer.testing import CliRunner

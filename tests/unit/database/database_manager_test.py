@@ -2,6 +2,7 @@ from sqlite3 import Error
 
 import pytest
 import sqlalchemy
+import typer
 from mockito import args, mock, when
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.query import Query, RowReturningQuery
@@ -10,7 +11,6 @@ import cinema_repertoire_analyzer.database.db_utils as db_utils
 from cinema_repertoire_analyzer.database.database_manager import DatabaseManager
 from cinema_repertoire_analyzer.database.models import CinemaCityVenues
 from cinema_repertoire_analyzer.enums import CinemaChain
-from cinema_repertoire_analyzer.exceptions import DBConnectionError
 
 
 @pytest.fixture
@@ -71,7 +71,7 @@ def test_update_cinema_venues_inserts_records_to_db(
 def test_database_manager_fails_to_create_instance_due_to_error() -> None:
     when(sqlalchemy).create_engine("sqlite:///some path").thenRaise(Error("some connection error"))
 
-    with pytest.raises(DBConnectionError, match="Failed to connect with the database."):
+    with pytest.raises(typer.Exit, match="Failed to connect with the database."):
         DatabaseManager("some path")
 
 
