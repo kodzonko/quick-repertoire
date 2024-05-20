@@ -13,8 +13,8 @@ from cinema_repertoire_analyzer.enums import CinemaChain
 
 PROJECT_ROOT = Path(__file__).parents[2]
 
-
 AllowedDefaultDays = Literal["dziś", "dzis", "dzisiaj", "today", "jutro", "tomorrow"]
+LOG_LVLS = Literal["TRACE", "WARNING", "DEBUG", "INFO", "ERROR", "CRITICAL"]
 
 
 class UserPreferences(BaseSettings):
@@ -55,13 +55,13 @@ class Settings(BaseSettings):
     CINEMA_CITY_SETTINGS: CinemaCitySettings
     HELIOS_SETTINGS: CinemaCitySettings
     MULTIKINO_SETTINGS: MultikinoSettings
-    LOGURU_LEVEL: Literal["TRACE", "WARNING", "DEBUG", "INFO", "ERROR", "CRITICAL"] = "INFO"
+    LOGURU_LEVEL: LOG_LVLS = "INFO"
 
     @field_validator("LOGURU_LEVEL")
-    def set_env_for_loguru(cls, LOGURU_LEVEL: str):  # noqa: N803, N805
-        """Set the environment variable for Loguru log level.
+    def set_env_for_loguru(cls, LOGURU_LEVEL: LOG_LVLS) -> LOG_LVLS:  # noqa: N803, N805
+        """Set the loguru handler according to log level.
 
-        This handles environment variable that is not directly supported by Pydantic.
+        This handles clearing loguru log handlers and adding the one with appropriate log level.
         """
         logger.remove()
         logger.add(sys.stdout, level=LOGURU_LEVEL)

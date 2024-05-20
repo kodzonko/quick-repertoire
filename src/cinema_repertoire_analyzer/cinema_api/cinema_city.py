@@ -93,7 +93,7 @@ class CinemaCity(Cinema):
         """Parse HTML element of a single movie to extract play length."""
         try:
             target_tag = html.find("div", class_="qb-movie-info-wrapper").find(
-                "span", text=re.compile(r"^\d+ min")
+                "span", string=re.compile(r"^\d+ min")
             )
             return target_tag.text
         except AttributeError:

@@ -55,7 +55,6 @@ class DatabaseManager:
         """
         table = get_table_by_cinema_chain(cinema_chain)
         with self._session_constructor() as session:
-            # return session.query(table).filter_by(venue_name=venue_name).one()
             results = session.query(table).filter(table.venue_name.ilike(search_string)).all()
             if len(results) == 1:
                 return results[0]

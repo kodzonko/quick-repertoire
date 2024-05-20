@@ -1,5 +1,5 @@
+import os
 from pathlib import Path
 
 RESOURCE_DIR = Path(__file__).parent / "resources"
-TEST_SETTINGS_PATH = RESOURCE_DIR / "test_config.json"
-TEST_DB_PATH = RESOURCE_DIR / "test_db.sqlite"
+os.environ["ENV_PATH"] = str(RESOURCE_DIR / "test.env")

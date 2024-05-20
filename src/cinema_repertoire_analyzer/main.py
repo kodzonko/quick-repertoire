@@ -46,7 +46,7 @@ def make_app(settings: Settings = get_settings()) -> typer.Typer:
         fetched_repertoire = cinema_instance.fetch_repertoire(date_parsed, venue)
         tmdb_enabled = verify_api_key(settings.USER_PREFERENCES.TMDB_ACCESS_TOKEN)
         ratings = {}
-        if tmdb_enabled:
+        if tmdb_enabled and settings.USER_PREFERENCES.TMDB_ACCESS_TOKEN:
             movie_titles = [repertoire.title for repertoire in fetched_repertoire]
             ratings = get_movie_ratings_and_summaries(
                 movie_titles, settings.USER_PREFERENCES.TMDB_ACCESS_TOKEN

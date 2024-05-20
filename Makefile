@@ -15,13 +15,13 @@ lint:
 	poetry run ruff check --fix $(SRC)
 
 test-e2e:
-	poetry run pytest --failed-first --no-header --no-summary --cov=$(SRC) -m e2e
+	poetry run pytest --failed-first --cov=$(SRC) -m e2e
 
 test-int:
-	poetry run pytest --failed-first --no-header --no-summary --cov=$(SRC) -m integration
+	poetry run pytest --failed-first --cov=$(SRC) -m integration
 
 test-unit:
-	poetry run pytest --failed-first --no-header --no-summary --cov=$(SRC) -m unit
+	poetry run pytest --failed-first --cov=$(SRC) -m unit
 
 tests:
 	poetry run pytest --failed-first --cov=$(SRC) $(TESTS)
