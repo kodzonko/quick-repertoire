@@ -53,21 +53,22 @@ jobs:
           poetry install --no-interaction
           poetry self add poetry-dotenv-plugin
       #----------------------------------------------
-      #              prepare env
-      #----------------------------------------------
-      - name: Load environment variables from .env file
-        uses: aarcangeli/load-dotenv@v1.0.0
-        with:
-          path: "tests/resources"
-          filenames: test.env.template
-          quiet: false
-          if-file-not-found: error
-        env:
-          USER_PREFERENCES__TMDB_ACCESS_TOKEN: ${{ secrets.USER_PREFERENCES__TMDB_ACCESS_TOKEN }}
-      #----------------------------------------------
       #              run test suite
       #----------------------------------------------
       - name: Run tests
+        env:
+          LOGURU_LEVEL: ${{ vars.LOGURU_LEVEL }}
+          DB_FILE: ${{ vars.DB_FILE }}
+          USER_PREFERENCES__DEFAULT_CINEMA: ${{ vars.USER_PREFERENCES__DEFAULT_CINEMA }}
+          USER_PREFERENCES__DEFAULT_CINEMA_VENUE: ${{ vars.USER_PREFERENCES__DEFAULT_CINEMA_VENUE }}
+          USER_PREFERENCES__DEFAULT_DAY: ${{ vars.USER_PREFERENCES__DEFAULT_DAY }}
+          USER_PREFERENCES__TMDB_ACCESS_TOKEN: ${{ secrets.USER_PREFERENCES__TMDB_ACCESS_TOKEN }}
+          CINEMA_CITY_SETTINGS__REPERTOIRE_URL: ${{ vars.CINEMA_CITY_SETTINGS__REPERTOIRE_URL }}
+          CINEMA_CITY_SETTINGS__VENUES_LIST_URL: ${{ vars.CINEMA_CITY_SETTINGS__VENUES_LIST_URL }}
+          HELIOS_SETTINGS__REPERTOIRE_URL: ${{ vars.HELIOS_SETTINGS__REPERTOIRE_URL }}
+          HELIOS_SETTINGS__VENUES_LIST_URL: ${{ vars.HELIOS_SETTINGS__VENUES_LIST_URL }}
+          MULTIKINO_SETTINGS__REPERTOIRE_URL: ${{ vars.MULTIKINO_SETTINGS__REPERTOIRE_URL }}
+          MULTIKINO_SETTINGS__VENUES_LIST_URL: ${{ vars.MULTIKINO_SETTINGS__VENUES_LIST_URL }}
         run: make tests
       #----------------------------------------------
       #              lint code
