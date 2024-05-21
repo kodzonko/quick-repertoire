@@ -80,7 +80,7 @@ def get_settings() -> Settings:
         ENV_PATH = PROJECT_ROOT / ".env"  # noqa: N806
     else:
         typer.echo(f"Podany plik konfiguracyjny: {ENV_PATH=} nie istnieje.")
-        raise typer.Exit(code=1)
+        return Settings()  # attempt loading variables from environment
     return Settings(_env_file=ENV_PATH, _env_file_encoding="utf-8", _env_nested_delimiter="__")  # type: ignore
 
 
