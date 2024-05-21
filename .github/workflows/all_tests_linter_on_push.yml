@@ -56,9 +56,12 @@ jobs:
       #              prepare env
       #----------------------------------------------
       - name: Load environment variables from .env file
-        uses: goanpeca/setup-environment@v1
+        uses: aarcangeli/load-dotenv@v1.0.0
         with:
-          env-file: .env
+          path: "tests/resources"
+          filenames: test.env.template
+          quiet: false
+          if-file-not-found: error
         env:
           USER_PREFERENCES__TMDB_ACCESS_TOKEN: ${{ secrets.USER_PREFERENCES__TMDB_ACCESS_TOKEN }}
       #----------------------------------------------
