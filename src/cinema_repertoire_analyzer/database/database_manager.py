@@ -19,12 +19,13 @@ class DatabaseManager:
     """Class responsible for connecting to the database and executing queries."""
 
     def __init__(self, db_file_path: Path | str) -> None:
+        db_open_path = f"sqlite:///{db_file_path}"
         try:
-            engine = sqlalchemy.create_engine(f"sqlite:///{db_file_path}")
+            engine = sqlalchemy.create_engine(db_open_path)
             self._session_constructor = sqlalchemy.orm.sessionmaker(engine)
-            logger.debug("Connection to the database successful.")
+            logger.debug(f"Connection to the database {db_open_path} successful.")
         except Error as e:
-            typer.echo("Nie udało się połączyć z lokalną bazą danych. Spróbuj jeszcze raz.")
+            typer.echo(f"Nie udało się połączyć z bazą danych {db_open_path}. Spróbuj jeszcze raz.")
             raise typer.Exit(code=1) from e
 
     def get_all_venues(self, cinema_chain: CinemaChain) -> list[VenueData]:
@@ -66,12 +67,3 @@ class DatabaseManager:
                 f"{len(results)} {"pasujące wyniki" if len(results) < 5 else "pasujących wyników"}."
             )
             raise typer.Exit(code=1)
-
-    def search_venues_by_name(
-        self, cinema_chain: CinemaChain, search_string: str
-    ) -> list[VenueData]:
-        """Search for cinema venues by name."""
-        table = get_table_by_cinema_chain(cinema_chain)
-        with self._session_constructor() as session:
-            results = session.query(table).filter(table.venue_name.like(search_string)).all()
-            return results

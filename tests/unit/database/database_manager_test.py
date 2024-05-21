@@ -1,8 +1,8 @@
 from sqlite3 import Error
 
+import click
 import pytest
 import sqlalchemy
-import typer
 from mockito import args, mock, when
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.query import Query, RowReturningQuery
@@ -71,7 +71,7 @@ def test_update_cinema_venues_inserts_records_to_db(
 def test_database_manager_fails_to_create_instance_due_to_error() -> None:
     when(sqlalchemy).create_engine("sqlite:///some path").thenRaise(Error("some connection error"))
 
-    with pytest.raises(typer.Exit, match="Failed to connect with the database."):
+    with pytest.raises(click.exceptions.Exit):
         DatabaseManager("some path")
 
 
@@ -82,11 +82,13 @@ def test_get_venue_by_name_returns_venue(
     row_returning_query: RowReturningQuery,
     cinema_venue: CinemaCityVenues,
 ) -> None:
+    query_result = [cinema_venue]
+
     when(session).__enter__().thenReturn(session)
     when(session).__exit__(*args)
     when(db_manager)._session_constructor().thenReturn(session)
     when(session).query(CinemaCityVenues).thenReturn(row_returning_query)
     when(row_returning_query).filter(...).thenReturn(row_returning_query)
-    when(row_returning_query).one().thenReturn(cinema_venue)
+    when(row_returning_query).all().thenReturn(query_result)
 
     assert db_manager.find_venue_by_name(CinemaChain.CINEMA_CITY, "some-name") == cinema_venue

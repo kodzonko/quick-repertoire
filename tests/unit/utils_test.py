@@ -1,7 +1,7 @@
 from typing import Any
 
+import click
 import pytest
-import typer
 
 from cinema_repertoire_analyzer.cinema_api.template_utils import fill_string_template
 
@@ -28,11 +28,5 @@ def test_fill_string_template_returns_correctly_filled_string(
 
 @pytest.mark.unit
 def test_fill_string_template_raises_error_on_missing_variable() -> None:
-    with pytest.raises(
-        typer.Exit,
-        match=(
-            "Unable to fill url template to make a request. Missing variable: "
-            "'missing_variable'."
-        ),
-    ):
+    with pytest.raises(click.exceptions.Exit):
         fill_string_template("{missing_variable}", a="sth", b="text")
