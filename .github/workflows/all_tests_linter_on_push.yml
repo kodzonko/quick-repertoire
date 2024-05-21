@@ -70,9 +70,7 @@ jobs:
           HELIOS_SETTINGS__VENUES_LIST_URL: ${{ vars.HELIOS_SETTINGS__VENUES_LIST_URL }}
           MULTIKINO_SETTINGS__REPERTOIRE_URL: ${{ vars.MULTIKINO_SETTINGS__REPERTOIRE_URL }}
           MULTIKINO_SETTINGS__VENUES_LIST_URL: ${{ vars.MULTIKINO_SETTINGS__VENUES_LIST_URL }}
-        run: |
-          printenv
-          make tests
+        run: make tests
       #----------------------------------------------
       #              lint code
       #----------------------------------------------
