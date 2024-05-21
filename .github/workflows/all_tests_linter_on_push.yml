@@ -53,11 +53,18 @@ jobs:
           poetry install --no-interaction
           poetry self add poetry-dotenv-plugin
       #----------------------------------------------
+      #              prepare env
+      #----------------------------------------------
+      - name: Load environment variables from .env file
+        uses: goanpeca/setup-environment@v1
+        with:
+          env-file: .env
+        env:
+          USER_PREFERENCES__TMDB_ACCESS_TOKEN: ${{ secrets.USER_PREFERENCES__TMDB_ACCESS_TOKEN }}
+      #----------------------------------------------
       #              run test suite
       #----------------------------------------------
       - name: Run tests
-        env:
-          USER_PREFERENCES__TMDB_ACCESS_TOKEN: ${{ secrets.USER_PREFERENCES__TMDB_ACCESS_TOKEN }}
         run: make tests
       #----------------------------------------------
       #              lint code
