@@ -55,13 +55,9 @@ jobs:
       #----------------------------------------------
       #              run test suite
       #----------------------------------------------
-      - name: Configure env vars
+      - name: Run tests
         env:
           USER_PREFERENCES__TMDB_ACCESS_TOKEN: ${{ secrets.USER_PREFERENCES__TMDB_ACCESS_TOKEN }}
-      #----------------------------------------------
-      #              run test suite
-      #----------------------------------------------
-      - name: Run tests
         run: make tests
       #----------------------------------------------
       #              lint code
