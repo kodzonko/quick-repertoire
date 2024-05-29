@@ -91,4 +91,4 @@ def test_get_venue_by_name_returns_venue(
     when(row_returning_query).filter(...).thenReturn(row_returning_query)
     when(row_returning_query).all().thenReturn(query_result)
 
-    assert db_manager.find_venue_by_name(CinemaChain.CINEMA_CITY, "some-name") == cinema_venue
+    assert db_manager.find_venues_by_name(CinemaChain.CINEMA_CITY, "some-name") == cinema_venue
