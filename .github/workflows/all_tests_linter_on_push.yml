@@ -51,8 +51,7 @@ jobs:
       #----------------------------------------------
       - name: Install project
         run: |
-          poetry install --no-interaction
-          poetry self add poetry-dotenv-plugin
+          make install
       #----------------------------------------------
       #              run test suite
       #----------------------------------------------
