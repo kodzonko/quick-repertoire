@@ -46,24 +46,24 @@ class DatabaseManager:
             session.add_all(venues)
             session.commit()
 
-    def find_venue_by_name(self, cinema_chain: CinemaChain, search_string: str) -> VenueData:
+    def find_venues_by_name(
+        self, cinema_chain: CinemaChain, search_string: str
+    ) -> VenueData | list[VenueData]:
         """Find a venue of a specified cinema chain by name.
 
         Conducts a permissive search
 
         Raises:
-        typer.Exit: If no venue is found or if the venue name is ambiguous.
+        typer.Exit: If no venue is found.
         """
         table = get_table_by_cinema_chain(cinema_chain)
         with self._session_constructor() as session:
-            results = session.query(table).filter(table.venue_name.ilike(search_string)).all()
+            results = (
+                session.query(table).filter(table.venue_name.ilike(f"%{search_string}%")).all()
+            )
             if len(results) == 1:
                 return results[0]
             elif len(results) == 0:
-                typer.echo("Nie znaleziono lokalu o podanej nazwie.")
+                typer.echo("Nie znaleziono żadnego lokalu o podanej nazwie.")
                 raise typer.Exit(code=1)
-            typer.echo(
-                f"Nazwa lokalu podana przez użytkownika jest niejednoznaczna. Znaleziono "
-                f"{len(results)} {"pasujące wyniki" if len(results) < 5 else "pasujących wyników"}."
-            )
-            raise typer.Exit(code=1)
+            return results

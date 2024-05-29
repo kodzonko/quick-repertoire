@@ -57,7 +57,7 @@ def _venue_results_to_table_title(venue: CinemaVenuesBase) -> str:
         "multikino_venues": "Multikino",
         "helios_venues": "Helios",
     }
-    return f"Lokale sieci {venues_class_to_table_title_mapping[venue.__table__.name]}"
+    return f"Znalezione lokale sieci {venues_class_to_table_title_mapping[venue.__table__.name]}"
 
 
 def db_venues_to_cli(venues: list[CinemaVenuesBase], sink: rich.console.Console) -> None:

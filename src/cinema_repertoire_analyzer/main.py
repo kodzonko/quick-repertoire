@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, List
 
 import rich
 import typer
@@ -35,10 +35,16 @@ def make_app(settings: Settings = get_settings()) -> typer.Typer:
             str, typer.Argument()
         ] = settings.USER_PREFERENCES.DEFAULT_CINEMA_VENUE,
         date: Annotated[str, typer.Argument()] = settings.USER_PREFERENCES.DEFAULT_DAY,
-    ):
+    ) -> None:
         cinema_chain = cinema_input_parser(cinema_chain)
         venue_name_parsed = cinema_venue_input_parser(venue_name)
-        venue = db_manager.find_venue_by_name(cinema_chain, venue_name_parsed)
+        venue = db_manager.find_venues_by_name(cinema_chain, venue_name_parsed)
+        if isinstance(venue, List):
+            typer.echo(
+                f"Podana nazwa lokalu jest niejednoznaczna. Znaleziono "
+                f"{len(venue)} {"pasujące wyniki" if len(venue) < 5 else "pasujących wyników"}."
+            )
+            raise typer.Exit(code=1)
 
         date_parsed: str = date_input_parser(date)
 
@@ -58,6 +64,7 @@ def make_app(settings: Settings = get_settings()) -> typer.Typer:
                 style="bold red",
             )
 
+        # noinspection PyTypeChecker
         table_metadata = RepertoireCliTableMetadata(
             repertoire_date=date_parsed,
             cinema_chain_name=cinema_chain.value,
@@ -66,7 +73,9 @@ def make_app(settings: Settings = get_settings()) -> typer.Typer:
         repertoire_to_cli(fetched_repertoire, table_metadata, ratings, console)
 
     @venues_app.command()
-    def list(cinema: Annotated[str, typer.Argument()] = settings.USER_PREFERENCES.DEFAULT_CINEMA):
+    def list(
+        cinema: Annotated[str, typer.Argument()] = settings.USER_PREFERENCES.DEFAULT_CINEMA,
+    ) -> None:
         cinema_chain = cinema_input_parser(cinema)
         venues = db_manager.get_all_venues(cinema_chain)
         db_venues_to_cli(venues, console)
@@ -74,7 +83,7 @@ def make_app(settings: Settings = get_settings()) -> typer.Typer:
     @venues_app.command()
     def update(
         cinema_name: Annotated[str, typer.Argument()] = settings.USER_PREFERENCES.DEFAULT_CINEMA,
-    ):
+    ) -> None:
         cinema_chain = cinema_input_parser(cinema_name)
         typer.echo(f"Aktualizowanie lokali dla kina: {cinema_chain.value}...")
         cinema = cinema_factory(cinema_chain, settings)
@@ -84,9 +93,12 @@ def make_app(settings: Settings = get_settings()) -> typer.Typer:
 
     @venues_app.command()
     def search(
-        venue_name: Annotated[str, typer.Argument()],
         cinema_name: Annotated[str, typer.Argument()] = settings.USER_PREFERENCES.DEFAULT_CINEMA,
-    ): ...
+        venue_name: Annotated[str, typer.Argument()] = "",
+    ):
+        cinema_chain = cinema_input_parser(cinema_name)
+        found_venues = db_manager.find_venues_by_name(cinema_chain, venue_name)
+        db_venues_to_cli(found_venues, console)
 
     return app
 
