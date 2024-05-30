@@ -1,4 +1,5 @@
-from typing import Annotated, List
+import builtins
+from typing import Annotated
 
 import rich
 import typer
@@ -39,7 +40,7 @@ def make_app(settings: Settings = get_settings()) -> typer.Typer:
         cinema_chain = cinema_input_parser(cinema_chain)
         venue_name_parsed = cinema_venue_input_parser(venue_name)
         venue = db_manager.find_venues_by_name(cinema_chain, venue_name_parsed)
-        if isinstance(venue, List):
+        if isinstance(venue, builtins.list):
             typer.echo(
                 f"Podana nazwa lokalu jest niejednoznaczna. Znaleziono "
                 f"{len(venue)} {"pasujące wyniki" if len(venue) < 5 else "pasujących wyników"}."

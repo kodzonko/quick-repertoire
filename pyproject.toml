@@ -71,7 +71,6 @@ exclude = [
 include = ["*.py"]
 
 [tool.ruff.lint]
-ignore-init-module-imports = true
 ignore = ["D100", "D107"]
 task-tags = ["TODO"]
 fixable = ["ALL"]
