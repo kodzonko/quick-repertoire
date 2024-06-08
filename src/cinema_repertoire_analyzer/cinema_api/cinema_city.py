@@ -2,7 +2,8 @@ import re
 
 from bs4 import BeautifulSoup
 from pydantic_core import Url
-from requests_html import Element, HTMLResponse, HTMLSession
+from requests import Response
+from requests_html import Element, HTMLSession
 
 from cinema_repertoire_analyzer.cinema_api.cinema import Cinema
 from cinema_repertoire_analyzer.cinema_api.models import MoviePlayDetails, Repertoire
@@ -25,8 +26,8 @@ class CinemaCity(Cinema):
         url = fill_string_template(
             self.repertoire_url, cinema_venue_id=venue_data.venue_id, repertoire_date=date
         )
-        response: HTMLResponse = session.get(url)
-        response.html.render()  # render JS elements
+        response: Response = session.get(url, timeout=30)
+        response.html.render(timeout=30)  # render JS elements
         session.close()  # otherwise Chromium process will leak
         soup = BeautifulSoup(response.html.html, "lxml")
         output = []

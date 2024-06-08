@@ -1,5 +1,3 @@
-from datetime import datetime
-
 import pytest
 from mockito import mock, when
 from pydantic_core import Url
@@ -33,9 +31,10 @@ def test_fetch_repertoire_downloads_and_parses_repertoire_correctly(
 ) -> None:
     when(tested_module).HTMLSession().thenReturn(session)
     when(session).get(
-        "https://www.cinema-city.pl/#/buy-tickets-by-cinema?in-cinema=1097&at=2023-04-01"
+        "https://www.cinema-city.pl/#/buy-tickets-by-cinema?in-cinema=1097&at=2023-04-01",
+        timeout=30,
     ).thenReturn(response)
-    when(response.html).render()
+    when(response.html).render(timeout=30)
     when(session).close()
     expected = [
         Repertoire(

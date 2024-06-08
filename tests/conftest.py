@@ -13,7 +13,7 @@ os.environ["ENV_PATH"] = str(RESOURCE_DIR / "test.env")
 def vcr_config() -> dict[str, Any]:
     return {
         "record_mode": "once",
-        "match_on": ["method", "uri", "path"],
+        "match_on": ["method", "path"],
         "cassette_library_dir": str(RESOURCE_DIR / "vcr_cassettes"),
         "path_transformer": vcr.VCR.ensure_suffix(".yaml"),
         "filter_headers": [("Authorization", "<HIDDEN>")],
