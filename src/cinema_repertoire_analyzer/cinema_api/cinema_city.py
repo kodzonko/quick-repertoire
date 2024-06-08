@@ -55,8 +55,8 @@ class CinemaCity(Cinema):
     def fetch_cinema_venues_list(self) -> list[CinemaCityVenues]:
         """Download list of cinema venues from the cinema website."""
         session = HTMLSession()
-        response = session.get(self.cinema_venues_url)
-        response.html.render()  # render JS elements
+        response = session.get(self.cinema_venues_url, timeout=30)
+        response.html.render(timeout=30)  # render JS elements
         cinemas = response.html.find("option[value][data-tokens]")
         venues = [cinema.element.get("data-tokens") for cinema in cinemas]
         ids = [int(cinema.element.get("value")) for cinema in cinemas]
