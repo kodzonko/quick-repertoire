@@ -16,5 +16,6 @@ def vcr_config() -> dict[str, Any]:
         "match_on": ["method", "uri", "path"],
         "cassette_library_dir": str(RESOURCE_DIR / "vcr_cassettes"),
         "path_transformer": vcr.VCR.ensure_suffix(".yaml"),
+        "filter_headers": [("Authorization", "<HIDDEN>")],
         "decode_compressed_response": True,
     }

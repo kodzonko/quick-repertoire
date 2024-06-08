@@ -4,6 +4,7 @@ from datetime import datetime
 from http import HTTPStatus
 
 import aiohttp
+import async_timeout
 import requests
 
 from cinema_repertoire_analyzer.ratings_api.models import TmdbMovieDetails
@@ -34,10 +35,9 @@ async def fetch_movie_details(
     }
     url = base_url + urllib.parse.urlencode(params)
     headers = {"accept": "application/json", "Authorization": f"Bearer {access_token}"}
-
-    async with session.get(url, headers=headers) as response:
-        response = requests.get(base_url + urllib.parse.urlencode(params), headers=headers)
-        return response.json()
+    async with async_timeout.timeout(5):
+        async with session.get(url, headers=headers) as response:
+            return await response.json()
 
 
 async def fetch_all_movie_details(movie_names: list[str], access_token: str) -> dict[str, dict]:
@@ -58,7 +58,7 @@ async def fetch_all_movie_details(movie_names: list[str], access_token: str) -> 
 
 def ensure_single_result(movie_data: dict) -> bool:
     """Ensure that there is only one result in the TMDB API response."""
-    return movie_data.get("results", []) and len(movie_data["results"]) == 1
+    return len(movie_data["results"]) == 1
 
 
 def parse_movie_rating(movie_data: dict) -> str:
