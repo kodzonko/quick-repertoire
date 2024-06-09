@@ -3,7 +3,6 @@ from typer import Typer
 from typer.testing import CliRunner
 
 
-@pytest.mark.vcr
 @pytest.mark.e2e
 def test_update_venues_updates_venues_correctly(typer_app: Typer, runner: CliRunner) -> None:
     result = runner.invoke(typer_app, ["venues", "update", "cinema-city"])
@@ -14,7 +13,6 @@ def test_update_venues_updates_venues_correctly(typer_app: Typer, runner: CliRun
     ) in result.stdout
 
 
-@pytest.mark.vcr
 @pytest.mark.e2e
 def test_update_venues_fails_on_incorrect_user_input(typer_app: Typer, runner: CliRunner) -> None:
     result = runner.invoke(typer_app, ["venues", "update", "wrong input"])

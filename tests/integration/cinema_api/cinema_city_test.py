@@ -24,7 +24,6 @@ def venue_data() -> CinemaCityVenues:
     return CinemaCityVenues(venue_id="1080", venue_name="Łódź Manufaktura")
 
 
-@pytest.mark.vcr
 @pytest.mark.integration
 def test_fetch_repertoire_downloads_and_parses_cinema_city_repertoire_correctly(
     cinema: CinemaCity, venue_data: CinemaCityVenues
@@ -36,6 +35,5 @@ def test_fetch_repertoire_downloads_and_parses_cinema_city_repertoire_correctly(
     assert isinstance(repertoire[0], Repertoire)
 
 
-@pytest.mark.vcr
 @pytest.mark.integration
 def test_fetch_cinema_venues_list_downloads_list_of_cinema_venues_correctly() -> None: ...
