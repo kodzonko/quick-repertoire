@@ -20,8 +20,6 @@ class DatabaseManager:
 
     def __init__(self, db_file_path: Path | str) -> None:
         sqlite_uri = f"sqlite:///{db_file_path}"
-        if not sqlite_uri.endswith("test_db.sqlite"):
-            raise ValueError(f"You are trying to connect to a non-test database: {db_file_path}")
         try:
             engine = sqlalchemy.create_engine(sqlite_uri)
             self._session_constructor = sqlalchemy.orm.sessionmaker(engine)
