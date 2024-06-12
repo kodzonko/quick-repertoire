@@ -7,5 +7,5 @@ __pycache__/
 .mypy_cache/
 .run/
 node_modules/
-.env
+run.env
 test.env

@@ -74,10 +74,10 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Get the settings for the application."""
     ENV_PATH = None  # noqa: N806
-    if os.environ.get("ENV_PATH", None) and Path(os.environ["ENV_PATH"]).exists():
+    if os.environ.get("ENV_PATH") and Path(os.environ["ENV_PATH"]).exists():
         ENV_PATH = Path(os.environ["ENV_PATH"])  # noqa: N806
     elif Path(PROJECT_ROOT / ".env").exists():
-        ENV_PATH = PROJECT_ROOT / ".env"  # noqa: N806
+        ENV_PATH = PROJECT_ROOT / "run.env"  # noqa: N806
     else:
         typer.echo(f"Podany plik konfiguracyjny: {ENV_PATH=} nie istnieje.")
         return Settings(_env_nested_delimiter="__")  # attempt loading variables from environment

@@ -6,7 +6,6 @@ CONFIG_FILE := $(PROJECT_ROOT)pyproject.toml
 
 install:
 	poetry install --no-interaction
-	poetry self add poetry-dotenv-plugin
 	poetry run playwright install
 
 format:

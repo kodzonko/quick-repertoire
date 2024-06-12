@@ -45,7 +45,6 @@ jobs:
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: |
           poetry install --no-interaction --no-root
-          poetry self add poetry-dotenv-plugin
       #----------------------------------------------
       # install your root project, if required
       #----------------------------------------------

@@ -4,8 +4,6 @@ import click
 import pytest
 import sqlalchemy
 from mockito import args, mock, when
-from sqlalchemy.orm import Session
-from sqlalchemy.orm.query import Query, RowReturningQuery
 
 import cinema_repertoire_analyzer.database.db_utils as db_utils
 from cinema_repertoire_analyzer.database.database_manager import DatabaseManager
@@ -15,7 +13,7 @@ from cinema_repertoire_analyzer.enums import CinemaChain
 
 @pytest.fixture
 def db_manager() -> DatabaseManager:
-    return DatabaseManager("sqlite:///some path")
+    return DatabaseManager("test_db.sqlite")
 
 
 @pytest.fixture
@@ -24,18 +22,18 @@ def engine() -> sqlalchemy.Engine:
 
 
 @pytest.fixture
-def session() -> Session:
-    return mock(Session)
+def session() -> sqlalchemy.orm.Session:
+    return mock(sqlalchemy.orm.Session)
 
 
 @pytest.fixture
-def query() -> Query:
-    return mock(Query)
+def query() -> sqlalchemy.orm.Query:
+    return mock(sqlalchemy.orm.Query)
 
 
 @pytest.fixture
-def row_returning_query() -> RowReturningQuery:
-    return mock(RowReturningQuery)
+def row_returning_query() -> sqlalchemy.orm.query.RowReturningQuery:
+    return mock(sqlalchemy.orm.query.RowReturningQuery)
 
 
 @pytest.fixture
@@ -51,8 +49,8 @@ def cinema_venue() -> CinemaCityVenues:
 @pytest.mark.unit
 def test_update_cinema_venues_inserts_records_to_db(
     db_manager: DatabaseManager,
-    session: Session,
-    query: Query,
+    session: sqlalchemy.orm.Session,
+    query: sqlalchemy.orm.Query,
     cinema_venues: list[CinemaCityVenues],
 ) -> None:
     when(session).__enter__().thenReturn(session)
@@ -69,23 +67,28 @@ def test_update_cinema_venues_inserts_records_to_db(
 
 @pytest.mark.unit
 def test_database_manager_fails_to_create_instance_due_to_error() -> None:
-    when(sqlalchemy).create_engine("sqlite:///some path").thenRaise(Error("some connection error"))
+    when(sqlalchemy).create_engine("sqlite:///test_db.sqlite").thenRaise(
+        Error("some connection error")
+    )
 
     with pytest.raises(click.exceptions.Exit):
-        DatabaseManager("some path")
+        DatabaseManager("test_db.sqlite")
 
 
 @pytest.mark.unit
 def test_get_venue_by_name_returns_venue(
     db_manager: DatabaseManager,
-    session: Session,
-    row_returning_query: RowReturningQuery,
+    session: sqlalchemy.orm.Session,
+    engine: sqlalchemy.Engine,
+    row_returning_query: sqlalchemy.orm.query.RowReturningQuery,
     cinema_venue: CinemaCityVenues,
 ) -> None:
     query_result = [cinema_venue]
 
     when(session).__enter__().thenReturn(session)
     when(session).__exit__(*args)
+    when(sqlalchemy).create_engine("sqlite:///test_db.sqlite").thenReturn(engine)
+    when(sqlalchemy.orm).sessionmaker(engine).thenReturn(session)
     when(db_manager)._session_constructor().thenReturn(session)
     when(session).query(CinemaCityVenues).thenReturn(row_returning_query)
     when(row_returning_query).filter(...).thenReturn(row_returning_query)

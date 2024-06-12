@@ -4,13 +4,16 @@ version = "0.1.0"
 description = "Quickly get repertoires of major Polish cinema chains - Cinema City, Multikino & Helios from the comfort of your terminal. Movie info is enriched with TMDB ratings."
 authors = ["Jan Wadolowski <janwadolowski@gmail.com>"]
 readme = "README.md"
+license = "MIT"
+repository = "https://github.com/kodzonko/cinema-repertoire-analyzer"
+keywords = ["movie", "tmdb", "film", "films", "tmdb-api", "movie-recommendation", "repertoire-analysis", "cinema-city-scraper", "helios-scraper", "repertoire-scraper"]
 
 [tool.poetry.dependencies]
 python = "^3.12"
 typer = "^0.12.3"
 loguru = "^0.7.2"
-pydantic-settings = "^2.1.0"
-pydantic = "^2.5.3"
+pydantic-settings = "^2.3.2"
+pydantic = "^2.7.4"
 sqlalchemy = "^2.0.30"
 rich = "^13.7.0"
 beautifulsoup4 = "^4.12"
