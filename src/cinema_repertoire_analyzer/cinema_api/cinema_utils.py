@@ -2,7 +2,6 @@ from cinema_repertoire_analyzer.cinema_api.cinema import Cinema
 from cinema_repertoire_analyzer.cinema_api.cinema_city import CinemaCity
 from cinema_repertoire_analyzer.cinema_api.helios import Helios
 from cinema_repertoire_analyzer.cinema_api.multikino import Multikino
-from cinema_repertoire_analyzer.database.models import VenueData
 from cinema_repertoire_analyzer.enums import CinemaChain
 from cinema_repertoire_analyzer.settings import CinemaSettings, Settings
 
@@ -27,17 +26,6 @@ def _get_cinema_settings_by_cinema_chain(
         CinemaChain.MULTIKINO: settings.MULTIKINO_SETTINGS,
     }
     return cinema_class_to_config_mapping[cinema_chain]
-
-
-def _get_venue_data_for_specific_cinema_chain(
-    cinema_chain: CinemaChain, venue_data: VenueData
-) -> str:
-    """Depending on the cinema chain, return either venue id or venue name needed for the
-    repertoire fetcher.
-    """  # noqa: D205
-    if cinema_chain == CinemaChain.MULTIKINO:
-        return venue_data.venue_name
-    return venue_data.venue_id
 
 
 def cinema_factory(cinema_chain: CinemaChain, settings: Settings) -> Cinema:

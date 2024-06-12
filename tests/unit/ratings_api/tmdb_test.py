@@ -1,4 +1,3 @@
-import asyncio
 from http import HTTPStatus
 from typing import Any
 
@@ -37,15 +36,6 @@ def unauthorized_response() -> Response:
 @pytest.fixture
 def session() -> aiohttp.ClientSession:
     return mock(aiohttp.ClientSession)
-
-
-@pytest.fixture
-def movie_details_response() -> aiohttp.ClientResponse:
-    response = mock({"json": lambda: {"page": 1, "results": []}}, spec=aiohttp.ClientResponse)
-
-    coroutine = asyncio.Future()
-    coroutine.set_result(response)
-    return coroutine
 
 
 @pytest.fixture

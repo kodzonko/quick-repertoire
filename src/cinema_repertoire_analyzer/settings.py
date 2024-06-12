@@ -53,7 +53,7 @@ class Settings(BaseSettings):
     DB_FILE: FilePath
     USER_PREFERENCES: UserPreferences
     CINEMA_CITY_SETTINGS: CinemaCitySettings
-    HELIOS_SETTINGS: CinemaCitySettings
+    HELIOS_SETTINGS: HeliosSettings
     MULTIKINO_SETTINGS: MultikinoSettings
     LOGURU_LEVEL: LOG_LVLS = "INFO"
 

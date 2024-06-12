@@ -12,6 +12,7 @@ format:
 	poetry run ruff format $(SRC) $(TESTS)
 
 lint:
+	poetry run vulture $(SRC) $(TESTS) .vulture_whitelist.py
 	poetry run ruff check --fix $(SRC)
 
 test-e2e:
