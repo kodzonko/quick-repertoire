@@ -24,10 +24,13 @@ def cinema_input_parser(cinema_name: str) -> CinemaChain:
 
 def cinema_venue_input_parser(cinema_venue: str) -> str:
     """Parse cinema venue input to prepare it for querying the db in a permissive way."""
-    non_letters_removed = re.sub(r"\W", " ", cinema_venue)
+    trimmed_outer_whitespaces = cinema_venue.strip()
+    non_letters_removed = re.sub(r"\W", " ", trimmed_outer_whitespaces)
     whitespaces_trimmed = re.sub(r"\s+", ",", non_letters_removed)
     nonascii_removed = re.sub(r"[^\x00-\x7F]", "_", whitespaces_trimmed)
-    return f"%{nonascii_removed.replace(",", "%")}%"
+    surrounding_wildcards_added = f"%{nonascii_removed.replace(",", "%")}%"
+    multiple_consecutive_wildcards_replaced = re.sub("%{2,}", "%", surrounding_wildcards_added)
+    return multiple_consecutive_wildcards_replaced
 
 
 def date_input_parser(date: str) -> str:
