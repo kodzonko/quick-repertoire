@@ -8,7 +8,7 @@ from cinema_repertoire_analyzer.cinema_api.models import Repertoire
 from cinema_repertoire_analyzer.database.models import CinemaCityVenues
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def cinema() -> CinemaCity:
     return CinemaCity(
         repertoire_url=Url(
@@ -19,7 +19,7 @@ def cinema() -> CinemaCity:
     )
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def venue_data() -> CinemaCityVenues:
     return CinemaCityVenues(venue_id="1080", venue_name="Łódź Manufaktura")
 
