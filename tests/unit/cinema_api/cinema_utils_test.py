@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 from mockito import mock
 
@@ -80,7 +82,10 @@ def test_get_cinema_class_by_cinema_chain_returns_matching_cinema_class(
     ],
 )
 def test_get_cinema_settings_by_cinema_chain_returns_matching_settings(
-    all_settings: Settings, cinema_chain: CinemaChain, expected_settings: CinemaSettings, request
+    all_settings: Settings,
+    cinema_chain: CinemaChain,
+    expected_settings: CinemaSettings,
+    request: Any,
 ) -> None:
     assert (
         _get_cinema_settings_by_cinema_chain(cinema_chain, all_settings).__dict__

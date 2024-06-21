@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "interactions":
+    [
+      {
+        "request":
+          {
+            "method": "GET",
+            "uri": "https://api.themoviedb.org/3/search/movie?query=Furiosa:+A+Mad+Max+Saga&include_adult=True&language=pl-PL&year=2024,2023&page=1",
+            "body": null,
+            "headers":
+              { "accept": ["application/json"], "authorization": ["DUMMY"] },
+          },
+        "response":
+          {
+            "status": { "code": 200, "message": "OK" },
+            "headers":
+              {
+                "Content-Type": ["application/json;charset=utf-8"],
+                "Transfer-Encoding": ["chunked"],
+                "Connection": ["keep-alive"],
+                "Date": ["Fri, 21 Jun 2024 18:49:12 GMT"],
+                "Server": ["openresty"],
+                "Cache-Control": ["public, max-age=28760"],
+                "x-memc": ["MISS, STORE"],
+                "x-memc-key": ["4ee70af7dde1436ae94c64871c30a921"],
+                "x-memc-age": ["0"],
+                "x-memc-expires": ["28760"],
+                "Etag": ['W/"b97ac574f5e610c977edc81afc44bc27"'],
+                "Content-Encoding": ["gzip"],
+                "Vary": ["Accept-Encoding,accept-encoding", "Origin"],
+                "X-Cache": ["Miss from cloudfront"],
+                "Via":
+                  [
+                    "1.1 9de65abaae1c9efde396060d6fa80946.cloudfront.net (CloudFront)",
+                  ],
+                "X-Amz-Cf-Pop": ["MXP64-C2"],
+                "Alt-Svc": ['h3=":443"; ma=86400'],
+                "X-Amz-Cf-Id":
+                  ["LP8mtgc3-tChzr1vKShuAHorjlAG5S-rNwp3f0Dex11YUrbx6MVVEQ=="],
+              },
+            "body":
+              {
+                "string": "{\"page\":1,\"results\":[{\"adult\":false,\"backdrop_path\":\"/raph7qjAGTMXaIjVxt6ZDSXRzUr.jpg\",\"genre_ids\":[28,12,878],\"id\":786892,\"original_language\":\"en\",\"original_title\":\"Furiosa: A Mad Max Saga\",\"overview\":\"Kiedy \u015bwiat upada, m\u0142oda Furiosa zostaje uprowadzona z Zielonego Miejsca Wielu Matek. Wpada w r\u0119ce pot\u0119\u017cnej Hordy Biker\u00f3w, kt\u00f3rej przewodzi wata\u017cka Dementus. Po przebyciu Pustkowi porywacze docieraj\u0105 do Cytadeli, gdzie rz\u0105dzi Wieczny Joe. Dw\u00f3ch tyran\u00f3w zaczyna walk\u0119 o w\u0142adz\u0119, Furiosa za\u015b musi przetrwa\u0107 wiele pr\u00f3b, jednocze\u015bnie gromadz\u0105c \u015brodki, kt\u00f3re pozwol\u0105 jej wr\u00f3ci\u0107 do domu.\",\"popularity\":659.548,\"poster_path\":\"/eLFOjrfPs61kaSvbBej5wZfaHtL.jpg\",\"release_date\":\"2024-05-22\",\"title\":\"Furiosa: Saga Mad Max\",\"video\":false,\"vote_average\":7.633,\"vote_count\":968}],\"total_pages\":1,\"total_results\":1}",
+              },
+          },
+      },
+    ],
+}

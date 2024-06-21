@@ -12,7 +12,7 @@ keywords = ["movie", "tmdb", "film", "films", "tmdb-api", "movie-recommendation"
 python = "^3.12"
 typer = "^0.12.3"
 loguru = "^0.7.2"
-pydantic-settings = "^2.3.2"
+pydantic-settings = "^2.3.3"
 pydantic = "^2.7.4"
 sqlalchemy = "^2.0.30"
 rich = "^13.7.0"
@@ -35,6 +35,7 @@ types-requests = "^2.32.0.20240602"
 pytest-asyncio = "^0.23.7"
 pytest-aiohttp = "^1.0.5"
 vulture = "^2.11"
+pytest-vcr = "^1.0.2"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -49,6 +50,8 @@ markers = [
   "ci_skip: skip tests in CI",
 ]
 asyncio_mode = "auto"
+filterwarnings = ["ignore::DeprecationWarning"]
+
 
 [tool.mypy]
 python_version = "3.12"

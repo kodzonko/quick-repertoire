@@ -1,0 +1,136 @@
+{
+  "version": 1,
+  "interactions":
+    [
+      {
+        "request":
+          {
+            "method": "GET",
+            "uri": "https://api.themoviedb.org/3/search/movie?query=The+Watchers&include_adult=True&language=pl-PL&year=2024,2023&page=1",
+            "body": null,
+            "headers":
+              { "accept": ["application/json"], "authorization": ["DUMMY"] },
+          },
+        "response":
+          {
+            "status": { "code": 200, "message": "OK" },
+            "headers":
+              {
+                "Content-Type": ["application/json;charset=utf-8"],
+                "Transfer-Encoding": ["chunked"],
+                "Connection": ["keep-alive"],
+                "Date": ["Fri, 21 Jun 2024 18:39:08 GMT"],
+                "Server": ["openresty"],
+                "Cache-Control": ["public, max-age=21691"],
+                "x-memc": ["MISS, STORE"],
+                "x-memc-key": ["e1c76591f9d80ba95c6da185e4f98b10"],
+                "x-memc-age": ["0"],
+                "x-memc-expires": ["21691"],
+                "Etag": ['W/"20c90e7874a00b846d408dcc98a3ce04"'],
+                "Content-Encoding": ["gzip"],
+                "Vary": ["Accept-Encoding,accept-encoding", "Origin"],
+                "X-Cache": ["Hit from cloudfront"],
+                "Via":
+                  [
+                    "1.1 298295dc49d01ca277aeb7439bbb326e.cloudfront.net (CloudFront)",
+                  ],
+                "X-Amz-Cf-Pop": ["MXP64-C2"],
+                "Alt-Svc": ['h3=":443"; ma=86400'],
+                "X-Amz-Cf-Id":
+                  ["cOSWJNroHeyqQcCUivqr9WqMQeAOIQ_p3tGqwUoavKK6z59k9YPSag=="],
+                "Age": ["604"],
+              },
+            "body":
+              {
+                "string": "{\"page\":1,\"results\":[{\"adult\":false,\"backdrop_path\":\"/oZDRuGHhe5uY8wBqFJcJZT9kdvJ.jpg\",\"genre_ids\":[27,9648,53],\"id\":1086747,\"original_language\":\"en\",\"original_title\":\"The Watchers\",\"overview\":\"Kiedy 28-letnia artystka Mina znajduje schronienie po utkni\u0119ciu w rozleg\u0142ym, nietkni\u0119tym lesie w zachodniej Irlandii, nie\u015bwiadomie zostaje uwi\u0119ziona wraz z tr\u00f3jk\u0105 nieznajomych, kt\u00f3rzy s\u0105 obserwowani i prze\u015bladowani przez tajemnicze stworzenia ka\u017cdej nocy.\",\"popularity\":961.884,\"poster_path\":\"/vZVEUPychdvZLrTNwWErr9xZFmu.jpg\",\"release_date\":\"2024-06-06\",\"title\":\"The Watchers\",\"video\":false,\"vote_average\":6.212,\"vote_count\":163}],\"total_pages\":1,\"total_results\":1}",
+              },
+          },
+      },
+      {
+        "request":
+          {
+            "method": "GET",
+            "uri": "https://api.themoviedb.org/3/search/movie?query=Garfield&include_adult=True&language=pl-PL&year=2024,2023&page=1",
+            "body": null,
+            "headers":
+              { "accept": ["application/json"], "authorization": ["DUMMY"] },
+          },
+        "response":
+          {
+            "status": { "code": 200, "message": "OK" },
+            "headers":
+              {
+                "Content-Type": ["application/json;charset=utf-8"],
+                "Transfer-Encoding": ["chunked"],
+                "Connection": ["keep-alive"],
+                "Date": ["Fri, 21 Jun 2024 18:49:12 GMT"],
+                "Server": ["openresty"],
+                "Cache-Control": ["public, max-age=24126"],
+                "x-memc": ["MISS, STORE"],
+                "x-memc-key": ["b5f765029992f25d2bd304654f8ed81b"],
+                "x-memc-age": ["0"],
+                "x-memc-expires": ["24126"],
+                "Etag": ['W/"0f0b87e6b3835beb474db98a8dd9c618"'],
+                "Content-Encoding": ["gzip"],
+                "Vary": ["Accept-Encoding,accept-encoding", "Origin"],
+                "X-Cache": ["Miss from cloudfront"],
+                "Via":
+                  [
+                    "1.1 be8ca88bcfbe9f1ac2e2b6bb9e74f1d6.cloudfront.net (CloudFront)",
+                  ],
+                "X-Amz-Cf-Pop": ["MXP64-C2"],
+                "Alt-Svc": ['h3=":443"; ma=86400'],
+                "X-Amz-Cf-Id":
+                  ["YGuPtt3LJ_DwEGrnhemms6mBBc0MMY_DnPUTaMfVfVjLspIqcZ4Kyg=="],
+              },
+            "body":
+              {
+                "string": "{\"page\":1,\"results\":[{\"adult\":false,\"backdrop_path\":\"/vWzJDjLPmycnQ42IppEjMpIhrhc.jpg\",\"genre_ids\":[16,35,10751,12],\"id\":748783,\"original_language\":\"en\",\"original_title\":\"The Garfield Movie\",\"overview\":\"Garfield jest najbardziej znanym kotem na \u015bwiecie. Jest leniuchem, kt\u00f3ry uwielbia lasagne i nie cierpi poniedzia\u0142k\u00f3w. Po nieoczekiwanym spotkaniu ze swoim dawno zaginionym ojcem \u2013 niechlujnym ulicznym kotem Vicem \u2013 Garfield i jego psi przyjaciel Odie zmuszeni s\u0105 porzuci\u0107 swoje doskona\u0142e leniwe \u017cycie i do\u0142\u0105czy\u0107 do Vica w zabawnym napadzie.\",\"popularity\":596.119,\"poster_path\":\"/xkxI9VrJv71TAoM1EdFgypcsuFd.jpg\",\"release_date\":\"2024-04-30\",\"title\":\"Garfield\",\"video\":false,\"vote_average\":6.717,\"vote_count\":184}],\"total_pages\":1,\"total_results\":1}",
+              },
+          },
+      },
+      {
+        "request":
+          {
+            "method": "GET",
+            "uri": "https://api.themoviedb.org/3/search/movie?query=Puchatek:+Krew+i+mi%C3%B3d+2&include_adult=True&language=pl-PL&year=2024,2023&page=1",
+            "body": null,
+            "headers":
+              { "accept": ["application/json"], "authorization": ["DUMMY"] },
+          },
+        "response":
+          {
+            "status": { "code": 200, "message": "OK" },
+            "headers":
+              {
+                "Content-Type": ["application/json;charset=utf-8"],
+                "Transfer-Encoding": ["chunked"],
+                "Connection": ["keep-alive"],
+                "Date": ["Fri, 21 Jun 2024 18:49:12 GMT"],
+                "Server": ["openresty"],
+                "Cache-Control": ["public, max-age=26006"],
+                "x-memc": ["MISS, STORE"],
+                "x-memc-key": ["8f6dde03e2327b779b22f834f67dadd3"],
+                "x-memc-age": ["0"],
+                "x-memc-expires": ["26006"],
+                "Etag": ['W/"8fe24a4d2519b2bf8daab540b1419889"'],
+                "Content-Encoding": ["gzip"],
+                "Vary": ["Accept-Encoding,accept-encoding", "Origin"],
+                "X-Cache": ["Miss from cloudfront"],
+                "Via":
+                  [
+                    "1.1 ea6b6651a564f3c1a19b54389d1f51e8.cloudfront.net (CloudFront)",
+                  ],
+                "X-Amz-Cf-Pop": ["MXP64-C2"],
+                "Alt-Svc": ['h3=":443"; ma=86400'],
+                "X-Amz-Cf-Id":
+                  ["a5x9xVuCvmg6CbMBRgIhWFViI1XO9QXMtu0s9zk6DAniF2StTYGbMg=="],
+              },
+            "body":
+              {
+                "string": "{\"page\":1,\"results\":[{\"adult\":false,\"backdrop_path\":\"/p4INKu77iuTG1o1a5N3Y9vqeEGq.jpg\",\"genre_ids\":[27,53,9648,35],\"id\":1079485,\"original_language\":\"en\",\"original_title\":\"Winnie-the-Pooh: Blood and Honey 2\",\"overview\":\"Five months following the murders, Christopher Robin tries returning to his regular life while dealing with his PTSD. Deep within the 100-Acre-Wood, a destructive rage grows as Winnie-the-Pooh, Piglet, Owl, and Tigger find their home and their lives endangered after their existence is revealed.\",\"popularity\":158.792,\"poster_path\":\"/AvCJPwLrnOcbJDUFcwRLoAbMHoD.jpg\",\"release_date\":\"2024-03-26\",\"title\":\"Puchatek: Krew i mi\u00f3d 2\",\"video\":false,\"vote_average\":6.333,\"vote_count\":51}],\"total_pages\":1,\"total_results\":1}",
+              },
+          },
+      },
+    ],
+}

@@ -1,24 +1,15 @@
-import os
-
 import pytest
 from typer import Typer
 from typer.testing import CliRunner
 
 from cinema_repertoire_analyzer.database.database_manager import DatabaseManager
 from cinema_repertoire_analyzer.main import make_app
-from cinema_repertoire_analyzer.settings import Settings, get_settings
+from cinema_repertoire_analyzer.settings import Settings
 
 
 @pytest.fixture
 def runner() -> CliRunner:
     return CliRunner()
-
-
-@pytest.fixture
-def settings() -> Settings:
-    if not (ENV_PATH := os.environ.get("ENV_PATH")) or not ENV_PATH.endswith("test.env"):
-        raise ValueError("Env_PATH environment variable is not set or is not set to test.env file.")
-    return get_settings()
 
 
 @pytest.fixture
