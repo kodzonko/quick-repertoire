@@ -25,7 +25,7 @@ def _get_cinema_settings_by_cinema_chain(
         CinemaChain.HELIOS: settings.HELIOS_SETTINGS,
         CinemaChain.MULTIKINO: settings.MULTIKINO_SETTINGS,
     }
-    return cinema_class_to_config_mapping[cinema_chain]
+    return cinema_class_to_config_mapping[cinema_chain]  # type: ignore[return-value]
 
 
 def cinema_factory(cinema_chain: CinemaChain, settings: Settings) -> Cinema:

@@ -36,4 +36,4 @@ class MultikinoVenues(CinemaVenuesBase):
     __tablename__ = "multikino_venues"
 
 
-type VenueData = CinemaCityVenues | HeliosVenues | MultikinoVenues
+type VenueData = CinemaCityVenues | HeliosVenues | MultikinoVenues  # type: ignore[valid-type]

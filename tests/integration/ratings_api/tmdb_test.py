@@ -39,7 +39,9 @@ def tmdb_movies_details_dict() -> dict[str, TmdbMovieDetails]:
 async def test_fetch_movie_details_successfully_returns_movie_details(settings: Settings) -> None:
     async with aiohttp.ClientSession() as session:
         response = await fetch_movie_details(
-            session, "Furiosa: A Mad Max Saga", settings.USER_PREFERENCES.TMDB_ACCESS_TOKEN
+            session,
+            "Furiosa: A Mad Max Saga",
+            settings.USER_PREFERENCES.TMDB_ACCESS_TOKEN,  # type: ignore[arg-type]
         )
 
         assert response["results"][0]["original_title"] == "Furiosa: A Mad Max Saga"
@@ -52,7 +54,7 @@ async def test_fetch_all_movie_details_successfully_returns_multiple_movies_deta
 ) -> None:
     response = await fetch_all_movie_details(
         ["The Watchers", "Garfield", "Puchatek: Krew i miód 2"],
-        settings.USER_PREFERENCES.TMDB_ACCESS_TOKEN,
+        settings.USER_PREFERENCES.TMDB_ACCESS_TOKEN,  # type: ignore[arg-type]
     )
 
     assert len(response.items()) == 3
@@ -66,7 +68,8 @@ def test_get_movie_ratings_and_summaries_returns_correct_tmdb_movie_details(
 ) -> None:
     assert (
         get_movie_ratings_and_summaries(
-            ["Garfield", "Furiosa: Saga Mad Max"], settings.USER_PREFERENCES.TMDB_ACCESS_TOKEN
+            ["Garfield", "Furiosa: Saga Mad Max"],
+            settings.USER_PREFERENCES.TMDB_ACCESS_TOKEN,  # type: ignore[arg-type]
         )
         == tmdb_movies_details_dict
     )

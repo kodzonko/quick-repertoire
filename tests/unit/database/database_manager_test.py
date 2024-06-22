@@ -18,22 +18,22 @@ def db_manager() -> DatabaseManager:
 
 @pytest.fixture
 def engine() -> sqlalchemy.Engine:
-    return mock(sqlalchemy.Engine)
+    return mock(sqlalchemy.Engine)  # type: ignore[no-any-return]
 
 
 @pytest.fixture
 def session() -> sqlalchemy.orm.Session:
-    return mock(sqlalchemy.orm.Session)
+    return mock(sqlalchemy.orm.Session)  # type: ignore[no-any-return]
 
 
 @pytest.fixture
 def query() -> sqlalchemy.orm.Query:
-    return mock(sqlalchemy.orm.Query)
+    return mock(sqlalchemy.orm.Query)  # type: ignore[no-any-return]
 
 
 @pytest.fixture
 def row_returning_query() -> sqlalchemy.orm.query.RowReturningQuery:
-    return mock(sqlalchemy.orm.query.RowReturningQuery)
+    return mock(sqlalchemy.orm.query.RowReturningQuery)  # type: ignore[no-any-return]
 
 
 @pytest.fixture
@@ -43,7 +43,7 @@ def cinema_venues() -> list[CinemaCityVenues]:
 
 @pytest.fixture
 def cinema_venue() -> CinemaCityVenues:
-    return mock(CinemaCityVenues)
+    return mock(CinemaCityVenues)  # type: ignore[no-any-return]
 
 
 @pytest.mark.unit

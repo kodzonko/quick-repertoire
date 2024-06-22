@@ -1,5 +1,6 @@
 import asyncio
 import urllib
+from asyncio import Task
 from datetime import datetime
 from http import HTTPStatus
 
@@ -37,7 +38,7 @@ async def fetch_movie_details(
     headers = {"accept": "application/json", "Authorization": f"Bearer {access_token}"}
     async with async_timeout.timeout(5):
         async with session.get(url, headers=headers) as response:
-            return await response.json()
+            return await response.json()  # type: ignore[no-any-return]
 
 
 async def fetch_all_movie_details(movie_names: list[str], access_token: str) -> dict[str, dict]:
@@ -48,12 +49,13 @@ async def fetch_all_movie_details(movie_names: list[str], access_token: str) -> 
             task = asyncio.ensure_future(fetch_movie_details(session, movie_name, access_token))
             tasks[movie_name] = task
         await asyncio.gather(*tasks.values(), return_exceptions=True)
+        output: dict[str, dict] = {}
         for movie_name, task in tasks.items():
             if task.exception():
-                tasks[movie_name] = {}
+                output[movie_name] = {}
             else:
-                tasks[movie_name] = task.result()
-        return tasks
+                output[movie_name] = task.result()
+        return output
 
 
 def ensure_single_result(movie_data: dict) -> bool:
@@ -79,7 +81,7 @@ def parse_movie_summary(movie_data: dict) -> str:
     try:
         if not ensure_single_result(movie_data):
             return "Brak opisu filmu."
-        return movie_data["results"][0]["overview"]
+        return movie_data["results"][0]["overview"]  # type: ignore[no-any-return]
     except (KeyError, IndexError):
         return "Brak opisu filmu."
 

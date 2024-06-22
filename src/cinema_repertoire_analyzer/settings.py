@@ -80,8 +80,9 @@ def get_settings() -> Settings:
         ENV_PATH = PROJECT_ROOT / "run.env"  # noqa: N806
     else:
         typer.echo(f"Podany plik konfiguracyjny: {ENV_PATH=} nie istnieje.")
-        return Settings(_env_nested_delimiter="__")  # attempt loading variables from environment
+        # attempt loading variables from environment
+        return Settings(_env_nested_delimiter="__")  # type: ignore[call-arg]
     return Settings(_env_file=ENV_PATH, _env_file_encoding="utf-8", _env_nested_delimiter="__")  # type: ignore
 
 
-type CinemaSettings = CinemaCitySettings | HeliosSettings | MultikinoSettings
+type CinemaSettings = CinemaCitySettings | HeliosSettings | MultikinoSettings  # type: ignore[valid-type]

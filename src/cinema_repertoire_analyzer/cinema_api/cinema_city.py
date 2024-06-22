@@ -27,9 +27,9 @@ class CinemaCity(Cinema):
             self.repertoire_url, cinema_venue_id=venue_data.venue_id, repertoire_date=date
         )
         response: Response = session.get(url, timeout=30)
-        response.html.render(timeout=30)  # render JS elements
-        session.close()  # otherwise Chromium process will leak
-        soup = BeautifulSoup(response.html.html, "lxml")
+        # render JS elements
+        response.html.render(timeout=30)  # type: ignore[attr-defined]
+        soup = BeautifulSoup(response.html.html, "lxml")  # type: ignore[attr-defined]
         output = []
         movies_details: list[Element] = soup.find_all("div", class_="row qb-movie")
         for movie in movies_details:
@@ -69,7 +69,7 @@ class CinemaCity(Cinema):
 
     def _parse_title(self, html: Element) -> str:
         """Parse HTML element of a single movie to extract title."""
-        return html.find("h3", "qb-movie-name").text.strip()
+        return html.find("h3", "qb-movie-name").text.strip()  # type: ignore[no-any-return]
 
     def _parse_genres(self, html: Element) -> str:
         """Parse HTML element of a single movie to extract genres."""
@@ -78,7 +78,7 @@ class CinemaCity(Cinema):
             if "|" not in raw_str:  # means no info about genres
                 return "N/A"
             else:
-                return raw_str.replace("|", "").strip()
+                return raw_str.replace("|", "").strip()  # type: ignore[no-any-return]
         except AttributeError:
             return "N/A"
 
@@ -86,7 +86,7 @@ class CinemaCity(Cinema):
         """Parse HTML element of a single movie to extract original language."""
         try:
             element = html.find("span", attrs={"aria-label": re.compile("original-lang")})
-            return element.text.strip()
+            return element.text.strip()  # type: ignore[no-any-return]
         except AttributeError:
             return "N/A"
 
@@ -96,7 +96,7 @@ class CinemaCity(Cinema):
             target_tag = html.find("div", class_="qb-movie-info-wrapper").find(
                 "span", string=re.compile(r"^\d+ min")
             )
-            return target_tag.text
+            return target_tag.text  # type: ignore[no-any-return]
         except AttributeError:
             return "N/A"
 

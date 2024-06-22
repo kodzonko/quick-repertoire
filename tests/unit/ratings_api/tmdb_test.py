@@ -23,19 +23,19 @@ def authorization_url() -> str:
 def ok_response() -> Response:
     response = mock(Response)
     response.status_code = HTTPStatus.OK
-    return response
+    return response  # type: ignore[no-any-return]
 
 
 @pytest.fixture
 def unauthorized_response() -> Response:
     response = mock(Response)
     response.status_code = HTTPStatus.UNAUTHORIZED
-    return response
+    return response  # type: ignore[no-any-return]
 
 
 @pytest.fixture
 def session() -> aiohttp.ClientSession:
-    return mock(aiohttp.ClientSession)
+    return mock(aiohttp.ClientSession)  # type: ignore[no-any-return]
 
 
 @pytest.fixture
@@ -55,7 +55,18 @@ def single_result_response_body() -> dict[str, Any]:
                 "id": 615,
                 "original_language": "en",
                 "original_title": "The Passion of the Christ",
-                "overview": '"Pasja" jest wstrząsającym opisem ostatnich 12 godzin życia Jezusa Chrystusa. To zdecydowanie najmocniejsze przedstawienie Pasji, z jakim spotkaliśmy się do tej pory w kinie. Film jest wierny przekazom historycznym, biblijnym oraz teologicznym. Aby podkreślić autentyczność historii, aktorzy posługują się dwoma wymarłymi językami: aramejskim i łaciną.\r Film twórcy "Braveheart - Waleczne Serce" wywołuje wiele emocji i kontrowersji. "Pasja" to obrazowe dzieło sztuki prowokujące do poważnego myślenia i refleksji nad śmiercią Chrystusa osoby o różnych przekonaniach religijnych. Jest to film o wierze, nadziei, miłości i przebaczeniu - a więc o tym, czego bardzo potrzeba w dzisiejszych burzliwych czasach.  [opis dystrybutora dvd]',
+                "overview": (
+                    '"Pasja" jest wstrząsającym opisem ostatnich 12 godzin życia Jezusa Chrystusa. '
+                    "To zdecydowanie najmocniejsze przedstawienie Pasji, z jakim spotkaliśmy się do"
+                    " tej pory w kinie. Film jest wierny przekazom historycznym, biblijnym oraz "
+                    "teologicznym. Aby podkreślić autentyczność historii, aktorzy posługują się "
+                    'dwoma wymarłymi językami: aramejskim i łaciną.\r Film twórcy "Braveheart - '
+                    'Waleczne Serce" wywołuje wiele emocji i kontrowersji. "Pasja" to obrazowe '
+                    "dzieło sztuki prowokujące do poważnego myślenia i refleksji nad śmiercią "
+                    "Chrystusa osoby o różnych przekonaniach religijnych. Jest to film o wierze, "
+                    "nadziei, miłości i przebaczeniu - a więc o tym, czego bardzo potrzeba w "
+                    "dzisiejszych burzliwych czasach.  [opis dystrybutora dvd]"
+                ),
                 "popularity": 58.187,
                 "poster_path": "/xwgMHTf6BdGRbqCC8fZGuT5R6vj.jpg",
                 "release_date": "2004-02-25",
@@ -82,7 +93,16 @@ def multiple_results_response_body() -> dict[str, Any]:
                 "id": 9740,
                 "original_language": "en",
                 "original_title": "Hannibal",
-                "overview": "Milioner Mason Verger informuje FBI, że chce przekazać na ręce Clarice Starling materiały, które mogą pomóc w schwytaniu Hannibala Lectera. Przed laty Verger został przez niego potwornie okaleczony. Teraz żyje tylko chęcią krwawego odwetu na doktorze. Agentka Starling ma posłużyć do wywabienia Lectera z kryjówki. Inspektor Pazzi wpada na trop Hannibala. Funkcjonariusz postanawia sprzedać tę informację Vergerowi. Ten stawia jednak warunek - Pazzi dostanie 3 miliony dolarów, jeśli dostarczy odcisk palca domniemanego Lectera.",
+                "overview": (
+                    "Milioner Mason Verger informuje FBI, że chce przekazać na ręce Clarice "
+                    "Starling materiały, które mogą pomóc w schwytaniu Hannibala Lectera. Przed "
+                    "laty Verger został przez niego potwornie okaleczony. Teraz żyje tylko chęcią "
+                    "krwawego odwetu na doktorze. Agentka Starling ma posłużyć do wywabienia "
+                    "Lectera z kryjówki. Inspektor Pazzi wpada na trop Hannibala. Funkcjonariusz "
+                    "postanawia sprzedać tę informację Vergerowi. Ten stawia jednak warunek - Pazzi"
+                    " dostanie 3 miliony dolarów, jeśli dostarczy odcisk palca domniemanego "
+                    "Lectera."
+                ),
                 "popularity": 7.96,
                 "poster_path": "/hFRQ7LcCyFOdu6ZfTIZt0o0cMI5.jpg",
                 "release_date": "2001-02-08",
@@ -98,7 +118,12 @@ def multiple_results_response_body() -> dict[str, Any]:
                 "id": 388859,
                 "original_language": "en",
                 "original_title": "Hannibal",
-                "overview": "A young man happens upon a strange, isolated village which is oppressively ruled by foreign soldiers. When he tries to inquire into what is going on, he is forced to flee to an island where a renegade medical doctor tries to force him into submission.",
+                "overview": (
+                    "A young man happens upon a strange, isolated village which is "
+                    "oppressively ruled by foreign soldiers. When he tries to inquire into"
+                    " what is going on, he is forced to flee to an island where a renegade"
+                    " medical doctor tries to force him into submission."
+                ),
                 "popularity": 1.582,
                 "poster_path": "/3dnBp9NlOpz8LNN9yUw2qpI2YZz.jpg",
                 "release_date": "1972-03-19",

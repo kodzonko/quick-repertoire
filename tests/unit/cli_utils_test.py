@@ -2,19 +2,18 @@ from datetime import datetime, timedelta
 
 import pytest
 import typer
-from mockito import mock
 
 from cinema_repertoire_analyzer.cli_utils import (
+    _venue_results_to_table_title,
     cinema_input_parser,
     cinema_venue_input_parser,
     date_input_parser,
-    _venue_results_to_table_title,
 )
 from cinema_repertoire_analyzer.database.models import (
-    CinemaVenuesBase,
     CinemaCityVenues,
-    MultikinoVenues,
+    CinemaVenuesBase,
     HeliosVenues,
+    MultikinoVenues,
 )
 from cinema_repertoire_analyzer.enums import CinemaChain
 

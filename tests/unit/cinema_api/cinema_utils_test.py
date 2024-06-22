@@ -2,6 +2,7 @@ from typing import Any
 
 import pytest
 from mockito import mock
+from pydantic_core import Url
 
 from cinema_repertoire_analyzer.cinema_api.cinema import Cinema
 from cinema_repertoire_analyzer.cinema_api.cinema_city import CinemaCity
@@ -25,25 +26,29 @@ from cinema_repertoire_analyzer.settings import (
 @pytest.fixture
 def cinema_city_settings() -> CinemaCitySettings:
     cinema_city_settings = mock(CinemaCitySettings)
-    cinema_city_settings.REPERTOIRE_URL = "cinema_city_repertoire_url_dummy_value"
-    cinema_city_settings.VENUES_LIST_URL = "cinema_city_venues_url_dummy_value"
-    return cinema_city_settings
+    cinema_city_settings.REPERTOIRE_URL = Url(
+        "https://www.cinema_city_repertoire_url_dummy_value.com/"
+    )
+    cinema_city_settings.VENUES_LIST_URL = Url(
+        "https://www.cinema_city_venues_url_dummy_value.com/"
+    )
+    return cinema_city_settings  # type: ignore[no-any-return]
 
 
 @pytest.fixture
 def helios_settings() -> HeliosSettings:
     helios_settings = mock(HeliosSettings)
-    helios_settings.REPERTOIRE_URL = "helios_repertoire_url_dummy_value"
-    helios_settings.VENUES_LIST_URL = "helios_venues_url_dummy_value"
-    return helios_settings
+    helios_settings.REPERTOIRE_URL = Url("https://www.helios_repertoire_url_dummy_value.com/")
+    helios_settings.VENUES_LIST_URL = Url("https://www.helios_venues_url_dummy_value.com/")
+    return helios_settings  # type: ignore[no-any-return]
 
 
 @pytest.fixture
 def multikino_settings() -> MultikinoSettings:
     multikino_settings = mock(MultikinoSettings)
-    multikino_settings.REPERTOIRE_URL = "multikino_repertoire_url_dummy_value"
-    multikino_settings.VENUES_LIST_URL = "multikino_venues_url_dummy_value"
-    return multikino_settings
+    multikino_settings.REPERTOIRE_URL = Url("https://www.multikino_repertoire_url_dummy_value.com/")
+    multikino_settings.VENUES_LIST_URL = Url("https://www.multikino_venues_url_dummy_value.com/")
+    return multikino_settings  # type: ignore[no-any-return]
 
 
 @pytest.fixture
@@ -56,7 +61,7 @@ def all_settings(
     settings_mock.CINEMA_CITY_SETTINGS = cinema_city_settings
     settings_mock.HELIOS_SETTINGS = helios_settings
     settings_mock.MULTIKINO_SETTINGS = multikino_settings
-    return settings_mock
+    return settings_mock  # type: ignore[no-any-return]
 
 
 @pytest.mark.parametrize(
@@ -99,20 +104,27 @@ def test_get_cinema_settings_by_cinema_chain_returns_matching_settings(
         pytest.param(
             CinemaChain.CINEMA_CITY,
             CinemaCity(
-                "cinema_city_repertoire_url_dummy_value", "cinema_city_venues_url_dummy_value"
+                Url("https://www.cinema_city_repertoire_url_dummy_value.com/"),
+                Url("https://www.cinema_city_venues_url_dummy_value.com/"),
             ),
         ),
         pytest.param(
             CinemaChain.HELIOS,
-            Helios("helios_repertoire_url_dummy_value", "helios_venues_url_dummy_value"),
+            Helios(
+                Url("https://www.helios_repertoire_url_dummy_value.com/"),
+                Url("https://www.helios_venues_url_dummy_value.com/"),
+            ),
         ),
         pytest.param(
             CinemaChain.MULTIKINO,
-            Multikino("multikino_repertoire_url_dummy_value", "multikino_venues_url_dummy_value"),
+            Multikino(
+                Url("https://www.multikino_repertoire_url_dummy_value.com/"),
+                Url("https://www.multikino_venues_url_dummy_value.com/"),
+            ),
         ),
     ],
 )
-def test_cinema_factory_constructs_correct_cinema_instanxce(
+def test_cinema_factory_constructs_correct_cinema_instance(
     all_settings: Settings, cinema_chain: CinemaChain, expected_cinema: Cinema
 ) -> None:
     assert cinema_factory(cinema_chain, all_settings).__dict__ == expected_cinema.__dict__

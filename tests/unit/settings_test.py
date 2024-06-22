@@ -9,7 +9,7 @@ from cinema_repertoire_analyzer.settings import Settings, get_settings
 
 
 @pytest.fixture
-def ENV_PATH() -> None:
+def ENV_PATH() -> None:  # type: ignore[misc] # noqa: N802
     original_value = os.environ.get("ENV_PATH")
     os.environ["ENV_PATH"] = "/foo/bar/path/setting_file.env"
     yield
@@ -21,7 +21,7 @@ def ENV_PATH() -> None:
 
 @pytest.fixture
 def settings() -> Settings:
-    return mock(Settings)
+    return mock(Settings)  # type: ignore[no-any-return]
 
 
 @pytest.fixture
@@ -31,8 +31,10 @@ def clear_cache() -> None:
 
 @pytest.mark.unit
 @patch("cinema_repertoire_analyzer.settings.Settings")
-def test_get_settings_returns_correct_settings_from_ENV_PATH_file(
-    settings_patched, ENV_PATH: None, clear_cache: None
+def test_get_settings_returns_correct_settings_from_ENV_PATH_file(  # noqa: N802
+    settings_patched,
+    ENV_PATH: None,  # noqa: N803
+    clear_cache: None,
 ) -> None:
     settings_patched.return_value = "settings_instance_from_file_under_ENV_PATH"
     when(Path).exists().thenReturn(True)

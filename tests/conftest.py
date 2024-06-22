@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from cinema_repertoire_analyzer.settings import get_settings, Settings
+from cinema_repertoire_analyzer.settings import Settings, get_settings
 
 RESOURCE_DIR = Path(__file__).parent / "resources"
 os.environ["ENV_PATH"] = str(RESOURCE_DIR / "test.env")
@@ -21,6 +21,6 @@ def vcr_config():
 
 @pytest.fixture
 def settings() -> Settings:
-    if not (ENV_PATH := os.environ.get("ENV_PATH")) or not ENV_PATH.endswith("test.env"):
+    if not (ENV_PATH := os.environ.get("ENV_PATH")) or not ENV_PATH.endswith("test.env"):  # noqa: N806
         raise ValueError("Env_PATH environment variable is not set or is not set to test.env file.")
     return get_settings()
