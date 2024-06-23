@@ -10,9 +10,7 @@ import sqlalchemy
 import typer
 from loguru import logger
 
-from cinema_repertoire_analyzer.database.db_utils import get_table_by_cinema_chain
-from cinema_repertoire_analyzer.database.models import VenueData
-from cinema_repertoire_analyzer.enums import CinemaChain
+from cinema_repertoire_analyzer.database.models import CinemaVenues
 
 
 class DatabaseManager:
@@ -28,27 +26,23 @@ class DatabaseManager:
             typer.echo(f"Nie udało się połączyć z bazą danych {sqlite_uri}. Spróbuj jeszcze raz.")
             raise typer.Exit(code=1) from e
 
-    def get_all_venues(self, cinema_chain: CinemaChain) -> list[VenueData]:
+    def get_all_venues(self) -> list[CinemaVenues]:
         """Get all venues for a specified cinema chain from the database."""
-        table = get_table_by_cinema_chain(cinema_chain)
         with self._session_constructor() as session:
-            results = session.query(table).all()
+            results = session.query(CinemaVenues).all()
             return results
 
-    def update_cinema_venues(self, cinema_chain: CinemaChain, venues: list[VenueData]) -> None:
+    def update_cinema_venues(self, venues: list[CinemaVenues]) -> None:
         """Update cinema venues in the database.
 
         Function will remove all records from the table and insert new ones.
         """
-        table = get_table_by_cinema_chain(cinema_chain)
         with self._session_constructor() as session:
-            session.query(table).delete()
+            session.query(CinemaVenues).delete()
             session.add_all(venues)
             session.commit()
 
-    def find_venues_by_name(
-        self, cinema_chain: CinemaChain, search_string: str
-    ) -> VenueData | list[VenueData]:
+    def find_venues_by_name(self, search_string: str) -> CinemaVenues | list[CinemaVenues]:
         """Find a venue of a specified cinema chain by name.
 
         Conducts a permissive search
@@ -56,10 +50,11 @@ class DatabaseManager:
         Raises:
         typer.Exit: If no venue is found.
         """
-        table = get_table_by_cinema_chain(cinema_chain)
         with self._session_constructor() as session:
             results = (
-                session.query(table).filter(table.venue_name.ilike(f"%{search_string}%")).all()
+                session.query(CinemaVenues)
+                .filter(CinemaVenues.venue_name.ilike(f"%{search_string}%"))
+                .all()
             )
             if len(results) == 1:
                 return results[0]

@@ -6,20 +6,8 @@ import typer
 from rich.table import Table
 
 from cinema_repertoire_analyzer.cinema_api.models import Repertoire, RepertoireCliTableMetadata
-from cinema_repertoire_analyzer.database.models import CinemaVenuesBase
-from cinema_repertoire_analyzer.enums import CinemaChain
+from cinema_repertoire_analyzer.database.models import CinemaVenues
 from cinema_repertoire_analyzer.ratings_api.models import TmdbMovieDetails
-
-
-def cinema_input_parser(cinema_name: str) -> CinemaChain:
-    """Parse cinema name input to match the format of the config file."""
-    try:
-        return CinemaChain[cinema_name.upper().replace(" ", "_").replace("-", "_")]
-    except KeyError:
-        raise typer.BadParameter(
-            f'Kino "{cinema_name}" nie jest wspierane. Wybierz jedno z: '
-            f'{", ".join(CinemaChain.__members__.values())}'
-        )
 
 
 def cinema_venue_input_parser(cinema_venue: str) -> str:
@@ -53,22 +41,12 @@ def date_input_parser(date: str) -> str:
         )
 
 
-def _venue_results_to_table_title(venue: CinemaVenuesBase) -> str:
-    """Convert venue results to a table title."""
-    venues_class_to_table_title_mapping = {
-        "cinema_city_venues": "Cinema City",
-        "multikino_venues": "Multikino",
-        "helios_venues": "Helios",
-    }
-    return f"Znalezione lokale sieci {venues_class_to_table_title_mapping[venue.__table__.name]}"
-
-
-def db_venues_to_cli(venues: list[CinemaVenuesBase], sink: rich.console.Console) -> None:
+def db_venues_to_cli(venues: list[CinemaVenues], sink: rich.console.Console) -> None:
     """Print cinema venues as a pretty-printed table in a console."""
     if not venues:
         sink.print("Brak kin tej sieci w bazie danych.")
         return
-    table = Table(title=_venue_results_to_table_title(venues[0]))
+    table = Table(title="Znalezione lokale sieci Cinema City")
     for column in venues[0].__table__.columns:
         table.add_column(column.name)
     for venue in venues:
@@ -88,7 +66,7 @@ def repertoire_to_cli(
         sink.print("Brak repertuaru do wyświetlenia.")
         return
     table = Table(
-        title=f"Repertuar dla {table_metadata.cinema_chain_name} "
+        title=f"Repertuar dla Cinema City "
         f"({table_metadata.cinema_venue_name}) na dzień: {table_metadata.repertoire_date}",
         show_lines=True,
         header_style="bold",

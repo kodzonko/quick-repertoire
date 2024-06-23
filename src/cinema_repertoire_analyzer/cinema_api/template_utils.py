@@ -1,8 +1,7 @@
 import typer
-from pydantic_core import Url
 
 
-def fill_string_template(text: str | Url, **kwargs) -> str:
+def fill_string_template(text: str, **kwargs) -> str:
     """Verify that all variables in string are matched in the variables dictionary.
 
     Args:

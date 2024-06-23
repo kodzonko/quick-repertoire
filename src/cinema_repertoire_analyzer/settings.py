@@ -6,10 +6,8 @@ from typing import Literal
 
 import typer
 from loguru import logger
-from pydantic import AnyHttpUrl, FilePath, field_validator
+from pydantic import FilePath, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
-from cinema_repertoire_analyzer.enums import CinemaChain
 
 PROJECT_ROOT = Path(__file__).parents[2]
 
@@ -20,7 +18,6 @@ LOG_LVLS = Literal["TRACE", "WARNING", "DEBUG", "INFO", "ERROR", "CRITICAL"]
 class UserPreferences(BaseSettings):
     """User preferences for the application."""
 
-    DEFAULT_CINEMA: CinemaChain
     DEFAULT_CINEMA_VENUE: str
     DEFAULT_DAY: AllowedDefaultDays
     TMDB_ACCESS_TOKEN: str | None = None
@@ -29,22 +26,8 @@ class UserPreferences(BaseSettings):
 class CinemaCitySettings(BaseSettings):
     """Settings for Cinema City cinema chain."""
 
-    REPERTOIRE_URL: AnyHttpUrl
-    VENUES_LIST_URL: AnyHttpUrl
-
-
-class HeliosSettings(BaseSettings):
-    """Settings for Helios cinema chain."""
-
-    REPERTOIRE_URL: AnyHttpUrl
-    VENUES_LIST_URL: AnyHttpUrl
-
-
-class MultikinoSettings(BaseSettings):
-    """Settings for Multikino cinema chain."""
-
-    REPERTOIRE_URL: AnyHttpUrl
-    VENUES_LIST_URL: AnyHttpUrl
+    REPERTOIRE_URL: str
+    VENUES_LIST_URL: str
 
 
 class Settings(BaseSettings):
@@ -53,8 +36,6 @@ class Settings(BaseSettings):
     DB_FILE: FilePath
     USER_PREFERENCES: UserPreferences
     CINEMA_CITY_SETTINGS: CinemaCitySettings
-    HELIOS_SETTINGS: HeliosSettings
-    MULTIKINO_SETTINGS: MultikinoSettings
     LOGURU_LEVEL: LOG_LVLS = "INFO"
 
     @field_validator("LOGURU_LEVEL")
@@ -83,6 +64,3 @@ def get_settings() -> Settings:
         # attempt loading variables from environment
         return Settings(_env_nested_delimiter="__")  # type: ignore[call-arg]
     return Settings(_env_file=ENV_PATH, _env_file_encoding="utf-8", _env_nested_delimiter="__")  # type: ignore
-
-
-type CinemaSettings = CinemaCitySettings | HeliosSettings | MultikinoSettings  # type: ignore[valid-type]

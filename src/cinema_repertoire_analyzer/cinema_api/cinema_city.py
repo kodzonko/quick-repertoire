@@ -1,26 +1,22 @@
 import re
 
 from bs4 import BeautifulSoup
-from pydantic_core import Url
 from requests import Response
 from requests_html import Element, HTMLSession
 
-from cinema_repertoire_analyzer.cinema_api.cinema import Cinema
 from cinema_repertoire_analyzer.cinema_api.models import MoviePlayDetails, Repertoire
 from cinema_repertoire_analyzer.cinema_api.template_utils import fill_string_template
-from cinema_repertoire_analyzer.database.models import CinemaCityVenues
-from cinema_repertoire_analyzer.enums import CinemaChain
+from cinema_repertoire_analyzer.database.models import CinemaVenues
 
 
-class CinemaCity(Cinema):
+class CinemaCity:
     """Class handling interactions with www.cinema-city.pl website."""
 
-    def __init__(self, repertoire_url: Url, cinema_venues_url: Url) -> None:
-        self.cinema_chain = CinemaChain.CINEMA_CITY
+    def __init__(self, repertoire_url: str, cinema_venues_url: str) -> None:
         self.repertoire_url = repertoire_url
         self.cinema_venues_url = cinema_venues_url
 
-    def fetch_repertoire(self, date: str, venue_data: CinemaCityVenues) -> list[Repertoire]:
+    def fetch_repertoire(self, date: str, venue_data: CinemaVenues) -> list[Repertoire]:
         """Download repertoire for a specified date and venue from the cinema website."""
         session = HTMLSession()
         url = fill_string_template(
@@ -52,7 +48,7 @@ class CinemaCity(Cinema):
 
         return output
 
-    def fetch_cinema_venues_list(self) -> list[CinemaCityVenues]:
+    def fetch_cinema_venues_list(self) -> list[CinemaVenues]:
         """Download list of cinema venues from the cinema website."""
         session = HTMLSession()
         response = session.get(self.cinema_venues_url, timeout=30)
@@ -61,9 +57,9 @@ class CinemaCity(Cinema):
         venues = [cinema.element.get("data-tokens") for cinema in cinemas]
         ids = [int(cinema.element.get("value")) for cinema in cinemas]
 
-        output: list[CinemaCityVenues] = []
+        output: list[CinemaVenues] = []
         for venue, id_ in zip(venues, ids):
-            output.append(CinemaCityVenues(venue_name=venue, venue_id=id_))
+            output.append(CinemaVenues(venue_name=venue, venue_id=id_))
 
         return output
 

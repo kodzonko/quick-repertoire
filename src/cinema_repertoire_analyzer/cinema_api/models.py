@@ -23,5 +23,4 @@ class RepertoireCliTableMetadata(BaseModel):
     """Metadata for the repertoire table representation in CLI."""
 
     repertoire_date: str
-    cinema_chain_name: str
     cinema_venue_name: str

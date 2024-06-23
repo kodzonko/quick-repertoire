@@ -1,6 +1,5 @@
 import asyncio
 import urllib
-from asyncio import Task
 from datetime import datetime
 from http import HTTPStatus
 

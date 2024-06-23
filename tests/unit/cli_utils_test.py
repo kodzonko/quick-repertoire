@@ -3,43 +3,8 @@ from datetime import datetime, timedelta
 import pytest
 import typer
 
-from cinema_repertoire_analyzer.cli_utils import (
-    _venue_results_to_table_title,
-    cinema_input_parser,
-    cinema_venue_input_parser,
-    date_input_parser,
-)
-from cinema_repertoire_analyzer.database.models import (
-    CinemaCityVenues,
-    CinemaVenuesBase,
-    HeliosVenues,
-    MultikinoVenues,
-)
-from cinema_repertoire_analyzer.enums import CinemaChain
-
-
-@pytest.mark.unit
-@pytest.mark.parametrize(
-    "input_, output",
-    [
-        pytest.param("Cinema City", CinemaChain.CINEMA_CITY),
-        pytest.param("cinema-city", CinemaChain.CINEMA_CITY),
-        pytest.param("cinema_city", CinemaChain.CINEMA_CITY),
-        pytest.param("multikino", CinemaChain.MULTIKINO),
-        pytest.param("Helios", CinemaChain.HELIOS),
-    ],
-)
-def test_cinema_input_parser_parses_user_input_correctly(input_: str, output: CinemaChain) -> None:
-    assert cinema_input_parser(input_) == output
-
-
-@pytest.mark.unit
-def test_cinema_input_parser_raises_error_on_unrecognized_input() -> None:
-    with pytest.raises(
-        typer.BadParameter,
-        match='Kino "foo" nie jest wspierane. Wybierz jedno z: Cinema City, Helios, Multikino',
-    ):
-        cinema_input_parser("foo")
+from cinema_repertoire_analyzer.cli_utils import cinema_venue_input_parser, date_input_parser
+from cinema_repertoire_analyzer.database.models import CinemaVenues
 
 
 @pytest.mark.unit
@@ -54,7 +19,7 @@ def test_cinema_input_parser_raises_error_on_unrecognized_input() -> None:
     ],
 )
 def test_cinema_venue_input_parser_parses_user_input_correctly(
-    input_: str, output: CinemaChain
+    input_: str, output: CinemaVenues
 ) -> None:
     assert cinema_venue_input_parser(input_) == output
 
@@ -83,18 +48,3 @@ def test_date_input_parser_raises_error_on_unrecognized_input() -> None:
         match="Data: foo nie jest we wspieranym formacie: YYYY-MM-DD | dzis | jutro | itp...",
     ):
         date_input_parser("foo")
-
-
-@pytest.mark.unit
-@pytest.mark.parametrize(
-    "input_, output",
-    [
-        pytest.param(CinemaCityVenues, "Znalezione lokale sieci Cinema City"),
-        pytest.param(MultikinoVenues, "Znalezione lokale sieci Multikino"),
-        pytest.param(HeliosVenues, "Znalezione lokale sieci Helios"),
-    ],
-)
-def test_venue_results_to_table_title_converts_venue_results_to_table_title_correctly(
-    input_: CinemaVenuesBase, output: str
-) -> None:
-    assert _venue_results_to_table_title(input_) == output

@@ -1,22 +1,21 @@
 import pytest
+from conftest import RESOURCE_DIR
 from mockito import mock, when
-from pydantic_core import Url
 from requests_html import HTML, HTMLResponse, HTMLSession
 
 import cinema_repertoire_analyzer.cinema_api.cinema_city as tested_module
 from cinema_repertoire_analyzer.cinema_api.models import MoviePlayDetails, Repertoire
-from cinema_repertoire_analyzer.database.models import CinemaCityVenues
-from conftest import RESOURCE_DIR
+from cinema_repertoire_analyzer.database.models import CinemaVenues
 
 
 @pytest.fixture
 def cinema_city() -> tested_module.CinemaCity:
     return tested_module.CinemaCity(
-        repertoire_url=Url(
+        repertoire_url=(
             "https://www.cinema-city.pl/#/buy-tickets-by-cinema?"
             "in-cinema={cinema_venue_id}&at={repertoire_date}"
         ),
-        cinema_venues_url=Url("https://www.cinema-city.pl/#/buy-tickets-by-cinema"),
+        cinema_venues_url="https://www.cinema-city.pl/#/buy-tickets-by-cinema",
     )
 
 
@@ -467,7 +466,7 @@ def test_fetch_repertoire_downloads_and_parses_repertoire_correctly(
     assert (
         cinema_city.fetch_repertoire(
             date="2023-04-01",
-            venue_data=CinemaCityVenues(venue_id="1097", venue_name="Wrocław - Wroclavia"),
+            venue_data=CinemaVenues(venue_id="1097", venue_name="Wrocław - Wroclavia"),
         )
         == expected
     )

@@ -4,10 +4,9 @@ from typing import Annotated
 import rich
 import typer
 
-from cinema_repertoire_analyzer.cinema_api.cinema_utils import cinema_factory
+from cinema_repertoire_analyzer.cinema_api.cinema_city import CinemaCity
 from cinema_repertoire_analyzer.cinema_api.models import RepertoireCliTableMetadata
 from cinema_repertoire_analyzer.cli_utils import (
-    cinema_input_parser,
     cinema_venue_input_parser,
     date_input_parser,
     db_venues_to_cli,
@@ -31,15 +30,13 @@ def make_app(settings: Settings = get_settings()) -> typer.Typer:
 
     @app.command()
     def repertoire(
-        cinema_chain: Annotated[str, typer.Argument()] = settings.USER_PREFERENCES.DEFAULT_CINEMA,
         venue_name: Annotated[
             str, typer.Argument()
         ] = settings.USER_PREFERENCES.DEFAULT_CINEMA_VENUE,
         date: Annotated[str, typer.Argument()] = settings.USER_PREFERENCES.DEFAULT_DAY,
     ) -> None:
-        cinema_chain = cinema_input_parser(cinema_chain)
         venue_name_parsed = cinema_venue_input_parser(venue_name)
-        venue = db_manager.find_venues_by_name(cinema_chain, venue_name_parsed)
+        venue = db_manager.find_venues_by_name(venue_name_parsed)
         if isinstance(venue, builtins.list):
             typer.echo(
                 f"Podana nazwa lokalu jest niejednoznaczna. Znaleziono "
@@ -49,7 +46,10 @@ def make_app(settings: Settings = get_settings()) -> typer.Typer:
 
         date_parsed: str = date_input_parser(date)
 
-        cinema_instance = cinema_factory(cinema_chain, settings)
+        cinema_instance = CinemaCity(
+            settings.CINEMA_CITY_SETTINGS.REPERTOIRE_URL,
+            settings.CINEMA_CITY_SETTINGS.VENUES_LIST_URL,
+        )
         fetched_repertoire = cinema_instance.fetch_repertoire(date_parsed, venue)
         tmdb_enabled = verify_api_key(settings.USER_PREFERENCES.TMDB_ACCESS_TOKEN)
         ratings = {}
@@ -65,40 +65,31 @@ def make_app(settings: Settings = get_settings()) -> typer.Typer:
                 style="bold red",
             )
 
-        # noinspection PyTypeChecker
         table_metadata = RepertoireCliTableMetadata(
             repertoire_date=date_parsed,
-            cinema_chain_name=cinema_chain.value,
             cinema_venue_name=venue.venue_name,  # type: ignore
         )
         repertoire_to_cli(fetched_repertoire, table_metadata, ratings, console)
 
     @venues_app.command()
-    def list(
-        cinema: Annotated[str, typer.Argument()] = settings.USER_PREFERENCES.DEFAULT_CINEMA,
-    ) -> None:
-        cinema_chain = cinema_input_parser(cinema)
-        venues = db_manager.get_all_venues(cinema_chain)
+    def list() -> None:
+        venues = db_manager.get_all_venues()
         db_venues_to_cli(venues, console)
 
     @venues_app.command()
-    def update(
-        cinema_name: Annotated[str, typer.Argument()] = settings.USER_PREFERENCES.DEFAULT_CINEMA,
-    ) -> None:
-        cinema_chain = cinema_input_parser(cinema_name)
-        typer.echo(f"Aktualizowanie lokali dla kina: {cinema_chain.value}...")
-        cinema = cinema_factory(cinema_chain, settings)
-        venues = cinema.fetch_cinema_venues_list()
-        db_manager.update_cinema_venues(cinema_chain, venues)
+    def update() -> None:
+        typer.echo("Aktualizowanie lokali dla kina: Cinema City...")
+        cinema_instance = CinemaCity(
+            settings.CINEMA_CITY_SETTINGS.REPERTOIRE_URL,
+            settings.CINEMA_CITY_SETTINGS.VENUES_LIST_URL,
+        )
+        venues = cinema_instance.fetch_cinema_venues_list()
+        db_manager.update_cinema_venues(venues)
         typer.echo("Lokale zaktualizowane w lokalnej bazie danych.")
 
     @venues_app.command()
-    def search(
-        cinema_name: Annotated[str, typer.Argument()] = settings.USER_PREFERENCES.DEFAULT_CINEMA,
-        venue_name: Annotated[str, typer.Argument()] = "",
-    ):
-        cinema_chain = cinema_input_parser(cinema_name)
-        found_venues = db_manager.find_venues_by_name(cinema_chain, venue_name)
+    def search(venue_name: Annotated[str, typer.Argument()] = ""):
+        found_venues = db_manager.find_venues_by_name(venue_name)
         db_venues_to_cli(found_venues, console)
 
     return app
