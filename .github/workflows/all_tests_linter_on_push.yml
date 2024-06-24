@@ -65,6 +65,11 @@ jobs:
           CINEMA_CITY_SETTINGS__VENUES_LIST_URL: ${{ vars.CINEMA_CITY_SETTINGS__VENUES_LIST_URL }}
         run: make tests
       #----------------------------------------------
+      #              update coverage
+      #----------------------------------------------
+      - name: Coveralls GitHub Action
+        uses: coverallsapp/github-action@v2.3.0
+      #----------------------------------------------
       #              lint code
       #----------------------------------------------
       - name: Run linter
