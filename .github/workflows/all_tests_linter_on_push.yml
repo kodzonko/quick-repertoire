@@ -65,23 +65,7 @@ jobs:
           CINEMA_CITY_SETTINGS__VENUES_LIST_URL: ${{ vars.CINEMA_CITY_SETTINGS__VENUES_LIST_URL }}
         run: make tests
       #----------------------------------------------
-      #              update coverage
-      #----------------------------------------------
-      - name: Upload coverage to Coveralls
-        uses: AndreMiras/coveralls-python-action@v20201129
-        with:
-          parallel: true
-      #----------------------------------------------
       #              lint code
       #----------------------------------------------
       - name: Run linter
         run: make lint
-  coveralls_finish:
-    needs: test-and-lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Send finished signal to Coveralls
-        uses: AndreMiras/coveralls-python-action@v20201129
-        with:
-          parallel-finished: true

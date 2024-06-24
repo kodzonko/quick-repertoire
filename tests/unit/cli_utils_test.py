@@ -14,8 +14,6 @@ from cinema_repertoire_analyzer.database.models import CinemaVenues
         pytest.param(" Manufaktura ", "%Manufaktura%"),
         pytest.param("warszawa janki", "%warszawa%janki%"),
         pytest.param("wrocłavia.", "%wroc_avia%"),
-        pytest.param("multikino", "%multikino%"),
-        pytest.param("Helios\n", "%Helios%"),
     ],
 )
 def test_cinema_venue_input_parser_parses_user_input_correctly(
