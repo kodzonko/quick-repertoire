@@ -67,8 +67,8 @@ jobs:
       #----------------------------------------------
       #              update coverage
       #----------------------------------------------
-      - name: Coveralls GitHub Action
-        uses: coverallsapp/github-action@v2.3.0
+      - name: Upload coverage to Coveralls
+        uses: AndreMiras/coveralls-python-action@v20201129
       #----------------------------------------------
       #              lint code
       #----------------------------------------------
