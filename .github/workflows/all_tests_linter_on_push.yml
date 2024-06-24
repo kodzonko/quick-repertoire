@@ -69,8 +69,8 @@ jobs:
       #----------------------------------------------
       - name: Upload coverage to Coveralls
         uses: AndreMiras/coveralls-python-action@v20201129
-      #        with:
-      #          parallel: true
+        with:
+          parallel: false
       #----------------------------------------------
       #              lint code
       #----------------------------------------------
