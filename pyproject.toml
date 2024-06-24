@@ -1,12 +1,12 @@
 [tool.poetry]
 name = "cinema-repertoire-analyzer"
-version = "0.1.0"
-description = "Quickly get repertoires of major Polish cinema chains - Cinema City, Multikino & Helios from the comfort of your terminal. Movie info is enriched with TMDB ratings."
+version = "1.0.0"
+description = "Quickly get repertoires of a major Polish cinema chain - Cinema City from the comfort of your terminal. Movie info is enriched with TMDB ratings."
 authors = ["Jan Wadolowski <janwadolowski@gmail.com>"]
 readme = "README.md"
 license = "MIT"
 repository = "https://github.com/kodzonko/cinema-repertoire-analyzer"
-keywords = ["movie", "tmdb", "film", "films", "tmdb-api", "movie-recommendation", "repertoire-analysis", "cinema-city-scraper", "helios-scraper", "repertoire-scraper"]
+keywords = ["movie", "tmdb", "film", "films", "tmdb-api", "movie-recommendation", "repertoire-analysis", "cinema-city-scraper", "repertoire-scraper"]
 
 [tool.poetry.dependencies]
 python = "^3.12"
@@ -52,6 +52,8 @@ markers = [
 asyncio_mode = "auto"
 filterwarnings = ["ignore::DeprecationWarning"]
 
+[tool.poetry.scripts]
+app = "cinema_repertoire_analyzer.main:make_app()"
 
 [tool.mypy]
 python_version = "3.12"
