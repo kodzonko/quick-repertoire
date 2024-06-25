@@ -37,3 +37,16 @@ $ poetry run app venues list # wyświetla dostępne kina
 $ poetry run app venues update # aktualizuje listę kin w lokalnej bazie danych
 $ poetry run app venues search manufaktura # wyświetla kina zawierające w nazwie "manufaktura"
 ```
+
+## Testy
+
+Komendy do uruchamiania testów wybiórczo w pliku `Makefile`.
+
+```shell
+make tests
+lub
+poetry run pytest tests
+```
+
+| :warning: | Program nie jest aktywnie rozwijany, ale ewentualne PRy pod warunkiem pokrycia testami będą mergowane. |
+| --------- | :----------------------------------------------------------------------------------------------------- |
