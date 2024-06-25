@@ -50,3 +50,5 @@ poetry run pytest tests
 
 | :warning: | Program nie jest aktywnie rozwijany, ale ewentualne PRy pod warunkiem pokrycia testami będą mergowane. |
 | --------- | :----------------------------------------------------------------------------------------------------- |
+
+[Post-mortem](https://github.com/kodzonko/cinema-repertoire-analyzer/blob/master/docs/post-mortem.md)
