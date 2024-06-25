@@ -35,7 +35,7 @@ async def fetch_movie_details(
     }
     url = base_url + urllib.parse.urlencode(params)
     headers = {"accept": "application/json", "Authorization": f"Bearer {access_token}"}
-    async with async_timeout.timeout(5):
+    async with async_timeout.timeout(30):
         async with session.get(url, headers=headers) as response:
             return await response.json()  # type: ignore[no-any-return]
 

@@ -34,7 +34,6 @@ def test_fetch_repertoire_downloads_and_parses_repertoire_correctly(
         timeout=30,
     ).thenReturn(response)
     when(response.html).render(timeout=30)
-    when(session).close()
     expected = [
         Repertoire(
             title="65",
