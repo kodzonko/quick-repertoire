@@ -36,11 +36,14 @@ up-to-date with the help of dependabot and fix any reported bugs.
 :white_check_mark: Have a simple functional CLI tool to quickly look up the
 repertoire & ratings to sift out crap when looking for a movie to watch in
 cinema.
+
 :white_check_mark: Have a complete, a bit more complex scraping project in my
 portfolio.
 :x: Package the app into a single executable file (and learn the process along
 the way).
+
 :x: Have a tool to quickly look up screening times across multiple venues and
 cinema chains (only completed for Cinema City).
+
 :white_check_mark: Implement CICD pipeline with GitHub actions to run linter and
 tests (and build + deploy but that went out of the window with PyInstaller).
