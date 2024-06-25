@@ -39,6 +39,7 @@ cinema.
 
 :white_check_mark: Have a complete, a bit more complex scraping project in my
 portfolio.
+
 :x: Package the app into a single executable file (and learn the process along
 the way).
 
