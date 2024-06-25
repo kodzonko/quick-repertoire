@@ -1,3 +1,6 @@
+[project]
+requires-python = ">=3.12,<3.13"
+
 [tool.poetry]
 name = "cinema-repertoire-analyzer"
 version = "1.0.0"
