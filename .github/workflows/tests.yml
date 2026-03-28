@@ -23,7 +23,7 @@ jobs:
           uv sync --all-groups
       - name: Run tests
         env:
-          LOGURU_LEVEL: ${{ vars.LOGURU_LEVEL }}
+          LOGURU_LEVEL: ${{ vars.LOGURU_LEVEL || 'INFO' }}
           DB_FILE: ${{ vars.DB_FILE }}
           USER_PREFERENCES__DEFAULT_CINEMA_VENUE: ${{ vars.USER_PREFERENCES__DEFAULT_CINEMA_VENUE }}
           USER_PREFERENCES__DEFAULT_DAY: ${{ vars.USER_PREFERENCES__DEFAULT_DAY }}
