@@ -95,5 +95,10 @@ def make_app(settings: Settings = get_settings()) -> typer.Typer:
     return app
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Run the Typer application."""
     make_app()()
+
+
+if __name__ == "__main__":
+    main()

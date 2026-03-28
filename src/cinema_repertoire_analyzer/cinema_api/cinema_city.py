@@ -1,12 +1,19 @@
 import re
 
 from bs4 import BeautifulSoup
-from requests import Response
-from requests_html import Element, HTMLSession
+from bs4.element import Tag
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
 
 from cinema_repertoire_analyzer.cinema_api.models import MoviePlayDetails, Repertoire
 from cinema_repertoire_analyzer.cinema_api.template_utils import fill_string_template
 from cinema_repertoire_analyzer.database.models import CinemaVenues
+
+REQUEST_TIMEOUT_SECONDS = 30
+REPERTOIRE_SELECTOR = "div.row.qb-movie"
+CINEMA_VENUES_SELECTOR = "option[value][data-tokens]"
 
 
 class CinemaCity:
@@ -18,20 +25,18 @@ class CinemaCity:
 
     def fetch_repertoire(self, date: str, venue_data: CinemaVenues) -> list[Repertoire]:
         """Download repertoire for a specified date and venue from the cinema website."""
-        session = HTMLSession()
         url = fill_string_template(
             self.repertoire_url, cinema_venue_id=venue_data.venue_id, repertoire_date=date
         )
-        response: Response = session.get(url, timeout=30)
-        # render JS elements
-        response.html.render(timeout=30)  # type: ignore[attr-defined]
-        soup = BeautifulSoup(response.html.html, "lxml")  # type: ignore[attr-defined]
+        rendered_html = self._fetch_rendered_html(url, REPERTOIRE_SELECTOR)
+        soup = BeautifulSoup(rendered_html, "lxml")
         output = []
-        movies_details: list[Element] = soup.find_all("div", class_="row qb-movie")
+        movies_details: list[Tag] = soup.find_all("div", class_="row qb-movie")
         for movie in movies_details:
             presale_header = movie.find("div", class_="qb-movie-info-column").find("h4")
             is_presale = (
-                presale_header is not None and presale_header.text == "KUP BILET W PRZEDSPRZEDAŻY "
+                presale_header is not None
+                and "PRZEDSPRZED" in presale_header.text.upper()
             )
             # Presale movies in repertoire have different HTML structure
             # and are not available on selected date, so we skip.
@@ -50,35 +55,52 @@ class CinemaCity:
 
     def fetch_cinema_venues_list(self) -> list[CinemaVenues]:
         """Download list of cinema venues from the cinema website."""
-        session = HTMLSession()
-        response = session.get(self.cinema_venues_url, timeout=30)
-        response.html.render(timeout=30)  # render JS elements
-        cinemas = response.html.find("option[value][data-tokens]")
-        venues = [cinema.element.get("data-tokens") for cinema in cinemas]
-        ids = [int(cinema.element.get("value")) for cinema in cinemas]
-
+        rendered_html = self._fetch_rendered_html(self.cinema_venues_url, CINEMA_VENUES_SELECTOR)
+        soup = BeautifulSoup(rendered_html, "lxml")
         output: list[CinemaVenues] = []
-        for venue, id_ in zip(venues, ids):
-            output.append(CinemaVenues(venue_name=venue, venue_id=id_))
+        for cinema in soup.select(CINEMA_VENUES_SELECTOR):
+            venue = cinema.get("data-tokens", "").strip()
+            venue_id = cinema.get("value", "").strip()
+            if not venue or venue == "null" or not venue_id.isdigit():
+                continue
+            output.append(CinemaVenues(venue_name=venue, venue_id=venue_id))
 
         return output
 
-    def _parse_title(self, html: Element) -> str:
+    def _fetch_rendered_html(self, url: str, wait_selector: str) -> str:
+        """Load a page in a headless browser and return its rendered HTML."""
+        options = Options()
+        options.add_argument("--headless=new")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--window-size=1920,1080")
+
+        with webdriver.Chrome(options=options) as driver:
+            driver.set_page_load_timeout(REQUEST_TIMEOUT_SECONDS)
+            driver.get(url)
+            WebDriverWait(driver, REQUEST_TIMEOUT_SECONDS).until(
+                lambda current_driver: bool(
+                    current_driver.find_elements(By.CSS_SELECTOR, wait_selector)
+                )
+            )
+            return driver.page_source
+
+    def _parse_title(self, html: Tag) -> str:
         """Parse HTML element of a single movie to extract title."""
         return html.find("h3", "qb-movie-name").text.strip()  # type: ignore[no-any-return]
 
-    def _parse_genres(self, html: Element) -> str:
+    def _parse_genres(self, html: Tag) -> str:
         """Parse HTML element of a single movie to extract genres."""
         try:
             raw_str = html.find("div", class_="qb-movie-info-wrapper").find("span").text
             if "|" not in raw_str:  # means no info about genres
                 return "N/A"
-            else:
-                return raw_str.replace("|", "").strip()  # type: ignore[no-any-return]
+            return raw_str.replace("|", "").strip()  # type: ignore[no-any-return]
         except AttributeError:
             return "N/A"
 
-    def _parse_original_language(self, html: Element) -> str:
+    def _parse_original_language(self, html: Tag) -> str:
         """Parse HTML element of a single movie to extract original language."""
         try:
             element = html.find("span", attrs={"aria-label": re.compile("original-lang")})
@@ -86,7 +108,7 @@ class CinemaCity:
         except AttributeError:
             return "N/A"
 
-    def _parse_play_length(self, html: Element) -> str:
+    def _parse_play_length(self, html: Tag) -> str:
         """Parse HTML element of a single movie to extract play length."""
         try:
             target_tag = html.find("div", class_="qb-movie-info-wrapper").find(
@@ -96,25 +118,25 @@ class CinemaCity:
         except AttributeError:
             return "N/A"
 
-    def _parse_play_format(self, html: Element) -> str:
+    def _parse_play_format(self, html: Tag) -> str:
         """Parse HTML element of a single movie to extract play format."""
         formats_section = html.find("ul", class_="qb-screening-attributes")
         try:
             formats = formats_section.find_all(
                 "span", attrs={"aria-label": re.compile("Screening type")}
             )
-            return " ".join([f.text.strip() for f in formats])
+            return " ".join([format_.text.strip() for format_ in formats])
         except AttributeError:
             return "N/A"
 
-    def _parse_play_times(self, html: Element) -> list[str]:
+    def _parse_play_times(self, html: Tag) -> list[str]:
         """Parse HTML element of a single movie to extract play times."""
         times = html.find_all("a", class_="btn btn-primary btn-lg")
-        parsed_times = [re.sub(r"\s+", " ", t.text) for t in times]
-        parsed_times = [t.strip() for t in parsed_times]
+        parsed_times = [re.sub(r"\s+", " ", time.text) for time in times]
+        parsed_times = [time.strip() for time in parsed_times]
         return parsed_times
 
-    def _parse_play_language(self, html: Element) -> str:
+    def _parse_play_language(self, html: Tag) -> str:
         """Parse HTML element of a single movie to extract play language."""
         sub_dub_or_original_prefix = html.find(
             "span", attrs={"aria-label": re.compile("subAbbr|dubAbbr|noSubs")}
@@ -128,16 +150,16 @@ class CinemaCity:
         except AttributeError:
             return "N/A"
 
-    def _parse_play_details(self, html: Element) -> list[MoviePlayDetails]:
-        """Parse HTML element of a single movie to extract play formats, languages and respective play times."""  # noqa: E501
+    def _parse_play_details(self, html: Tag) -> list[MoviePlayDetails]:
+        """Parse HTML element of a single movie to extract play details."""
         output = []
         play_details = html.find_all("div", class_="qb-movie-info-column")
-        for html in play_details:
+        for play_detail in play_details:
             output.append(
                 MoviePlayDetails(
-                    format=self._parse_play_format(html),
-                    play_times=self._parse_play_times(html),
-                    play_language=self._parse_play_language(html),
+                    format=self._parse_play_format(play_detail),
+                    play_times=self._parse_play_times(play_detail),
+                    play_language=self._parse_play_language(play_detail),
                 )
             )
         return output

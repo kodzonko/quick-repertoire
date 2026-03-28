@@ -1,7 +1,6 @@
 import pytest
 from conftest import RESOURCE_DIR
-from mockito import mock, when
-from requests_html import HTML, HTMLResponse, HTMLSession
+from mockito import when
 
 import cinema_repertoire_analyzer.cinema_api.cinema_city as tested_module
 from cinema_repertoire_analyzer.cinema_api.models import MoviePlayDetails, Repertoire
@@ -20,20 +19,19 @@ def cinema_city() -> tested_module.CinemaCity:
 
 
 @pytest.fixture
-def session() -> HTMLSession:
-    return mock(HTMLSession)
+def rendered_repertoire_html() -> str:
+    with open(RESOURCE_DIR / "cinema_city_example_repertoire.html", encoding="utf-8") as file:
+        return file.read()
 
 
 @pytest.mark.unit
 def test_fetch_repertoire_downloads_and_parses_repertoire_correctly(
-    cinema_city: tested_module.CinemaCity, session: HTMLSession, response: HTMLResponse
+    cinema_city: tested_module.CinemaCity, rendered_repertoire_html: str
 ) -> None:
-    when(tested_module).HTMLSession().thenReturn(session)
-    when(session).get(
+    when(cinema_city)._fetch_rendered_html(
         "https://www.cinema-city.pl/#/buy-tickets-by-cinema?in-cinema=1097&at=2023-04-01",
-        timeout=30,
-    ).thenReturn(response)
-    when(response.html).render(timeout=30)
+        tested_module.REPERTOIRE_SELECTOR,
+    ).thenReturn(rendered_repertoire_html)
     expected = [
         Repertoire(
             title="65",
@@ -471,11 +469,26 @@ def test_fetch_repertoire_downloads_and_parses_repertoire_correctly(
     )
 
 
-@pytest.fixture
-def response(session: HTMLSession) -> HTMLResponse:
-    response = mock(HTMLResponse)
-    with open(RESOURCE_DIR / "cinema_city_example_repertoire.html", encoding="utf-8") as f:
-        response.html = mock(HTML)
-        response.html.html = f.read()
-        response.session = session
-    return response
+@pytest.mark.unit
+def test_fetch_cinema_venues_list_downloads_and_parses_venues_correctly(
+    cinema_city: tested_module.CinemaCity,
+) -> None:
+    rendered_venues_html = """
+    <select>
+      <option value="">Wybierz kino</option>
+      <option value="1080" data-tokens="Lodz - Manufaktura">Lodz - Manufaktura</option>
+      <option value="1097" data-tokens="Wroclaw - Wroclavia">Wroclaw - Wroclavia</option>
+      <option value="9999" data-tokens="null">Ignored</option>
+    </select>
+    """
+    when(cinema_city)._fetch_rendered_html(
+        "https://www.cinema-city.pl/#/buy-tickets-by-cinema",
+        tested_module.CINEMA_VENUES_SELECTOR,
+    ).thenReturn(rendered_venues_html)
+
+    venues = cinema_city.fetch_cinema_venues_list()
+
+    assert [(venue.venue_name, venue.venue_id) for venue in venues] == [
+        ("Lodz - Manufaktura", "1080"),
+        ("Wroclaw - Wroclavia", "1097"),
+    ]

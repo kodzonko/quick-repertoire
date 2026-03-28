@@ -11,18 +11,17 @@ Datę (w tym wartości takie jak "dzis", "jutro" oraz nazwę kina można podać 
 
 ## Wymagania
 
-- poetry
-- python 3.12
+- uv
+- python 3.14
 - (opcjonalnie) make
 
 ## Instalacja
 
 ```shell
-$ make install
-lub
-$ poetry install
-$ poetry run playwright install
+$ uv sync
 ```
+
+Przy pierwszym uruchomieniu Selenium może pobrać przeglądarkę lub sterownik przez Selenium Manager.
 
 Do działania wymagany plik `run.env` z danymi kluczem API TMDB (opcjonalnie) oraz preferencjami użytkownika w katalogu głównym projektu (patrz plik: `run.env.template`).
 
@@ -31,11 +30,11 @@ Możliwe także podanie tych danych jako zmienne środowiskowe.
 ## Uruchomienie
 
 ```shell
-$ poetry run app repertoire # wyświetla repertuar dla domyślnego kina i daty
-$ poetry run app repertoire bemowo 2024-12-06 # wyświetla repertuar dla kina Warszawa - Bemowo na podany dzień (o ile jest na stronie)
-$ poetry run app venues list # wyświetla dostępne kina
-$ poetry run app venues update # aktualizuje listę kin w lokalnej bazie danych
-$ poetry run app venues search manufaktura # wyświetla kina zawierające w nazwie "manufaktura"
+$ uv run app repertoire # wyświetla repertuar dla domyślnego kina i daty
+$ uv run app repertoire bemowo 2024-12-06 # wyświetla repertuar dla kina Warszawa - Bemowo na podany dzień (o ile jest na stronie)
+$ uv run app venues list # wyświetla dostępne kina
+$ uv run app venues update # aktualizuje listę kin w lokalnej bazie danych
+$ uv run app venues search manufaktura # wyświetla kina zawierające w nazwie "manufaktura"
 ```
 
 ## Testy
@@ -43,9 +42,7 @@ $ poetry run app venues search manufaktura # wyświetla kina zawierające w nazw
 Komendy do uruchamiania testów wybiórczo w pliku `Makefile`.
 
 ```shell
-make tests
-lub
-poetry run pytest tests
+uv run pytest tests
 ```
 
 | :warning: | Program nie jest aktywnie rozwijany, ale ewentualne PRy pod warunkiem pokrycia testami będą mergowane. |
