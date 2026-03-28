@@ -16,7 +16,7 @@ def cinema_venue_input_parser(cinema_venue: str) -> str:
     non_letters_removed = re.sub(r"\W", " ", trimmed_outer_whitespaces)
     whitespaces_trimmed = re.sub(r"\s+", ",", non_letters_removed)
     nonascii_removed = re.sub(r"[^\x00-\x7F]", "_", whitespaces_trimmed)
-    surrounding_wildcards_added = f"%{nonascii_removed.replace(",", "%")}%"
+    surrounding_wildcards_added = f"%{nonascii_removed.replace(',', '%')}%"
     multiple_consecutive_wildcards_replaced = re.sub("%{2,}", "%", surrounding_wildcards_added)
     return multiple_consecutive_wildcards_replaced
 
@@ -87,7 +87,7 @@ def repertoire_to_cli(
             movie.original_language,
             "\n".join(
                 [
-                    f"[{play.format}, {play.play_language}]:\n{" ".join(play.play_times)}"
+                    f"[{play.format}, {play.play_language}]:\n{' '.join(play.play_times)}"
                     for play in movie.play_details
                 ]
             ),

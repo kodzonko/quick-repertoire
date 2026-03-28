@@ -7,7 +7,7 @@ interactions:
         authorization:
           - DUMMY
       method: GET
-      uri: https://api.themoviedb.org/3/search/movie?query=Furiosa:+Saga+Mad+Max&include_adult=True&language=pl-PL&year=2024,2023&page=1
+      uri: https://api.themoviedb.org/3/search/movie?query=Furiosa:+Saga+Mad+Max&include_adult=True&language=pl-PL&year=2026,2025&page=1
     response:
       body:
         string:
@@ -71,7 +71,7 @@ interactions:
         authorization:
           - DUMMY
       method: GET
-      uri: https://api.themoviedb.org/3/search/movie?query=Garfield&include_adult=True&language=pl-PL&year=2024,2023&page=1
+      uri: https://api.themoviedb.org/3/search/movie?query=Garfield&include_adult=True&language=pl-PL&year=2026,2025&page=1
     response:
       body:
         string:

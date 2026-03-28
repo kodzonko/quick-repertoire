@@ -20,8 +20,11 @@ from cinema_repertoire_analyzer.ratings_api.tmdb import (
 from cinema_repertoire_analyzer.settings import Settings, get_settings
 
 
-def make_app(settings: Settings = get_settings()) -> typer.Typer:
+def make_app(settings: Settings | None = None) -> typer.Typer:
     """Create the Typer application."""
+    if settings is None:
+        settings = get_settings()
+
     venues_app = typer.Typer()
     app = typer.Typer()
     app.add_typer(venues_app, name="venues")
@@ -40,7 +43,7 @@ def make_app(settings: Settings = get_settings()) -> typer.Typer:
         if isinstance(venue, builtins.list):
             typer.echo(
                 f"Podana nazwa lokalu jest niejednoznaczna. Znaleziono "
-                f"{len(venue)} {"pasujące wyniki" if len(venue) < 5 else "pasujących wyników"}."
+                f"{len(venue)} {'pasujące wyniki' if len(venue) < 5 else 'pasujących wyników'}."
             )
             raise typer.Exit(code=1)
 

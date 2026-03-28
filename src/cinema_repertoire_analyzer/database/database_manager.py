@@ -7,6 +7,7 @@ from pathlib import Path
 from sqlite3 import Error
 
 import sqlalchemy
+import sqlalchemy.orm
 import typer
 from loguru import logger
 

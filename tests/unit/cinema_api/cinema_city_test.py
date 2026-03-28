@@ -1,10 +1,10 @@
 import pytest
-from conftest import RESOURCE_DIR
 from mockito import when
 
 import cinema_repertoire_analyzer.cinema_api.cinema_city as tested_module
 from cinema_repertoire_analyzer.cinema_api.models import MoviePlayDetails, Repertoire
 from cinema_repertoire_analyzer.database.models import CinemaVenues
+from conftest import RESOURCE_DIR
 
 
 @pytest.fixture
@@ -385,79 +385,6 @@ def test_fetch_repertoire_downloads_and_parses_repertoire_correctly(
                 )
             ],
         ),
-        Repertoire(
-            title="Air",
-            genres="N/A",
-            play_length="N/A",
-            original_language="N/A",
-            play_details=[
-                MoviePlayDetails(
-                    format="N/A", play_language="N/A", play_times=["Śr kwi 5", "Czw kwi 6"]
-                )
-            ],
-        ),
-        Repertoire(
-            title="Dungeons & Dragons: Złodziejski honor",
-            genres="N/A",
-            play_length="N/A",
-            original_language="N/A",
-            play_details=[
-                MoviePlayDetails(
-                    format="N/A",
-                    play_language="N/A",
-                    play_times=[
-                        "Pon kwi 10",
-                        "Wt kwi 11",
-                        "Pt kwi 14",
-                        "Sb kwi 15",
-                        "Nie kwi 16",
-                        "Pon kwi 17",
-                        "Wt kwi 18",
-                        "Śr kwi 19",
-                        "Czw kwi 20",
-                    ],
-                )
-            ],
-        ),
-        Repertoire(
-            title="Super Mario Bros. Film",
-            genres="N/A",
-            play_length="N/A",
-            original_language="N/A",
-            play_details=[
-                MoviePlayDetails(format="N/A", play_language="N/A", play_times=["Wt kwi 11"])
-            ],
-        ),
-        Repertoire(
-            title="Metallica: 72 Seasons – Global Premiere",
-            genres="N/A",
-            play_length="N/A",
-            original_language="N/A",
-            play_details=[
-                MoviePlayDetails(format="N/A", play_language="N/A", play_times=["Czw kwi 13"])
-            ],
-        ),
-        Repertoire(
-            title="Suzume",
-            genres="N/A",
-            play_length="N/A",
-            original_language="N/A",
-            play_details=[
-                MoviePlayDetails(
-                    format="N/A",
-                    play_language="N/A",
-                    play_times=[
-                        "Pt kwi 21",
-                        "Sb kwi 22",
-                        "Nie kwi 23",
-                        "Pon kwi 24",
-                        "Wt kwi 25",
-                        "Śr kwi 26",
-                        "Czw kwi 27",
-                    ],
-                )
-            ],
-        ),
     ]
 
     assert (
@@ -482,8 +409,7 @@ def test_fetch_cinema_venues_list_downloads_and_parses_venues_correctly(
     </select>
     """
     when(cinema_city)._fetch_rendered_html(
-        "https://www.cinema-city.pl/#/buy-tickets-by-cinema",
-        tested_module.CINEMA_VENUES_SELECTOR,
+        "https://www.cinema-city.pl/#/buy-tickets-by-cinema", tested_module.CINEMA_VENUES_SELECTOR
     ).thenReturn(rendered_venues_html)
 
     venues = cinema_city.fetch_cinema_venues_list()

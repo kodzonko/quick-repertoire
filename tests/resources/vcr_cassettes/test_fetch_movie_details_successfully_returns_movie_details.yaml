@@ -6,7 +6,7 @@
         "request":
           {
             "method": "GET",
-            "uri": "https://api.themoviedb.org/3/search/movie?query=Furiosa:+A+Mad+Max+Saga&include_adult=True&language=pl-PL&year=2024,2023&page=1",
+            "uri": "https://api.themoviedb.org/3/search/movie?query=Furiosa:+A+Mad+Max+Saga&include_adult=True&language=pl-PL&year=2026,2025&page=1",
             "body": null,
             "headers":
               { "accept": ["application/json"], "authorization": ["DUMMY"] },

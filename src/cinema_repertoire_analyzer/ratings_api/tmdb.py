@@ -1,7 +1,7 @@
 import asyncio
-import urllib
 from datetime import datetime
 from http import HTTPStatus
+from urllib.parse import urlencode
 
 import aiohttp
 import async_timeout
@@ -30,10 +30,10 @@ async def fetch_movie_details(
         "query": movie_name,
         "include_adult": True,
         "language": "pl-PL",
-        "year": f"{datetime.now().year},{datetime.now().year-1}",
+        "year": f"{datetime.now().year},{datetime.now().year - 1}",
         "page": 1,
     }
-    url = base_url + urllib.parse.urlencode(params)
+    url = base_url + urlencode(params)
     headers = {"accept": "application/json", "Authorization": f"Bearer {access_token}"}
     async with async_timeout.timeout(30):
         async with session.get(url, headers=headers) as response:
@@ -68,10 +68,10 @@ def parse_movie_rating(movie_data: dict) -> str:
         if not ensure_single_result(movie_data):
             return "0.0/10"
         return (
-            f"{movie_data["results"][0]["vote_average"]}/10\n(głosy: "
-            f"{movie_data["results"][0]["vote_count"]})"
+            f"{movie_data['results'][0]['vote_average']}/10\n(głosy: "
+            f"{movie_data['results'][0]['vote_count']})"
         )
-    except (KeyError, IndexError):
+    except KeyError, IndexError:
         return "0.0/10"
 
 
@@ -81,7 +81,7 @@ def parse_movie_summary(movie_data: dict) -> str:
         if not ensure_single_result(movie_data):
             return "Brak opisu filmu."
         return movie_data["results"][0]["overview"]  # type: ignore[no-any-return]
-    except (KeyError, IndexError):
+    except KeyError, IndexError:
         return "Brak opisu filmu."
 
 
@@ -89,9 +89,7 @@ def get_movie_ratings_and_summaries(
     movie_names: list[str], access_token: str
 ) -> dict[str, TmdbMovieDetails]:
     """Get ratings for a list of movies."""
-    movie_data: dict = asyncio.get_event_loop().run_until_complete(
-        fetch_all_movie_details(movie_names, access_token)
-    )
+    movie_data: dict = asyncio.run(fetch_all_movie_details(movie_names, access_token))
     output = {}
     for movie_name, data in movie_data.items():
         rating = parse_movie_rating(data)

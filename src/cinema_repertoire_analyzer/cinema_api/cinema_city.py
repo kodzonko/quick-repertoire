@@ -1,7 +1,7 @@
 import re
 
 from bs4 import BeautifulSoup
-from bs4.element import Tag
+from bs4.element import NavigableString, Tag
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
@@ -34,10 +34,7 @@ class CinemaCity:
         movies_details: list[Tag] = soup.find_all("div", class_="row qb-movie")
         for movie in movies_details:
             presale_header = movie.find("div", class_="qb-movie-info-column").find("h4")
-            is_presale = (
-                presale_header is not None
-                and "PRZEDSPRZED" in presale_header.text.upper()
-            )
+            is_presale = presale_header is not None and "PRZEDSPRZED" in presale_header.text.upper()
             # Presale movies in repertoire have different HTML structure
             # and are not available on selected date, so we skip.
             if not is_presale:
@@ -59,8 +56,8 @@ class CinemaCity:
         soup = BeautifulSoup(rendered_html, "lxml")
         output: list[CinemaVenues] = []
         for cinema in soup.select(CINEMA_VENUES_SELECTOR):
-            venue = cinema.get("data-tokens", "").strip()
-            venue_id = cinema.get("value", "").strip()
+            venue = self._get_attr_text(cinema, "data-tokens")
+            venue_id = self._get_attr_text(cinema, "value")
             if not venue or venue == "null" or not venue_id.isdigit():
                 continue
             output.append(CinemaVenues(venue_name=venue, venue_id=venue_id))
@@ -88,46 +85,50 @@ class CinemaCity:
 
     def _parse_title(self, html: Tag) -> str:
         """Parse HTML element of a single movie to extract title."""
-        return html.find("h3", "qb-movie-name").text.strip()  # type: ignore[no-any-return]
+        title = html.find("h3", class_="qb-movie-name")
+        if not isinstance(title, Tag):
+            return "N/A"
+        return title.text.strip()
 
     def _parse_genres(self, html: Tag) -> str:
         """Parse HTML element of a single movie to extract genres."""
-        try:
-            raw_str = html.find("div", class_="qb-movie-info-wrapper").find("span").text
-            if "|" not in raw_str:  # means no info about genres
-                return "N/A"
-            return raw_str.replace("|", "").strip()  # type: ignore[no-any-return]
-        except AttributeError:
+        wrapper = html.find("div", class_="qb-movie-info-wrapper")
+        if not isinstance(wrapper, Tag):
             return "N/A"
+        span = wrapper.find("span")
+        if not isinstance(span, Tag):
+            return "N/A"
+        raw_str = span.text
+        if "|" not in raw_str:
+            return "N/A"
+        return raw_str.replace("|", "").strip()
 
     def _parse_original_language(self, html: Tag) -> str:
         """Parse HTML element of a single movie to extract original language."""
-        try:
-            element = html.find("span", attrs={"aria-label": re.compile("original-lang")})
-            return element.text.strip()  # type: ignore[no-any-return]
-        except AttributeError:
+        element = html.find("span", attrs={"aria-label": re.compile("original-lang")})
+        if not isinstance(element, Tag):
             return "N/A"
+        return element.text.strip()
 
     def _parse_play_length(self, html: Tag) -> str:
         """Parse HTML element of a single movie to extract play length."""
-        try:
-            target_tag = html.find("div", class_="qb-movie-info-wrapper").find(
-                "span", string=re.compile(r"^\d+ min")
-            )
-            return target_tag.text  # type: ignore[no-any-return]
-        except AttributeError:
+        wrapper = html.find("div", class_="qb-movie-info-wrapper")
+        if not isinstance(wrapper, Tag):
             return "N/A"
+        target_tag = wrapper.find("span", string=re.compile(r"^\d+ min"))
+        if not isinstance(target_tag, Tag):
+            return "N/A"
+        return target_tag.text
 
     def _parse_play_format(self, html: Tag) -> str:
         """Parse HTML element of a single movie to extract play format."""
         formats_section = html.find("ul", class_="qb-screening-attributes")
-        try:
-            formats = formats_section.find_all(
-                "span", attrs={"aria-label": re.compile("Screening type")}
-            )
-            return " ".join([format_.text.strip() for format_ in formats])
-        except AttributeError:
+        if not isinstance(formats_section, Tag):
             return "N/A"
+        formats = formats_section.find_all(
+            "span", attrs={"aria-label": re.compile("Screening type")}
+        )
+        return " ".join(format_.text.strip() for format_ in formats)
 
     def _parse_play_times(self, html: Tag) -> list[str]:
         """Parse HTML element of a single movie to extract play times."""
@@ -142,13 +143,12 @@ class CinemaCity:
             "span", attrs={"aria-label": re.compile("subAbbr|dubAbbr|noSubs")}
         )
         language = html.find("span", attrs={"aria-label": re.compile("subbed-lang|dubbed-lang")})
-        try:
-            return (
-                f"{sub_dub_or_original_prefix.text.strip()}{': ' if language else ''}"
-                f"{language.text.strip() if language else ''}"
-            )
-        except AttributeError:
+        if not isinstance(sub_dub_or_original_prefix, Tag):
             return "N/A"
+        language_text = language.text.strip() if isinstance(language, Tag) else ""
+        prefix = sub_dub_or_original_prefix.text.strip()
+        separator = ": " if language_text else ""
+        return f"{prefix}{separator}{language_text}"
 
     def _parse_play_details(self, html: Tag) -> list[MoviePlayDetails]:
         """Parse HTML element of a single movie to extract play details."""
@@ -163,3 +163,12 @@ class CinemaCity:
                 )
             )
         return output
+
+    def _get_attr_text(self, html: Tag, attr_name: str) -> str:
+        """Return a tag attribute as a normalized string."""
+        value = html.get(attr_name, "")
+        if isinstance(value, list):
+            return " ".join(value).strip()
+        if isinstance(value, NavigableString):
+            return str(value).strip()
+        return value.strip()

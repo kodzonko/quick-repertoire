@@ -6,7 +6,6 @@ import pytest
 from cinema_repertoire_analyzer.settings import Settings, get_settings
 
 RESOURCE_DIR = Path(__file__).parent / "resources"
-os.environ["ENV_PATH"] = str(RESOURCE_DIR / "test.env")
 
 
 @pytest.fixture(scope="session")
@@ -21,6 +20,18 @@ def vcr_config():
 
 @pytest.fixture
 def settings() -> Settings:
-    if not (ENV_PATH := os.environ.get("ENV_PATH")) or not ENV_PATH.endswith("test.env"):  # noqa: N806
-        raise ValueError("Env_PATH environment variable is not set or is not set to test.env file.")
+    os.environ.pop("ENV_PATH", None)
+    os.environ["LOGURU_LEVEL"] = "TRACE"
+    os.environ["DB_FILE"] = str(RESOURCE_DIR / "test_db.sqlite")
+    os.environ["USER_PREFERENCES__DEFAULT_CINEMA_VENUE"] = "Wrocław - Wroclavia"
+    os.environ["USER_PREFERENCES__DEFAULT_DAY"] = "today"
+    os.environ["USER_PREFERENCES__TMDB_ACCESS_TOKEN"] = "1234"
+    os.environ["CINEMA_CITY_SETTINGS__REPERTOIRE_URL"] = (
+        "https://www.cinema-city.pl/#/buy-tickets-by-cinema?"
+        "in-cinema={cinema_venue_id}&at={repertoire_date}"
+    )
+    os.environ["CINEMA_CITY_SETTINGS__VENUES_LIST_URL"] = (
+        "https://www.cinema-city.pl/#/buy-tickets-by-cinema"
+    )
+    get_settings.cache_clear()
     return get_settings()

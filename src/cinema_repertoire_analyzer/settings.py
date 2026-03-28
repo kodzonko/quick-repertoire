@@ -2,7 +2,7 @@ import os
 import sys
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import typer
 from loguru import logger
@@ -51,6 +51,11 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(extra="allow")
 
 
+def _build_settings(**kwargs: Any) -> Settings:
+    """Instantiate settings with pydantic-specific loading kwargs."""
+    return Settings(**kwargs)
+
+
 @lru_cache
 def get_settings() -> Settings:
     """Get the settings for the application."""
@@ -62,5 +67,7 @@ def get_settings() -> Settings:
     else:
         typer.echo(f"Podany plik konfiguracyjny: {ENV_PATH=} nie istnieje.")
         # attempt loading variables from environment
-        return Settings(_env_nested_delimiter="__")  # type: ignore[call-arg]
-    return Settings(_env_file=ENV_PATH, _env_file_encoding="utf-8", _env_nested_delimiter="__")  # type: ignore
+        return _build_settings(_env_nested_delimiter="__")
+    return _build_settings(
+        _env_file=ENV_PATH, _env_file_encoding="utf-8", _env_nested_delimiter="__"
+    )
