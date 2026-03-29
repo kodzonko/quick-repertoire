@@ -79,6 +79,30 @@ def test_find_venues_by_name_returns_matching_venues_for_selected_chain(
 
 
 @pytest.mark.unit
+def test_replace_venues_batch_replaces_all_selected_chains_transactionally(
+    db_manager: DatabaseManager,
+) -> None:
+    db_manager.replace_venues(
+        "cinema-city", [CinemaVenue(chain_id="cinema-city", venue_name="Old City", venue_id="1")]
+    )
+    db_manager.replace_venues(
+        "helios", [CinemaVenue(chain_id="helios", venue_name="Old Helios", venue_id="2")]
+    )
+
+    db_manager.replace_venues_batch(
+        {
+            "cinema-city": [
+                CinemaVenue(chain_id="cinema-city", venue_name="New City", venue_id="3")
+            ],
+            "helios": [CinemaVenue(chain_id="helios", venue_name="New Helios", venue_id="4")],
+        }
+    )
+
+    assert [venue.venue_name for venue in db_manager.get_all_venues("cinema-city")] == ["New City"]
+    assert [venue.venue_name for venue in db_manager.get_all_venues("helios")] == ["New Helios"]
+
+
+@pytest.mark.unit
 def test_database_manager_raises_domain_error_when_engine_creation_fails(db_path: Path) -> None:
     engine_factory = mock()
     when(sqlalchemy).create_engine(f"sqlite:///{db_path}").thenRaise(Error("boom"))

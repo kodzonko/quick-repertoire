@@ -40,6 +40,18 @@ class DefaultVenueNotConfiguredError(AppError):
         self.chain_display_name = chain_display_name
 
 
+class ConfigurationNotFoundError(AppError):
+    """Raised when the runtime config file is missing."""
+
+
+class ConfigurationError(AppError):
+    """Raised when the runtime config cannot be loaded or created."""
+
+
+class ConfigurationAbortedError(AppError):
+    """Raised when the user aborts interactive configuration."""
+
+
 class TemplateRenderError(AppError):
     """Raised when a URL template cannot be filled."""
 

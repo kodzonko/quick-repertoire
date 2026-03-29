@@ -2,12 +2,9 @@
 
 ![Demo](docs/demo.gif)
 
-Scraper repertuarow kin, przygotowany obecnie dla Cinema City i gotowy na
-rozszerzanie o kolejne sieci. Wyniki sa pokazywane wraz z ocena i
+Scraper repertuarów kin, przygotowany obecnie dla Cinema City i gotowy na
+rozszerzanie o kolejne sieci. Wyniki są pokazywane wraz z oceną i
 streszczeniem filmu z TMDB.
-
-Date (w tym wartosci takie jak `dzis`, `jutro`) oraz domyslne lokale per siec
-mozna podac w parametrach lub ustawic w pliku `run.env`.
 
 ## Wymagania
 
@@ -21,28 +18,40 @@ mozna podac w parametrach lub ustawic w pliku `run.env`.
 uv sync
 ```
 
-Przy pierwszym uruchomieniu Selenium moze pobrac przegladarke lub sterownik
-przez Selenium Manager.
+Przy pierwszym uruchomieniu Playwright może pobrać przeglądarkę.
 
-Do dzialania wymagany jest plik `run.env` z kluczem API TMDB (opcjonalnie) oraz
-preferencjami uzytkownika w katalogu glownym projektu. Przyklad znajduje sie w
-`run.env.template`.
+## Konfiguracja
 
-Mozliwe jest tez podanie tych danych jako zmienne srodowiskowe.
+Aplikacja zapisuje konfigurację w pliku `config.ini` w katalogu głównym repo.
+Przy pierwszym uruchomieniu uruchomi się interaktywny kreator:
+
+- pobierze listy lokali dla wszystkich obsługiwanych sieci z widocznym postępem
+- pozwoli wybrać domyślną sieć, lokal, datę repertuaru, poziom logowania i plik bazy
+- zapyta o opcjonalny token TMDB
+
+Aby uruchomić kreator ponownie:
+
+```shell
+uv run app configure
+```
 
 ## Uruchomienie
 
 ```shell
+uv run app repertoire
+uv run app repertoire bemowo 2024-12-06
 uv run app repertoire --chain cinema-city
-uv run app repertoire --chain cinema-city bemowo 2024-12-06
-uv run app venues list --chain cinema-city
-uv run app venues update --chain cinema-city
-uv run app venues search --chain cinema-city manufaktura
+uv run app venues list
+uv run app venues update
+uv run app venues search manufaktura
 ```
+
+Polecenia nadal przyjmują jawne `--chain`, ale gdy go pominiesz, aplikacja użyje
+domyślnej sieci z `config.ini`.
 
 ## Testy
 
-Komendy do uruchamiania testow wybiorczo znajduja sie w `Makefile`.
+Komendy do uruchamiania testów wybiórczo znajdują się w `Makefile`.
 
 ```shell
 uv run pytest tests

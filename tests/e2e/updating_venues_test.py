@@ -19,13 +19,11 @@ def test_update_venues_updates_venues_correctly(
 
     monkeypatch.setattr(registry_module.CinemaCity, "fetch_venues", fake_fetch_venues)
 
-    result = runner.invoke(typer_app, ["venues", "update", "--chain", "cinema-city"])
+    result = runner.invoke(typer_app, ["venues", "update"])
 
     assert result.exit_code == 0
-    assert (
-        "Aktualizowanie lokali dla sieci: Cinema City...\n"
-        "Lokale zaktualizowane w lokalnej bazie danych."
-    ) in result.stdout
+    assert "Aktualizowanie lokali dla sieci: Cinema City..." in result.stdout
+    assert "Lokale zaktualizowane w lokalnej bazie danych." in result.stdout
     assert [
         (venue.venue_name, venue.venue_id) for venue in db_manager.get_all_venues("cinema-city")
     ] == [("Test Venue", "9999")]

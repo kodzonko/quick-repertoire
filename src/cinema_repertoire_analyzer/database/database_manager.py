@@ -65,6 +65,21 @@ class DatabaseManager:
             session.add_all(CinemaVenueRecord.from_domain(venue) for venue in venues)
             session.commit()
 
+    def replace_venues_batch(
+        self, venues_by_chain: dict[str | CinemaChainId, list[CinemaVenue]]
+    ) -> None:
+        """Replace cached venues for multiple chains in a single transaction."""
+        with self._session_constructor() as session:
+            for chain_id, venues in venues_by_chain.items():
+                chain_id_value = chain_id.value if isinstance(chain_id, CinemaChainId) else chain_id
+                (
+                    session.query(CinemaVenueRecord)
+                    .filter(CinemaVenueRecord.chain_id == chain_id_value)
+                    .delete()
+                )
+                session.add_all(CinemaVenueRecord.from_domain(venue) for venue in venues)
+            session.commit()
+
     def find_venues_by_name(
         self, chain_id: str | CinemaChainId, search_string: str
     ) -> list[CinemaVenue]:

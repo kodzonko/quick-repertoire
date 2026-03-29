@@ -1,9 +1,15 @@
-import os
 from pathlib import Path
 
 import pytest
 
-from cinema_repertoire_analyzer.settings import Settings, get_settings
+from cinema_repertoire_analyzer.cinema_api.models import CinemaChainId
+from cinema_repertoire_analyzer.settings import (
+    CinemaChainSettings,
+    CinemaChainsSettings,
+    DefaultVenues,
+    Settings,
+    UserPreferences,
+)
 
 RESOURCE_DIR = Path(__file__).parent / "resources"
 
@@ -35,18 +41,20 @@ def anyio_backend() -> str:
 
 @pytest.fixture
 def settings() -> Settings:
-    os.environ.pop("ENV_PATH", None)
-    os.environ["LOGURU_LEVEL"] = "TRACE"
-    os.environ["DB_FILE"] = str(RESOURCE_DIR / "test_db.sqlite")
-    os.environ["USER_PREFERENCES__DEFAULT_DAY"] = "today"
-    os.environ["USER_PREFERENCES__DEFAULT_VENUES__CINEMA_CITY"] = "Wroclaw - Wroclavia"
-    os.environ["USER_PREFERENCES__TMDB_ACCESS_TOKEN"] = "1234"
-    os.environ["CINEMA_CHAINS__CINEMA_CITY__REPERTOIRE_URL"] = (
-        "https://www.cinema-city.pl/#/buy-tickets-by-cinema?"
-        "in-cinema={cinema_venue_id}&at={repertoire_date}"
+    return Settings(
+        db_file=RESOURCE_DIR / "test_db.sqlite",
+        loguru_level="TRACE",
+        user_preferences=UserPreferences(
+            default_chain=CinemaChainId.CINEMA_CITY,
+            default_day="today",
+            tmdb_access_token="1234",
+            default_venues=DefaultVenues(cinema_city="Wroclaw - Wroclavia"),
+        ),
+        cinema_chains=CinemaChainsSettings(
+            cinema_city=CinemaChainSettings(
+                repertoire_url="https://www.cinema-city.pl/#/buy-tickets-by-cinema?"
+                "in-cinema={cinema_venue_id}&at={repertoire_date}",
+                venues_list_url="https://www.cinema-city.pl/#/buy-tickets-by-cinema",
+            )
+        ),
     )
-    os.environ["CINEMA_CHAINS__CINEMA_CITY__VENUES_LIST_URL"] = (
-        "https://www.cinema-city.pl/#/buy-tickets-by-cinema"
-    )
-    get_settings.cache_clear()
-    return get_settings()

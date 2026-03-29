@@ -29,7 +29,8 @@ dependencies = [
   "anyio>=4.13.0",
   "httpx>=0.28.1",
   "playwright>=1.54.0",
-  "trio>=0.33.0"
+  "trio>=0.33.0",
+  "questionary>=2.1.1",
 ]
 
 [project.urls]
@@ -104,7 +105,7 @@ select = ["F", "E", "W", "I", "C", "N", "D", "UP"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["D104"]
-"tests/*" = ["D"]
+"tests/*" = ["D", "E501"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

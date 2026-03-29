@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from typing import Protocol, cast
 
@@ -26,12 +26,11 @@ class RegisteredCinemaChain:
 
     chain_id: CinemaChainId
     display_name: str
-    default_venue_getter: Callable[[Settings], str | None]
     client_factory: Callable[[Settings], CinemaChainClient]
 
 
 def _build_cinema_city_client(settings: Settings) -> CinemaChainClient:
-    cinema_city_settings = settings.cinema_chains.cinema_city
+    cinema_city_settings = settings.cinema_chains.get(CinemaChainId.CINEMA_CITY)
     return cast(
         CinemaChainClient,
         CinemaCity(
@@ -41,15 +40,10 @@ def _build_cinema_city_client(settings: Settings) -> CinemaChainClient:
     )
 
 
-def _get_cinema_city_default_venue(settings: Settings) -> str | None:
-    return settings.user_preferences.default_venues.cinema_city
-
-
 REGISTERED_CINEMA_CHAINS: dict[CinemaChainId, RegisteredCinemaChain] = {
     CinemaChainId.CINEMA_CITY: RegisteredCinemaChain(
         chain_id=CinemaChainId.CINEMA_CITY,
         display_name="Cinema City",
-        default_venue_getter=_get_cinema_city_default_venue,
         client_factory=_build_cinema_city_client,
     )
 }
@@ -64,3 +58,8 @@ def get_registered_chain(chain_id: CinemaChainId) -> RegisteredCinemaChain:
             invalid_chain=chain_id.value,
             supported_chains=", ".join(chain.value for chain in REGISTERED_CINEMA_CHAINS),
         ) from error
+
+
+def get_registered_chains() -> Iterable[RegisteredCinemaChain]:
+    """Return metadata for all registered cinema chains."""
+    return REGISTERED_CINEMA_CHAINS.values()

@@ -3,7 +3,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
-from typer import Typer
 from typer.testing import CliRunner
 
 import cinema_repertoire_analyzer.main as tested_module
@@ -46,13 +45,10 @@ def repertoire() -> list[Repertoire]:
     ]
 
 
-def build_registered_chain(
-    client: object, default_venue_name: str | None = "Wroclaw - Wroclavia"
-) -> RegisteredCinemaChain:
+def build_registered_chain(client: object) -> RegisteredCinemaChain:
     return RegisteredCinemaChain(
         chain_id=CinemaChainId.CINEMA_CITY,
         display_name="Cinema City",
-        default_venue_getter=lambda _settings: default_venue_name,
         client_factory=lambda _settings: client,
     )
 
@@ -79,21 +75,6 @@ def test_resolve_single_venue_raises_ambiguous_for_multiple_matches() -> None:
                 CinemaVenue(chain_id="cinema-city", venue_name="Warszawa - Arkadia", venue_id="2"),
             ]
         )
-
-
-@pytest.mark.unit
-def test_make_app_uses_get_settings_when_settings_are_not_provided(
-    monkeypatch: pytest.MonkeyPatch, settings: Settings
-) -> None:
-    get_settings_mock = MagicMock(return_value=settings)
-    monkeypatch.setattr(tested_module, "get_settings", get_settings_mock)
-    monkeypatch.setattr(tested_module, "_build_database_manager", lambda *_: MagicMock())
-    monkeypatch.setattr(tested_module, "Console", lambda: MagicMock())
-
-    app = tested_module.make_app()
-
-    get_settings_mock.assert_called_once_with()
-    assert isinstance(app, Typer)
 
 
 @pytest.mark.unit
@@ -160,7 +141,7 @@ def test_repertoire_command_fetches_tmdb_data_when_api_key_is_valid(
     fake_cinema.fetch_repertoire = AsyncMock(return_value=repertoire)
     ratings = {"Test Movie": TmdbMovieDetails(rating="8.5/10", summary="A tense mystery.")}
     tmdb_mock = MagicMock(return_value=ratings)
-    rendered = {}
+    rendered: dict[str, object] = {}
 
     def fake_repertoire_to_cli(
         fetched_repertoire, table_metadata, ratings_payload, console
@@ -191,7 +172,7 @@ def test_repertoire_command_fetches_tmdb_data_when_api_key_is_valid(
 
 
 @pytest.mark.unit
-def test_repertoire_command_uses_chain_default_venue_when_name_not_provided(
+def test_repertoire_command_uses_default_chain_and_default_venue_when_name_not_provided(
     monkeypatch: pytest.MonkeyPatch,
     settings: Settings,
     runner: CliRunner,
@@ -211,7 +192,7 @@ def test_repertoire_command_uses_chain_default_venue_when_name_not_provided(
     monkeypatch.setattr(tested_module, "repertoire_to_cli", lambda *_: None)
 
     app = tested_module.make_app(settings)
-    result = runner.invoke(app, ["repertoire", "--chain", "cinema-city"])
+    result = runner.invoke(app, ["repertoire"])
 
     assert result.exit_code == 0
     fake_db_manager.find_venues_by_name.assert_called_once_with(
@@ -223,16 +204,12 @@ def test_repertoire_command_uses_chain_default_venue_when_name_not_provided(
 def test_repertoire_command_fails_when_chain_default_venue_is_missing(
     monkeypatch: pytest.MonkeyPatch, settings: Settings, runner: CliRunner
 ) -> None:
+    settings.user_preferences.default_venues.cinema_city = None
     monkeypatch.setattr(tested_module, "_build_database_manager", lambda *_: MagicMock())
-    monkeypatch.setattr(
-        tested_module,
-        "get_registered_chain",
-        lambda *_: build_registered_chain(MagicMock(), default_venue_name=None),
-    )
     monkeypatch.setattr(tested_module, "Console", lambda: MagicMock())
 
     app = tested_module.make_app(settings)
-    result = runner.invoke(app, ["repertoire", "--chain", "cinema-city"])
+    result = runner.invoke(app, ["repertoire"])
 
     assert result.exit_code == 1
     assert "Brak domyślnego lokalu skonfigurowanego dla sieci Cinema City." in result.stdout
@@ -252,7 +229,7 @@ def test_repertoire_command_warns_when_tmdb_is_disabled(
     fake_cinema = MagicMock()
     fake_cinema.fetch_repertoire = AsyncMock(return_value=repertoire)
     tmdb_mock = MagicMock()
-    rendered = {}
+    rendered: dict[str, object] = {}
 
     def fake_repertoire_to_cli(
         fetched_repertoire, table_metadata, ratings_payload, console
@@ -270,7 +247,7 @@ def test_repertoire_command_warns_when_tmdb_is_disabled(
     monkeypatch.setattr(tested_module, "repertoire_to_cli", fake_repertoire_to_cli)
 
     app = tested_module.make_app(settings)
-    result = runner.invoke(app, ["repertoire", "--chain", "cinema-city", "wroclavia"])
+    result = runner.invoke(app, ["repertoire", "wroclavia"])
 
     assert result.exit_code == 0
     fake_console.print.assert_called_once()
@@ -299,7 +276,7 @@ def test_repertoire_command_warns_when_tmdb_lookup_fails(
             "TMDB request failed.", request=request, response=response
         )
     )
-    rendered = {}
+    rendered: dict[str, object] = {}
 
     def fake_repertoire_to_cli(
         fetched_repertoire, table_metadata, ratings_payload, console
@@ -316,7 +293,7 @@ def test_repertoire_command_warns_when_tmdb_lookup_fails(
     monkeypatch.setattr(tested_module, "repertoire_to_cli", fake_repertoire_to_cli)
 
     app = tested_module.make_app(settings)
-    result = runner.invoke(app, ["repertoire", "--chain", "cinema-city", "wroclavia"])
+    result = runner.invoke(app, ["repertoire", "wroclavia"])
 
     assert result.exit_code == 0
     fake_console.print.assert_called_once()
@@ -326,12 +303,38 @@ def test_repertoire_command_warns_when_tmdb_lookup_fails(
 
 
 @pytest.mark.unit
-def test_main_invokes_created_typer_app(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_configure_command_uses_existing_settings_when_available(
+    monkeypatch: pytest.MonkeyPatch, settings: Settings, runner: CliRunner
+) -> None:
+    updated_settings = settings.model_copy(deep=True)
+    updated_settings.user_preferences.default_day = "tomorrow"
+    run_interactive_configuration_mock = MagicMock(return_value=updated_settings)
+    monkeypatch.setattr(
+        tested_module, "run_interactive_configuration", run_interactive_configuration_mock
+    )
+
+    app = tested_module.make_app(settings)
+    result = runner.invoke(app, ["configure"])
+
+    assert result.exit_code == 0
+    run_interactive_configuration_mock.assert_called_once_with(settings)
+
+
+@pytest.mark.unit
+def test_main_invokes_created_typer_app_with_bootstrapped_settings(
+    monkeypatch: pytest.MonkeyPatch, settings: Settings
+) -> None:
     app = MagicMock()
     make_app_mock = MagicMock(return_value=app)
+    ensure_settings_mock = MagicMock(return_value=settings)
     monkeypatch.setattr(tested_module, "make_app", make_app_mock)
+    monkeypatch.setattr(tested_module, "ensure_settings_for_argv", ensure_settings_mock)
+    monkeypatch.setattr(tested_module, "should_skip_bootstrap_for_argv", lambda *_: False)
+    monkeypatch.setattr(tested_module, "should_defer_bootstrap_to_command", lambda *_: False)
+    monkeypatch.setattr(tested_module, "sys", MagicMock(argv=["app", "repertoire"]))
 
     tested_module.main()
 
-    make_app_mock.assert_called_once_with()
+    ensure_settings_mock.assert_called_once_with(["repertoire"])
+    make_app_mock.assert_called_once_with(settings)
     app.assert_called_once_with()

@@ -8,10 +8,17 @@ import pytest
 from typer import Typer
 from typer.testing import CliRunner
 
-from cinema_repertoire_analyzer.cinema_api.models import CinemaVenue
+import cinema_repertoire_analyzer.configuration as configuration_module
+from cinema_repertoire_analyzer.cinema_api.models import CinemaChainId, CinemaVenue
 from cinema_repertoire_analyzer.database.database_manager import DatabaseManager
 from cinema_repertoire_analyzer.main import make_app
-from cinema_repertoire_analyzer.settings import Settings, get_settings
+from cinema_repertoire_analyzer.settings import (
+    CinemaChainSettings,
+    CinemaChainsSettings,
+    DefaultVenues,
+    Settings,
+    UserPreferences,
+)
 
 
 def _cleanup_temp_dir(temp_dir_context: tempfile.TemporaryDirectory[str]) -> None:
@@ -30,27 +37,31 @@ def _cleanup_temp_dir(temp_dir_context: tempfile.TemporaryDirectory[str]) -> Non
 
 
 @pytest.fixture
-def settings(monkeypatch: pytest.MonkeyPatch) -> Iterator[Settings]:
+def settings() -> Iterator[Settings]:
     temp_dir_context = tempfile.TemporaryDirectory(prefix="cinema-repertoire-analyzer-e2e-")
     temp_dir = Path(temp_dir_context.name)
     db_file = temp_dir / "test_db.sqlite"
-    monkeypatch.delenv("ENV_PATH", raising=False)
-    monkeypatch.setenv("LOGURU_LEVEL", "TRACE")
-    monkeypatch.setenv("DB_FILE", str(db_file))
-    monkeypatch.setenv("USER_PREFERENCES__DEFAULT_DAY", "today")
-    monkeypatch.setenv("USER_PREFERENCES__DEFAULT_VENUES__CINEMA_CITY", "Wroclaw - Wroclavia")
-    monkeypatch.setenv("USER_PREFERENCES__TMDB_ACCESS_TOKEN", "1234")
-    monkeypatch.setenv(
-        "CINEMA_CHAINS__CINEMA_CITY__REPERTOIRE_URL",
-        "https://www.cinema-city.pl/#/buy-tickets-by-cinema?"
-        "in-cinema={cinema_venue_id}&at={repertoire_date}",
+    original_project_root = configuration_module.PROJECT_ROOT
+    configuration_module.load_settings.cache_clear()
+    settings_instance = Settings(
+        db_file=db_file,
+        loguru_level="TRACE",
+        user_preferences=UserPreferences(
+            default_chain=CinemaChainId.CINEMA_CITY,
+            default_day="today",
+            tmdb_access_token="1234",
+            default_venues=DefaultVenues(cinema_city="Wroclaw - Wroclavia"),
+        ),
+        cinema_chains=CinemaChainsSettings(
+            cinema_city=CinemaChainSettings(
+                repertoire_url="https://www.cinema-city.pl/#/buy-tickets-by-cinema?"
+                "in-cinema={cinema_venue_id}&at={repertoire_date}",
+                venues_list_url="https://www.cinema-city.pl/#/buy-tickets-by-cinema",
+            )
+        ),
     )
-    monkeypatch.setenv(
-        "CINEMA_CHAINS__CINEMA_CITY__VENUES_LIST_URL",
-        "https://www.cinema-city.pl/#/buy-tickets-by-cinema",
-    )
-    get_settings.cache_clear()
-    settings_instance = get_settings()
+    configuration_module.PROJECT_ROOT = temp_dir
+    configuration_module._write_settings(settings_instance)
     db_manager = DatabaseManager(db_file_path=settings_instance.db_file)
     db_manager.replace_venues(
         "cinema-city",
@@ -64,7 +75,8 @@ def settings(monkeypatch: pytest.MonkeyPatch) -> Iterator[Settings]:
     )
     db_manager.close()
     yield settings_instance
-    get_settings.cache_clear()
+    configuration_module.PROJECT_ROOT = original_project_root
+    configuration_module.load_settings.cache_clear()
     _cleanup_temp_dir(temp_dir_context)
 
 
@@ -75,7 +87,7 @@ def runner() -> CliRunner:
 
 @pytest.fixture
 def typer_app(settings: Settings) -> Iterator[Typer]:
-    app = make_app(settings)
+    app = make_app()
     yield app
     manager = getattr(app, "_db_manager", None)
     if isinstance(manager, DatabaseManager):

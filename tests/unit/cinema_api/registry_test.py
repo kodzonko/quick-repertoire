@@ -18,8 +18,8 @@ def test_cinema_chain_id_from_value_raises_for_unsupported_chain() -> None:
 
 
 @pytest.mark.unit
-def test_registered_chain_returns_chain_specific_default_venue(settings: Settings) -> None:
+def test_registered_chain_returns_chain_specific_metadata(settings: Settings) -> None:
     registered_chain = get_registered_chain(CinemaChainId.CINEMA_CITY)
 
     assert registered_chain.display_name == "Cinema City"
-    assert registered_chain.default_venue_getter(settings) == "Wroclaw - Wroclavia"
+    assert settings.get_default_venue(registered_chain.chain_id) == "Wroclaw - Wroclavia"

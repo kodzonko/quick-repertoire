@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 from typing import Annotated
 
@@ -21,6 +22,14 @@ from cinema_repertoire_analyzer.cli_utils import (
     db_venues_to_cli,
     repertoire_to_cli,
 )
+from cinema_repertoire_analyzer.configuration import (
+    ensure_settings_for_argv,
+    load_settings,
+    load_settings_if_available,
+    run_interactive_configuration,
+    should_defer_bootstrap_to_command,
+    should_skip_bootstrap_for_argv,
+)
 from cinema_repertoire_analyzer.database.database_manager import DatabaseManager
 from cinema_repertoire_analyzer.exceptions import (
     AmbiguousVenueMatchError,
@@ -30,7 +39,7 @@ from cinema_repertoire_analyzer.exceptions import (
 )
 from cinema_repertoire_analyzer.ratings_api.models import TmdbMovieDetails
 from cinema_repertoire_analyzer.ratings_api.tmdb import get_movie_ratings_and_summaries
-from cinema_repertoire_analyzer.settings import Settings, get_settings
+from cinema_repertoire_analyzer.settings import Settings
 
 
 def _resolve_single_venue(found_venues: list[CinemaVenue]) -> CinemaVenue:
@@ -42,9 +51,14 @@ def _resolve_single_venue(found_venues: list[CinemaVenue]) -> CinemaVenue:
     return found_venues[0]
 
 
-def _resolve_chain(chain: str) -> RegisteredCinemaChain:
+def _resolve_chain(chain: str | None, settings: Settings) -> RegisteredCinemaChain:
     """Resolve CLI chain input to a registered chain definition."""
-    return get_registered_chain(CinemaChainId.from_value(chain))
+    chain_id = (
+        settings.user_preferences.default_chain
+        if chain is None
+        else CinemaChainId.from_value(chain)
+    )
+    return get_registered_chain(chain_id)
 
 
 def _resolve_venue_name(
@@ -53,7 +67,7 @@ def _resolve_venue_name(
     """Resolve the requested venue name, falling back to chain defaults."""
     if venue_name:
         return venue_name
-    default_venue = chain.default_venue_getter(settings)
+    default_venue = settings.get_default_venue(chain.chain_id)
     if not default_venue:
         raise DefaultVenueNotConfiguredError(chain.display_name)
     return default_venue
@@ -102,39 +116,76 @@ def _load_tmdb_ratings(
         return {}
 
 
-def make_app(settings: Settings | None = None) -> typer.Typer:
+def make_app(settings: Settings | None = None) -> typer.Typer:  # noqa: C901
     """Create the Typer application."""
-    if settings is None:
-        settings = get_settings()
-
     venues_app = typer.Typer()
     app = typer.Typer()
     app.add_typer(venues_app, name="venues")
-    db_manager = _build_database_manager(settings.db_file)
-    setattr(app, "_db_manager", db_manager)
     console = Console()
+    runtime_settings = settings
+    db_manager: DatabaseManager | None = None
+    setattr(app, "_db_manager", None)
+
+    def get_runtime_settings() -> Settings:
+        nonlocal runtime_settings
+        if runtime_settings is None:
+            runtime_settings = load_settings()
+        return runtime_settings
+
+    def get_existing_settings() -> Settings | None:
+        nonlocal runtime_settings
+        if runtime_settings is not None:
+            return runtime_settings
+        runtime_settings = load_settings_if_available()
+        return runtime_settings
+
+    def reset_db_manager() -> None:
+        nonlocal db_manager
+        if db_manager is not None:
+            db_manager.close()
+            db_manager = None
+        setattr(app, "_db_manager", None)
+
+    def get_db_manager() -> DatabaseManager:
+        nonlocal db_manager
+        if db_manager is None:
+            db_manager = _build_database_manager(get_runtime_settings().db_file)
+            setattr(app, "_db_manager", db_manager)
+        return db_manager
+
+    @app.command()
+    def configure() -> None:
+        nonlocal runtime_settings
+        try:
+            runtime_settings = run_interactive_configuration(get_existing_settings())
+            reset_db_manager()
+        except AppError as error:
+            _handle_cli_error(error)
 
     @app.command()
     def repertoire(
-        chain: Annotated[str, typer.Option(help="Id sieci kin, np. cinema-city")],
+        chain: Annotated[str | None, typer.Option(help="Id sieci kin, np. cinema-city")] = None,
         venue_name: Annotated[str | None, typer.Argument()] = None,
-        date: Annotated[str, typer.Argument()] = settings.user_preferences.default_day,
+        date: Annotated[str | None, typer.Argument()] = None,
     ) -> None:
         try:
-            registered_chain = _resolve_chain(chain)
-            resolved_venue_name = _resolve_venue_name(venue_name, registered_chain, settings)
+            settings_instance = get_runtime_settings()
+            registered_chain = _resolve_chain(chain, settings_instance)
+            resolved_venue_name = _resolve_venue_name(
+                venue_name, registered_chain, settings_instance
+            )
             venue_name_parsed = cinema_venue_input_parser(resolved_venue_name)
-            found_venues = db_manager.find_venues_by_name(
+            found_venues = get_db_manager().find_venues_by_name(
                 registered_chain.chain_id, venue_name_parsed
             )
             venue = _resolve_single_venue(found_venues)
-            date_parsed: str = date_input_parser(date)
+            date_parsed = date_input_parser(date or settings_instance.user_preferences.default_day)
 
-            cinema_instance = registered_chain.client_factory(settings)
+            cinema_instance = registered_chain.client_factory(settings_instance)
             fetched_repertoire = anyio.run(cinema_instance.fetch_repertoire, date_parsed, venue)
             movie_titles = [repertoire.title for repertoire in fetched_repertoire]
             ratings = _load_tmdb_ratings(
-                movie_titles, settings.user_preferences.tmdb_access_token, console
+                movie_titles, settings_instance.user_preferences.tmdb_access_token, console
             )
 
             table_metadata = RepertoireCliTableMetadata(
@@ -147,34 +198,41 @@ def make_app(settings: Settings | None = None) -> typer.Typer:
             _handle_cli_error(error)
 
     @venues_app.command()
-    def list(chain: Annotated[str, typer.Option(help="Id sieci kin, np. cinema-city")]) -> None:
+    def list(
+        chain: Annotated[str | None, typer.Option(help="Id sieci kin, np. cinema-city")] = None,
+    ) -> None:
         try:
-            registered_chain = _resolve_chain(chain)
-            venues = db_manager.get_all_venues(registered_chain.chain_id)
+            settings_instance = get_runtime_settings()
+            registered_chain = _resolve_chain(chain, settings_instance)
+            venues = get_db_manager().get_all_venues(registered_chain.chain_id)
             db_venues_to_cli(venues, registered_chain.display_name, console)
         except AppError as error:
             _handle_cli_error(error)
 
     @venues_app.command()
-    def update(chain: Annotated[str, typer.Option(help="Id sieci kin, np. cinema-city")]) -> None:
+    def update(
+        chain: Annotated[str | None, typer.Option(help="Id sieci kin, np. cinema-city")] = None,
+    ) -> None:
         try:
-            registered_chain = _resolve_chain(chain)
+            settings_instance = get_runtime_settings()
+            registered_chain = _resolve_chain(chain, settings_instance)
             typer.echo(f"Aktualizowanie lokali dla sieci: {registered_chain.display_name}...")
-            cinema_instance = registered_chain.client_factory(settings)
+            cinema_instance = registered_chain.client_factory(settings_instance)
             venues = anyio.run(cinema_instance.fetch_venues)
-            db_manager.replace_venues(registered_chain.chain_id, venues)
+            get_db_manager().replace_venues(registered_chain.chain_id, venues)
             typer.echo("Lokale zaktualizowane w lokalnej bazie danych.")
         except AppError as error:
             _handle_cli_error(error)
 
     @venues_app.command()
     def search(
-        chain: Annotated[str, typer.Option(help="Id sieci kin, np. cinema-city")],
+        chain: Annotated[str | None, typer.Option(help="Id sieci kin, np. cinema-city")] = None,
         venue_name: Annotated[str, typer.Argument()] = "",
     ) -> None:
         try:
-            registered_chain = _resolve_chain(chain)
-            found_venues = db_manager.find_venues_by_name(
+            settings_instance = get_runtime_settings()
+            registered_chain = _resolve_chain(chain, settings_instance)
+            found_venues = get_db_manager().find_venues_by_name(
                 registered_chain.chain_id, cinema_venue_input_parser(venue_name)
             )
             db_venues_to_cli(found_venues, registered_chain.display_name, console)
@@ -186,7 +244,17 @@ def make_app(settings: Settings | None = None) -> typer.Typer:
 
 def main() -> None:
     """Run the Typer application."""
-    make_app()()
+    argv = sys.argv[1:]
+    settings: Settings | None = None
+    try:
+        if should_skip_bootstrap_for_argv(argv) or should_defer_bootstrap_to_command(argv):
+            settings = load_settings_if_available()
+        else:
+            settings = ensure_settings_for_argv(argv)
+    except AppError as error:
+        _handle_cli_error(error)
+
+    make_app(settings)()
 
 
 if __name__ == "__main__":
