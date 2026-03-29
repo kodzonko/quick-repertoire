@@ -1,21 +1,39 @@
+import gc
 import shutil
+import tempfile
+import time
+from collections.abc import Iterator
 from pathlib import Path
-from uuid import uuid4
 
 import pytest
 from typer import Typer
 from typer.testing import CliRunner
 
-from conftest import RESOURCE_DIR
 from cinema_repertoire_analyzer.database.database_manager import DatabaseManager
 from cinema_repertoire_analyzer.main import make_app
 from cinema_repertoire_analyzer.settings import Settings, get_settings
+from conftest import RESOURCE_DIR
+
+
+def _cleanup_temp_dir(temp_dir_context: tempfile.TemporaryDirectory[str]) -> None:
+    """Retry temp directory cleanup to handle delayed SQLite file releases on Windows."""
+    last_error: PermissionError | None = None
+    for _ in range(5):
+        gc.collect()
+        try:
+            temp_dir_context.cleanup()
+            return
+        except PermissionError as error:
+            last_error = error
+            time.sleep(0.1)
+    if last_error is not None:
+        raise last_error
 
 
 @pytest.fixture
-def settings(monkeypatch: pytest.MonkeyPatch) -> Settings:
-    temp_dir = RESOURCE_DIR.parent.parent / ".codex-tmp" / "e2e-tests" / str(uuid4())
-    temp_dir.mkdir(parents=True, exist_ok=True)
+def settings(monkeypatch: pytest.MonkeyPatch) -> Iterator[Settings]:
+    temp_dir_context = tempfile.TemporaryDirectory(prefix="cinema-repertoire-analyzer-e2e-")
+    temp_dir = Path(temp_dir_context.name)
     db_file = temp_dir / "test_db.sqlite"
     shutil.copy(RESOURCE_DIR / "test_db.sqlite", db_file)
     monkeypatch.delenv("ENV_PATH", raising=False)
@@ -34,9 +52,10 @@ def settings(monkeypatch: pytest.MonkeyPatch) -> Settings:
         "https://www.cinema-city.pl/#/buy-tickets-by-cinema",
     )
     get_settings.cache_clear()
-    yield get_settings()
+    settings_instance = get_settings()
+    yield settings_instance
     get_settings.cache_clear()
-    shutil.rmtree(temp_dir, ignore_errors=True)
+    _cleanup_temp_dir(temp_dir_context)
 
 
 @pytest.fixture
@@ -45,10 +64,16 @@ def runner() -> CliRunner:
 
 
 @pytest.fixture
-def typer_app(settings: Settings) -> Typer:
-    return make_app(settings)
+def typer_app(settings: Settings) -> Iterator[Typer]:
+    app = make_app(settings)
+    yield app
+    manager = getattr(app, "_db_manager", None)
+    if isinstance(manager, DatabaseManager):
+        manager.close()
 
 
 @pytest.fixture
-def db_manager(settings: Settings) -> DatabaseManager:
-    return DatabaseManager(db_file_path=settings.DB_FILE)
+def db_manager(settings: Settings) -> Iterator[DatabaseManager]:
+    manager = DatabaseManager(db_file_path=settings.DB_FILE)
+    yield manager
+    manager.close()

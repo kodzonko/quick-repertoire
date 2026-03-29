@@ -6,7 +6,7 @@ from typing import Any, Literal
 
 import typer
 from loguru import logger
-from pydantic import FilePath, field_validator
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).parents[2]
@@ -33,7 +33,7 @@ class CinemaCitySettings(BaseSettings):
 class Settings(BaseSettings):
     """Settings for the application."""
 
-    DB_FILE: FilePath
+    DB_FILE: Path
     USER_PREFERENCES: UserPreferences
     CINEMA_CITY_SETTINGS: CinemaCitySettings
     LOGURU_LEVEL: LOG_LVLS = "INFO"

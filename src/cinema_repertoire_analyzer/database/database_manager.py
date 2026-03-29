@@ -7,25 +7,35 @@ from pathlib import Path
 from sqlite3 import Error
 
 import sqlalchemy
+import sqlalchemy.exc
 import sqlalchemy.orm
-import typer
 from loguru import logger
 
-from cinema_repertoire_analyzer.database.models import CinemaVenues
+from cinema_repertoire_analyzer.database.models import Base, CinemaVenues
+from cinema_repertoire_analyzer.exceptions import DatabaseConnectionError
 
 
 class DatabaseManager:
     """Class responsible for connecting to the database and executing queries."""
 
     def __init__(self, db_file_path: Path | str) -> None:
-        sqlite_uri = f"sqlite:///{db_file_path}"
+        self._db_file_path = Path(db_file_path)
+        sqlite_uri = f"sqlite:///{self._db_file_path}"
         try:
+            self._db_file_path.parent.mkdir(parents=True, exist_ok=True)
             engine = sqlalchemy.create_engine(sqlite_uri)
+            self._engine = engine
+            Base.metadata.create_all(engine)
             self._session_constructor = sqlalchemy.orm.sessionmaker(engine)
             logger.debug(f"Connection to the database {sqlite_uri} successful.")
-        except Error as e:
-            typer.echo(f"Nie udało się połączyć z bazą danych {sqlite_uri}. Spróbuj jeszcze raz.")
-            raise typer.Exit(code=1) from e
+        except (Error, OSError, sqlalchemy.exc.SQLAlchemyError) as e:
+            raise DatabaseConnectionError(
+                f"Nie udało się połączyć z bazą danych {sqlite_uri}. Spróbuj jeszcze raz."
+            ) from e
+
+    def close(self) -> None:
+        """Dispose the underlying SQLAlchemy engine."""
+        self._engine.dispose()
 
     def get_all_venues(self) -> list[CinemaVenues]:
         """Get all venues for a specified cinema chain from the database."""
@@ -43,23 +53,14 @@ class DatabaseManager:
             session.add_all(venues)
             session.commit()
 
-    def find_venues_by_name(self, search_string: str) -> CinemaVenues | list[CinemaVenues]:
+    def find_venues_by_name(self, search_string: str) -> list[CinemaVenues]:
         """Find a venue of a specified cinema chain by name.
 
         Conducts a permissive search
-
-        Raises:
-        typer.Exit: If no venue is found.
         """
         with self._session_constructor() as session:
-            results = (
+            return (
                 session.query(CinemaVenues)
                 .filter(CinemaVenues.venue_name.ilike(f"%{search_string}%"))
                 .all()
             )
-            if len(results) == 1:
-                return results[0]
-            elif len(results) == 0:
-                typer.echo("Nie znaleziono żadnego lokalu o podanej nazwie.")
-                raise typer.Exit(code=1)
-            return results

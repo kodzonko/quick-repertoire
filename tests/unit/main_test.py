@@ -7,6 +7,7 @@ from typer.testing import CliRunner
 import cinema_repertoire_analyzer.main as tested_module
 from cinema_repertoire_analyzer.cinema_api.models import MoviePlayDetails, Repertoire
 from cinema_repertoire_analyzer.database.models import CinemaVenues
+from cinema_repertoire_analyzer.exceptions import AmbiguousVenueMatchError, VenueNotFoundError
 from cinema_repertoire_analyzer.ratings_api.models import TmdbMovieDetails
 from cinema_repertoire_analyzer.settings import Settings
 
@@ -31,13 +32,35 @@ def repertoire() -> list[Repertoire]:
             original_language="EN",
             play_details=[
                 MoviePlayDetails(
-                    format="2D",
-                    play_language="NAP: PL",
-                    play_times=["10:00", "12:30"],
+                    format="2D", play_language="NAP: PL", play_times=["10:00", "12:30"]
                 )
             ],
         )
     ]
+
+
+@pytest.mark.unit
+def test_resolve_single_venue_returns_single_match() -> None:
+    venue = CinemaVenues(venue_name="Warszawa - Janki", venue_id="1")
+
+    assert tested_module._resolve_single_venue([venue]) == venue
+
+
+@pytest.mark.unit
+def test_resolve_single_venue_raises_not_found_for_empty_result() -> None:
+    with pytest.raises(VenueNotFoundError):
+        tested_module._resolve_single_venue([])
+
+
+@pytest.mark.unit
+def test_resolve_single_venue_raises_ambiguous_for_multiple_matches() -> None:
+    with pytest.raises(AmbiguousVenueMatchError):
+        tested_module._resolve_single_venue(
+            [
+                CinemaVenues(venue_name="Warszawa - Janki", venue_id="1"),
+                CinemaVenues(venue_name="Warszawa - Arkadia", venue_id="2"),
+            ]
+        )
 
 
 @pytest.mark.unit
@@ -46,7 +69,7 @@ def test_make_app_uses_get_settings_when_settings_are_not_provided(
 ) -> None:
     get_settings_mock = MagicMock(return_value=settings)
     monkeypatch.setattr(tested_module, "get_settings", get_settings_mock)
-    monkeypatch.setattr(tested_module, "DatabaseManager", lambda *_: MagicMock())
+    monkeypatch.setattr(tested_module, "_build_database_manager", lambda *_: MagicMock())
     monkeypatch.setattr(tested_module, "Console", lambda: MagicMock())
 
     app = tested_module.make_app()
@@ -64,7 +87,7 @@ def test_repertoire_command_exits_for_ambiguous_venue_name(
         CinemaVenues(venue_name="Venue A", venue_id="1"),
         CinemaVenues(venue_name="Venue B", venue_id="2"),
     ]
-    monkeypatch.setattr(tested_module, "DatabaseManager", lambda *_: fake_db_manager)
+    monkeypatch.setattr(tested_module, "_build_database_manager", lambda *_: fake_db_manager)
     monkeypatch.setattr(tested_module, "Console", lambda: MagicMock())
 
     app = tested_module.make_app(settings)
@@ -72,6 +95,22 @@ def test_repertoire_command_exits_for_ambiguous_venue_name(
 
     assert result.exit_code == 1
     assert "Podana nazwa lokalu jest niejednoznaczna." in result.stdout
+
+
+@pytest.mark.unit
+def test_repertoire_command_exits_for_missing_venue_name(
+    monkeypatch: pytest.MonkeyPatch, settings: Settings, runner: CliRunner
+) -> None:
+    fake_db_manager = MagicMock()
+    fake_db_manager.find_venues_by_name.return_value = []
+    monkeypatch.setattr(tested_module, "_build_database_manager", lambda *_: fake_db_manager)
+    monkeypatch.setattr(tested_module, "Console", lambda: MagicMock())
+
+    app = tested_module.make_app(settings)
+    result = runner.invoke(app, ["repertoire", "venue"])
+
+    assert result.exit_code == 1
+    assert "Nie znaleziono żadnego lokalu o podanej nazwie." in result.stdout
 
 
 @pytest.mark.unit
@@ -84,22 +123,22 @@ def test_repertoire_command_fetches_tmdb_data_when_api_key_is_valid(
 ) -> None:
     fake_console = MagicMock()
     fake_db_manager = MagicMock()
-    fake_db_manager.find_venues_by_name.return_value = venue
+    fake_db_manager.find_venues_by_name.return_value = [venue]
     fake_cinema = MagicMock()
     fake_cinema.fetch_repertoire = AsyncMock(return_value=repertoire)
-    ratings = {
-        "Test Movie": TmdbMovieDetails(rating="8.5/10", summary="A tense mystery."),
-    }
+    ratings = {"Test Movie": TmdbMovieDetails(rating="8.5/10", summary="A tense mystery.")}
     tmdb_mock = MagicMock(return_value=ratings)
     rendered = {}
 
-    def fake_repertoire_to_cli(fetched_repertoire, table_metadata, ratings_payload, console) -> None:
+    def fake_repertoire_to_cli(
+        fetched_repertoire, table_metadata, ratings_payload, console
+    ) -> None:
         rendered["repertoire"] = fetched_repertoire
         rendered["table_metadata"] = table_metadata
         rendered["ratings"] = ratings_payload
         rendered["console"] = console
 
-    monkeypatch.setattr(tested_module, "DatabaseManager", lambda *_: fake_db_manager)
+    monkeypatch.setattr(tested_module, "_build_database_manager", lambda *_: fake_db_manager)
     monkeypatch.setattr(tested_module, "CinemaCity", lambda *_: fake_cinema)
     monkeypatch.setattr(tested_module, "Console", lambda: fake_console)
     monkeypatch.setattr(tested_module, "verify_api_key", lambda _: True)
@@ -127,17 +166,19 @@ def test_repertoire_command_warns_when_tmdb_is_disabled(
 ) -> None:
     fake_console = MagicMock()
     fake_db_manager = MagicMock()
-    fake_db_manager.find_venues_by_name.return_value = venue
+    fake_db_manager.find_venues_by_name.return_value = [venue]
     fake_cinema = MagicMock()
     fake_cinema.fetch_repertoire = AsyncMock(return_value=repertoire)
     tmdb_mock = MagicMock()
     rendered = {}
 
-    def fake_repertoire_to_cli(fetched_repertoire, table_metadata, ratings_payload, console) -> None:
+    def fake_repertoire_to_cli(
+        fetched_repertoire, table_metadata, ratings_payload, console
+    ) -> None:
         rendered["repertoire"] = fetched_repertoire
         rendered["ratings"] = ratings_payload
 
-    monkeypatch.setattr(tested_module, "DatabaseManager", lambda *_: fake_db_manager)
+    monkeypatch.setattr(tested_module, "_build_database_manager", lambda *_: fake_db_manager)
     monkeypatch.setattr(tested_module, "CinemaCity", lambda *_: fake_cinema)
     monkeypatch.setattr(tested_module, "Console", lambda: fake_console)
     monkeypatch.setattr(tested_module, "verify_api_key", lambda _: False)

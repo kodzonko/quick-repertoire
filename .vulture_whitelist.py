@@ -1,3 +1,5 @@
+# ruff: noqa: F821
+
 update  # unused function (src\cinema_repertoire_analyzer\main.py:84)
 search  # unused function (src\cinema_repertoire_analyzer\main.py:95)
 set_env_for_loguru  # unused function (src\cinema_repertoire_analyzer\settings.py:60)

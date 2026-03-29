@@ -21,19 +21,13 @@ def test_get_repertoire_with_default_values_returns_repertoire_correctly(
                 original_language="EN",
                 play_details=[
                     MoviePlayDetails(
-                        format="2D",
-                        play_language="NAP: PL",
-                        play_times=["10:00", "12:30"],
+                        format="2D", play_language="NAP: PL", play_times=["10:00", "12:30"]
                     )
                 ],
             )
         ]
 
-    monkeypatch.setattr(
-        tested_module.CinemaCity,
-        "fetch_repertoire",
-        fake_fetch_repertoire,
-    )
+    monkeypatch.setattr(tested_module.CinemaCity, "fetch_repertoire", fake_fetch_repertoire)
 
     result = runner.invoke(typer_app, ["repertoire"])
 

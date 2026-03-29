@@ -1,9 +1,9 @@
 from typing import Any
 
-import click
 import pytest
 
 from cinema_repertoire_analyzer.cinema_api.template_utils import fill_string_template
+from cinema_repertoire_analyzer.exceptions import TemplateRenderError
 
 
 @pytest.mark.unit
@@ -28,5 +28,5 @@ def test_fill_string_template_returns_correctly_filled_string(
 
 @pytest.mark.unit
 def test_fill_string_template_raises_error_on_missing_variable() -> None:
-    with pytest.raises(click.exceptions.Exit):
+    with pytest.raises(TemplateRenderError):
         fill_string_template("{missing_variable}", a="sth", b="text")
