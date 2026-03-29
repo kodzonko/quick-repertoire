@@ -1,11 +1,15 @@
 # Project's post-mortem
 
-_Development has been finished on 24.06.2024_, however, functionally the app was
+~~_Development has been finished on 24.06.2024_, however, functionally the app was
 at this stage a few weeks earlier. From now on contribution will depend on if
 there's any interest at all in using the tool by the community and on feedback
 from users. I don't really have plans to implement any new features, but I'm
 open to PRs and suggestions. I will, however, try to keep the dependencies
-up-to-date with the help of dependabot and fix any reported bugs.
+up-to-date with the help of dependabot and fix any reported bugs.~~
+
+EDIT: Development has been resumed thanks to lower time/attention requirements
+thanks to coding assistants I'll resume development according to the initial plan
+and possibly add some new features as well.
 
 ## Initial plan for the project
 
