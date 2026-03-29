@@ -1,8 +1,7 @@
 import pytest
 
 from cinema_repertoire_analyzer.cinema_api.cinema_city import CinemaCity
-from cinema_repertoire_analyzer.cinema_api.models import MoviePlayDetails, Repertoire
-from cinema_repertoire_analyzer.database.models import CinemaVenues
+from cinema_repertoire_analyzer.cinema_api.models import CinemaVenue, MoviePlayDetails, Repertoire
 from conftest import RESOURCE_DIR
 
 pytestmark = pytest.mark.anyio
@@ -20,8 +19,8 @@ def cinema() -> CinemaCity:
 
 
 @pytest.fixture
-def venue_data() -> CinemaVenues:
-    return CinemaVenues(venue_id="1080", venue_name="Łódź Manufaktura")
+def venue_data() -> CinemaVenue:
+    return CinemaVenue(chain_id="cinema-city", venue_id="1080", venue_name="Lodz - Manufaktura")
 
 
 @pytest.fixture
@@ -46,7 +45,7 @@ def rendered_venues_html() -> str:
 @pytest.mark.integration
 async def test_fetch_repertoire_parses_saved_repertoire_snapshot(
     cinema: CinemaCity,
-    venue_data: CinemaVenues,
+    venue_data: CinemaVenue,
     rendered_repertoire_html: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -69,7 +68,7 @@ async def test_fetch_repertoire_parses_saved_repertoire_snapshot(
 
 
 @pytest.mark.integration
-async def test_fetch_cinema_venues_list_filters_out_invalid_venues(
+async def test_fetch_venues_filters_out_invalid_venues(
     cinema: CinemaCity, rendered_venues_html: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     async def fake_fetch_rendered_html(url: str, selector: str) -> str:
@@ -77,9 +76,9 @@ async def test_fetch_cinema_venues_list_filters_out_invalid_venues(
 
     monkeypatch.setattr(cinema, "_fetch_rendered_html", fake_fetch_rendered_html)
 
-    venues = await cinema.fetch_cinema_venues_list()
+    venues = await cinema.fetch_venues()
 
-    assert [(venue.venue_name, venue.venue_id) for venue in venues] == [
-        ("Lodz - Manufaktura", "1080"),
-        ("Wroclaw - Wroclavia", "1097"),
+    assert [(venue.chain_id, venue.venue_name, venue.venue_id) for venue in venues] == [
+        ("cinema-city", "Lodz - Manufaktura", "1080"),
+        ("cinema-city", "Wroclaw - Wroclavia", "1097"),
     ]

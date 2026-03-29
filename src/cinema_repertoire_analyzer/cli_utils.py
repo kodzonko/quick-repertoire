@@ -5,8 +5,11 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from cinema_repertoire_analyzer.cinema_api.models import Repertoire, RepertoireCliTableMetadata
-from cinema_repertoire_analyzer.database.models import CinemaVenues
+from cinema_repertoire_analyzer.cinema_api.models import (
+    CinemaVenue,
+    Repertoire,
+    RepertoireCliTableMetadata,
+)
 from cinema_repertoire_analyzer.ratings_api.models import TmdbMovieDetails
 
 
@@ -41,16 +44,16 @@ def date_input_parser(date: str) -> str:
         )
 
 
-def db_venues_to_cli(venues: list[CinemaVenues], sink: Console) -> None:
+def db_venues_to_cli(venues: list[CinemaVenue], chain_display_name: str, sink: Console) -> None:
     """Print cinema venues as a pretty-printed table in a console."""
     if not venues:
         sink.print("Brak kin tej sieci w bazie danych.")
         return
-    table = Table(title="Znalezione lokale sieci Cinema City")
-    for column in venues[0].__table__.columns:
-        table.add_column(column.name)
+    table = Table(title=f"Znalezione lokale sieci {chain_display_name}")
+    table.add_column("venue_name")
+    table.add_column("venue_id")
     for venue in venues:
-        table.add_row(*venue.list_values())
+        table.add_row(venue.venue_name, venue.venue_id)
 
     sink.print(table)
 
@@ -66,7 +69,7 @@ def repertoire_to_cli(
         sink.print("Brak repertuaru do wyświetlenia.")
         return
     table = Table(
-        title=f"Repertuar dla Cinema City "
+        title=f"Repertuar dla {table_metadata.chain_display_name} "
         f"({table_metadata.cinema_venue_name}) na dzień: {table_metadata.repertoire_date}",
         show_lines=True,
         header_style="bold",

@@ -11,7 +11,8 @@ import sqlalchemy.exc
 import sqlalchemy.orm
 from loguru import logger
 
-from cinema_repertoire_analyzer.database.models import Base, CinemaVenues
+from cinema_repertoire_analyzer.cinema_api.models import CinemaChainId, CinemaVenue
+from cinema_repertoire_analyzer.database.models import Base, CinemaVenueRecord
 from cinema_repertoire_analyzer.exceptions import DatabaseConnectionError
 
 
@@ -37,30 +38,47 @@ class DatabaseManager:
         """Dispose the underlying SQLAlchemy engine."""
         self._engine.dispose()
 
-    def get_all_venues(self) -> list[CinemaVenues]:
-        """Get all venues for a specified cinema chain from the database."""
+    def get_all_venues(self, chain_id: str | CinemaChainId) -> list[CinemaVenue]:
+        """Get all cached venues for a specified cinema chain."""
+        chain_id_value = chain_id.value if isinstance(chain_id, CinemaChainId) else chain_id
         with self._session_constructor() as session:
-            results = session.query(CinemaVenues).all()
-            return results
+            results = (
+                session.query(CinemaVenueRecord)
+                .filter(CinemaVenueRecord.chain_id == chain_id_value)
+                .order_by(CinemaVenueRecord.venue_name)
+                .all()
+            )
+            return [result.to_domain() for result in results]
 
-    def update_cinema_venues(self, venues: list[CinemaVenues]) -> None:
-        """Update cinema venues in the database.
+    def replace_venues(self, chain_id: str | CinemaChainId, venues: list[CinemaVenue]) -> None:
+        """Replace cached venues for a specified cinema chain.
 
         Function will remove all records from the table and insert new ones.
         """
+        chain_id_value = chain_id.value if isinstance(chain_id, CinemaChainId) else chain_id
         with self._session_constructor() as session:
-            session.query(CinemaVenues).delete()
-            session.add_all(venues)
+            (
+                session.query(CinemaVenueRecord)
+                .filter(CinemaVenueRecord.chain_id == chain_id_value)
+                .delete()
+            )
+            session.add_all(CinemaVenueRecord.from_domain(venue) for venue in venues)
             session.commit()
 
-    def find_venues_by_name(self, search_string: str) -> list[CinemaVenues]:
-        """Find a venue of a specified cinema chain by name.
+    def find_venues_by_name(
+        self, chain_id: str | CinemaChainId, search_string: str
+    ) -> list[CinemaVenue]:
+        """Find venues for a specified cinema chain by name.
 
         Conducts a permissive search
         """
+        chain_id_value = chain_id.value if isinstance(chain_id, CinemaChainId) else chain_id
         with self._session_constructor() as session:
-            return (
-                session.query(CinemaVenues)
-                .filter(CinemaVenues.venue_name.ilike(f"%{search_string}%"))
+            results = (
+                session.query(CinemaVenueRecord)
+                .filter(CinemaVenueRecord.chain_id == chain_id_value)
+                .filter(CinemaVenueRecord.venue_name.ilike(f"%{search_string}%"))
+                .order_by(CinemaVenueRecord.venue_name)
                 .all()
             )
+            return [result.to_domain() for result in results]

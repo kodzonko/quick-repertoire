@@ -1,5 +1,4 @@
 import gc
-import shutil
 import tempfile
 import time
 from collections.abc import Iterator
@@ -9,10 +8,10 @@ import pytest
 from typer import Typer
 from typer.testing import CliRunner
 
+from cinema_repertoire_analyzer.cinema_api.models import CinemaVenue
 from cinema_repertoire_analyzer.database.database_manager import DatabaseManager
 from cinema_repertoire_analyzer.main import make_app
 from cinema_repertoire_analyzer.settings import Settings, get_settings
-from conftest import RESOURCE_DIR
 
 
 def _cleanup_temp_dir(temp_dir_context: tempfile.TemporaryDirectory[str]) -> None:
@@ -35,24 +34,35 @@ def settings(monkeypatch: pytest.MonkeyPatch) -> Iterator[Settings]:
     temp_dir_context = tempfile.TemporaryDirectory(prefix="cinema-repertoire-analyzer-e2e-")
     temp_dir = Path(temp_dir_context.name)
     db_file = temp_dir / "test_db.sqlite"
-    shutil.copy(RESOURCE_DIR / "test_db.sqlite", db_file)
     monkeypatch.delenv("ENV_PATH", raising=False)
     monkeypatch.setenv("LOGURU_LEVEL", "TRACE")
     monkeypatch.setenv("DB_FILE", str(db_file))
-    monkeypatch.setenv("USER_PREFERENCES__DEFAULT_CINEMA_VENUE", "Wrocław - Wroclavia")
     monkeypatch.setenv("USER_PREFERENCES__DEFAULT_DAY", "today")
+    monkeypatch.setenv("USER_PREFERENCES__DEFAULT_VENUES__CINEMA_CITY", "Wroclaw - Wroclavia")
     monkeypatch.setenv("USER_PREFERENCES__TMDB_ACCESS_TOKEN", "1234")
     monkeypatch.setenv(
-        "CINEMA_CITY_SETTINGS__REPERTOIRE_URL",
+        "CINEMA_CHAINS__CINEMA_CITY__REPERTOIRE_URL",
         "https://www.cinema-city.pl/#/buy-tickets-by-cinema?"
         "in-cinema={cinema_venue_id}&at={repertoire_date}",
     )
     monkeypatch.setenv(
-        "CINEMA_CITY_SETTINGS__VENUES_LIST_URL",
+        "CINEMA_CHAINS__CINEMA_CITY__VENUES_LIST_URL",
         "https://www.cinema-city.pl/#/buy-tickets-by-cinema",
     )
     get_settings.cache_clear()
     settings_instance = get_settings()
+    db_manager = DatabaseManager(db_file_path=settings_instance.DB_FILE)
+    db_manager.replace_venues(
+        "cinema-city",
+        [
+            CinemaVenue(
+                chain_id="cinema-city", venue_name="Warszawa - Galeria Mokotow", venue_id="1"
+            ),
+            CinemaVenue(chain_id="cinema-city", venue_name="Warszawa - Janki", venue_id="2"),
+            CinemaVenue(chain_id="cinema-city", venue_name="Wroclaw - Wroclavia", venue_id="3"),
+        ],
+    )
+    db_manager.close()
     yield settings_instance
     get_settings.cache_clear()
     _cleanup_temp_dir(temp_dir_context)

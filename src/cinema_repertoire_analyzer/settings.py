@@ -6,7 +6,7 @@ from typing import Any, Literal
 
 import typer
 from loguru import logger
-from pydantic import field_validator
+from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).parents[2]
@@ -15,19 +15,31 @@ AllowedDefaultDays = Literal["dziś", "dzis", "dzisiaj", "today", "jutro", "tomo
 LOG_LVLS = Literal["TRACE", "WARNING", "DEBUG", "INFO", "ERROR", "CRITICAL"]
 
 
-class UserPreferences(BaseSettings):
+class DefaultVenues(BaseModel):
+    """Per-chain default venue names."""
+
+    CINEMA_CITY: str | None = None
+
+
+class UserPreferences(BaseModel):
     """User preferences for the application."""
 
-    DEFAULT_CINEMA_VENUE: str
     DEFAULT_DAY: AllowedDefaultDays
     TMDB_ACCESS_TOKEN: str | None = None
+    DEFAULT_VENUES: DefaultVenues = Field(default_factory=DefaultVenues)
 
 
-class CinemaCitySettings(BaseSettings):
-    """Settings for Cinema City cinema chain."""
+class CinemaChainSettings(BaseModel):
+    """Settings for a single cinema chain adapter."""
 
     REPERTOIRE_URL: str
     VENUES_LIST_URL: str
+
+
+class CinemaChainsSettings(BaseModel):
+    """Settings for all configured cinema chains."""
+
+    CINEMA_CITY: CinemaChainSettings
 
 
 class Settings(BaseSettings):
@@ -35,7 +47,7 @@ class Settings(BaseSettings):
 
     DB_FILE: Path
     USER_PREFERENCES: UserPreferences
-    CINEMA_CITY_SETTINGS: CinemaCitySettings
+    CINEMA_CHAINS: CinemaChainsSettings
     LOGURU_LEVEL: LOG_LVLS = "INFO"
 
     @field_validator("LOGURU_LEVEL")

@@ -1,16 +1,28 @@
 from sqlalchemy import TEXT, Column
 from sqlalchemy.orm import declarative_base
 
+from cinema_repertoire_analyzer.cinema_api.models import CinemaVenue
+
 Base = declarative_base()
 
 
-class CinemaVenues(Base):
-    """Model for Cinema City venues."""
+class CinemaVenueRecord(Base):
+    """ORM model for cached cinema venues across chains."""
 
-    __tablename__ = "cinema_city_venues"
-    venue_name = Column(TEXT, primary_key=True)
-    venue_id = Column(TEXT, unique=True)
+    __tablename__ = "cinema_venues"
+    chain_id = Column(TEXT, primary_key=True)
+    venue_id = Column(TEXT, primary_key=True)
+    venue_name = Column(TEXT, nullable=False)
 
-    def list_values(self) -> list:
-        """Return list of values for a single venue."""
-        return [getattr(self, column.name) for column in self.__table__.columns]
+    def to_domain(self) -> CinemaVenue:
+        """Convert the ORM record into the shared venue model."""
+        return CinemaVenue(
+            chain_id=str(self.chain_id),
+            venue_id=str(self.venue_id),
+            venue_name=str(self.venue_name),
+        )
+
+    @classmethod
+    def from_domain(cls, venue: CinemaVenue) -> CinemaVenueRecord:
+        """Create an ORM record from the shared venue model."""
+        return cls(chain_id=venue.chain_id, venue_id=venue.venue_id, venue_name=venue.venue_name)

@@ -2,6 +2,7 @@ import pytest
 from typer import Typer
 from typer.testing import CliRunner
 
+import cinema_repertoire_analyzer.cinema_api.registry as registry_module
 import cinema_repertoire_analyzer.main as tested_module
 from cinema_repertoire_analyzer.cinema_api.models import MoviePlayDetails, Repertoire
 
@@ -12,7 +13,7 @@ def test_get_repertoire_with_default_values_returns_repertoire_correctly(
 ) -> None:
     monkeypatch.setattr(tested_module, "get_movie_ratings_and_summaries", lambda *_: {})
 
-    async def fake_fetch_repertoire(self, date, venue_data):
+    async def fake_fetch_repertoire(self, date, venue):
         return [
             Repertoire(
                 title="Test Movie",
@@ -27,9 +28,9 @@ def test_get_repertoire_with_default_values_returns_repertoire_correctly(
             )
         ]
 
-    monkeypatch.setattr(tested_module.CinemaCity, "fetch_repertoire", fake_fetch_repertoire)
+    monkeypatch.setattr(registry_module.CinemaCity, "fetch_repertoire", fake_fetch_repertoire)
 
-    result = runner.invoke(typer_app, ["repertoire"])
+    result = runner.invoke(typer_app, ["repertoire", "--chain", "cinema-city"])
 
     assert result.exit_code == 0
     assert "Repertuar dla Cinema City" in result.stdout

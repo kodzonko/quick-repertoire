@@ -5,6 +5,7 @@ import typer
 from rich.console import Console
 
 from cinema_repertoire_analyzer.cinema_api.models import (
+    CinemaVenue,
     MoviePlayDetails,
     Repertoire,
     RepertoireCliTableMetadata,
@@ -15,28 +16,25 @@ from cinema_repertoire_analyzer.cli_utils import (
     db_venues_to_cli,
     repertoire_to_cli,
 )
-from cinema_repertoire_analyzer.database.models import CinemaVenues
 from cinema_repertoire_analyzer.ratings_api.models import TmdbMovieDetails
 
 
 @pytest.mark.unit
 @pytest.mark.parametrize(
-    "input_, output",
+    ("input_", "output"),
     [
         pytest.param(" Manufaktura ", "%Manufaktura%"),
         pytest.param("warszawa janki", "%warszawa%janki%"),
-        pytest.param("wrocławia.", "%wroc_awia%"),
+        pytest.param("wroclawia.", "%wroclawia%"),
     ],
 )
-def test_cinema_venue_input_parser_parses_user_input_correctly(
-    input_: str, output: CinemaVenues
-) -> None:
+def test_cinema_venue_input_parser_parses_user_input_correctly(input_: str, output: str) -> None:
     assert cinema_venue_input_parser(input_) == output
 
 
 @pytest.mark.unit
 @pytest.mark.parametrize(
-    "input_, output",
+    ("input_", "output"),
     [
         pytest.param("dziś", datetime.now().strftime("%Y-%m-%d")),
         pytest.param("dzis", datetime.now().strftime("%Y-%m-%d")),
@@ -64,7 +62,7 @@ def test_date_input_parser_raises_error_on_unrecognized_input() -> None:
 def test_db_venues_to_cli_prints_empty_state_for_missing_venues() -> None:
     console = Console(record=True, width=120)
 
-    db_venues_to_cli([], console)
+    db_venues_to_cli([], "Cinema City", console)
 
     assert "Brak kin tej sieci w bazie danych." in console.export_text()
 
@@ -73,11 +71,11 @@ def test_db_venues_to_cli_prints_empty_state_for_missing_venues() -> None:
 def test_db_venues_to_cli_renders_table_for_found_venues() -> None:
     console = Console(record=True, width=200)
     venues = [
-        CinemaVenues(venue_name="Lodz - Manufaktura", venue_id="1080"),
-        CinemaVenues(venue_name="Wroclaw - Wroclavia", venue_id="1097"),
+        CinemaVenue(chain_id="cinema-city", venue_name="Lodz - Manufaktura", venue_id="1080"),
+        CinemaVenue(chain_id="cinema-city", venue_name="Wroclaw - Wroclavia", venue_id="1097"),
     ]
 
-    db_venues_to_cli(venues, console)
+    db_venues_to_cli(venues, "Cinema City", console)
 
     rendered_output = console.export_text()
     assert "Znalezione lokale sieci Cinema" in rendered_output
@@ -90,7 +88,9 @@ def test_db_venues_to_cli_renders_table_for_found_venues() -> None:
 def test_repertoire_to_cli_prints_empty_state_for_missing_movies() -> None:
     console = Console(record=True, width=120)
     metadata = RepertoireCliTableMetadata(
-        repertoire_date="2024-06-01", cinema_venue_name="Wroclaw - Wroclavia"
+        chain_display_name="Cinema City",
+        repertoire_date="2024-06-01",
+        cinema_venue_name="Wroclaw - Wroclavia",
     )
 
     repertoire_to_cli([], metadata, {}, console)
@@ -102,7 +102,9 @@ def test_repertoire_to_cli_prints_empty_state_for_missing_movies() -> None:
 def test_repertoire_to_cli_renders_ratings_when_available() -> None:
     console = Console(record=True, width=200)
     metadata = RepertoireCliTableMetadata(
-        repertoire_date="2024-06-01", cinema_venue_name="Wroclaw - Wroclavia"
+        chain_display_name="Cinema City",
+        repertoire_date="2024-06-01",
+        cinema_venue_name="Wroclaw - Wroclavia",
     )
     repertoire = [
         Repertoire(
@@ -118,7 +120,7 @@ def test_repertoire_to_cli_renders_ratings_when_available() -> None:
         )
     ]
     ratings = {
-        "Test Movie": TmdbMovieDetails(rating="8.5/10\n(głosy: 2000)", summary="A tense mystery.")
+        "Test Movie": TmdbMovieDetails(rating="8.5/10\n(glosy: 2000)", summary="A tense mystery.")
     }
 
     repertoire_to_cli(repertoire, metadata, ratings, console)

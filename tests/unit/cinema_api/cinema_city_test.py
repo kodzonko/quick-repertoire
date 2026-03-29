@@ -5,8 +5,7 @@ from bs4 import BeautifulSoup
 from bs4.element import NavigableString, Tag
 
 import cinema_repertoire_analyzer.cinema_api.cinema_city as tested_module
-from cinema_repertoire_analyzer.cinema_api.models import MoviePlayDetails, Repertoire
-from cinema_repertoire_analyzer.database.models import CinemaVenues
+from cinema_repertoire_analyzer.cinema_api.models import CinemaVenue, MoviePlayDetails, Repertoire
 from conftest import RESOURCE_DIR
 
 pytestmark = pytest.mark.anyio
@@ -402,14 +401,16 @@ async def test_fetch_repertoire_downloads_and_parses_repertoire_correctly(
     assert (
         await cinema_city.fetch_repertoire(
             date="2023-04-01",
-            venue_data=CinemaVenues(venue_id="1097", venue_name="Wrocław - Wroclavia"),
+            venue_data=CinemaVenue(
+                chain_id="cinema-city", venue_id="1097", venue_name="Wrocław - Wroclavia"
+            ),
         )
         == expected
     )
 
 
 @pytest.mark.unit
-async def test_fetch_cinema_venues_list_downloads_and_parses_venues_correctly(
+async def test_fetch_venues_downloads_and_parses_venues_correctly(
     cinema_city: tested_module.CinemaCity, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     rendered_venues_html = """
@@ -424,11 +425,11 @@ async def test_fetch_cinema_venues_list_downloads_and_parses_venues_correctly(
         cinema_city, "_fetch_rendered_html", AsyncMock(return_value=rendered_venues_html)
     )
 
-    venues = await cinema_city.fetch_cinema_venues_list()
+    venues = await cinema_city.fetch_venues()
 
-    assert [(venue.venue_name, venue.venue_id) for venue in venues] == [
-        ("Lodz - Manufaktura", "1080"),
-        ("Wroclaw - Wroclavia", "1097"),
+    assert [(venue.chain_id, venue.venue_name, venue.venue_id) for venue in venues] == [
+        ("cinema-city", "Lodz - Manufaktura", "1080"),
+        ("cinema-city", "Wroclaw - Wroclavia", "1097"),
     ]
 
 
@@ -461,7 +462,9 @@ async def test_fetch_repertoire_skips_movies_in_presale(
 
     repertoire = await cinema_city.fetch_repertoire(
         date="2023-04-01",
-        venue_data=CinemaVenues(venue_id="1097", venue_name="Wroclaw - Wroclavia"),
+        venue_data=CinemaVenue(
+            chain_id="cinema-city", venue_id="1097", venue_name="Wroclaw - Wroclavia"
+        ),
     )
 
     assert [movie.title for movie in repertoire] == ["Regular Movie"]
@@ -501,7 +504,76 @@ async def test_fetch_rendered_html_returns_page_source_after_waiting(
     page.wait_for_selector.assert_awaited_once_with(
         "div.ready", state="attached", timeout=tested_module.REQUEST_TIMEOUT_MILLISECONDS
     )
+    page.close.assert_awaited_once()
     browser.close.assert_awaited_once()
+    playwright_context.__aexit__.assert_awaited_once_with(None, None, None)
+
+
+@pytest.mark.unit
+async def test_fetch_venues_closes_browser_when_it_manages_session(
+    cinema_city: tested_module.CinemaCity, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    page = AsyncMock()
+    page.content.return_value = """
+    <select>
+      <option value="1080" data-tokens="Lodz - Manufaktura">Lodz - Manufaktura</option>
+    </select>
+    """
+    browser = AsyncMock()
+    browser.new_page.return_value = page
+    chromium = AsyncMock()
+    chromium.launch.return_value = browser
+    playwright = MagicMock()
+    playwright.chromium = chromium
+    playwright_context = AsyncMock()
+    playwright_context.__aenter__.return_value = playwright
+    playwright_context.__aexit__.return_value = None
+    monkeypatch.setattr(
+        tested_module, "async_playwright", MagicMock(return_value=playwright_context)
+    )
+
+    venues = await cinema_city.fetch_venues()
+
+    assert [(venue.chain_id, venue.venue_name, venue.venue_id) for venue in venues] == [
+        ("cinema-city", "Lodz - Manufaktura", "1080")
+    ]
+    browser.close.assert_awaited_once()
+    playwright_context.__aexit__.assert_awaited_once_with(None, None, None)
+
+
+@pytest.mark.unit
+async def test_fetch_rendered_html_reuses_browser_session_with_explicit_context(
+    cinema_city: tested_module.CinemaCity, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first_page = AsyncMock()
+    first_page.content.return_value = "<html>first</html>"
+    second_page = AsyncMock()
+    second_page.content.return_value = "<html>second</html>"
+    browser = AsyncMock()
+    browser.new_page.side_effect = [first_page, second_page]
+    chromium = AsyncMock()
+    chromium.launch.return_value = browser
+    playwright = MagicMock()
+    playwright.chromium = chromium
+    playwright_context = AsyncMock()
+    playwright_context.__aenter__.return_value = playwright
+    playwright_context.__aexit__.return_value = None
+    monkeypatch.setattr(
+        tested_module, "async_playwright", MagicMock(return_value=playwright_context)
+    )
+
+    async with cinema_city:
+        first_html = await cinema_city._fetch_rendered_html("https://example.com/one", "div.ready")
+        second_html = await cinema_city._fetch_rendered_html("https://example.com/two", "div.ready")
+
+    assert first_html == "<html>first</html>"
+    assert second_html == "<html>second</html>"
+    chromium.launch.assert_awaited_once()
+    assert browser.new_page.await_count == 2
+    first_page.close.assert_awaited_once()
+    second_page.close.assert_awaited_once()
+    browser.close.assert_awaited_once()
+    playwright_context.__aexit__.assert_awaited_once_with(None, None, None)
 
 
 @pytest.mark.unit

@@ -5,8 +5,9 @@ import pytest
 import sqlalchemy
 from mockito import mock, when
 
+from cinema_repertoire_analyzer.cinema_api.models import CinemaChainId, CinemaVenue
 from cinema_repertoire_analyzer.database.database_manager import DatabaseManager
-from cinema_repertoire_analyzer.database.models import Base, CinemaVenues
+from cinema_repertoire_analyzer.database.models import Base
 from cinema_repertoire_analyzer.exceptions import DatabaseConnectionError
 
 
@@ -24,40 +25,56 @@ def db_manager(db_path: Path) -> DatabaseManager:
 def test_database_manager_bootstraps_schema_on_init(db_path: Path) -> None:
     db_manager = DatabaseManager(db_path)
 
-    assert db_manager.get_all_venues() == []
+    assert db_manager.get_all_venues(CinemaChainId.CINEMA_CITY) == []
     assert db_path.exists() is True
 
 
 @pytest.mark.unit
-def test_update_cinema_venues_replaces_existing_records(db_manager: DatabaseManager) -> None:
-    venues = [
-        CinemaVenues(venue_name="Warszawa - Janki", venue_id="1"),
-        CinemaVenues(venue_name="Wrocław - Wroclavia", venue_id="2"),
+def test_replace_venues_replaces_existing_records_only_for_selected_chain(
+    db_manager: DatabaseManager,
+) -> None:
+    db_manager.replace_venues(
+        "cinema-city",
+        [CinemaVenue(chain_id="cinema-city", venue_name="Warszawa - Janki", venue_id="1")],
+    )
+    db_manager.replace_venues(
+        "helios", [CinemaVenue(chain_id="helios", venue_name="Lodz - Sukcesja", venue_id="2")]
+    )
+
+    db_manager.replace_venues(
+        "cinema-city",
+        [CinemaVenue(chain_id="cinema-city", venue_name="Wroclaw - Wroclavia", venue_id="3")],
+    )
+
+    assert [venue.venue_name for venue in db_manager.get_all_venues("cinema-city")] == [
+        "Wroclaw - Wroclavia"
     ]
-
-    db_manager.update_cinema_venues(venues)
-
-    assert [venue.venue_name for venue in db_manager.get_all_venues()] == [
-        "Warszawa - Janki",
-        "Wrocław - Wroclavia",
+    assert [venue.venue_name for venue in db_manager.get_all_venues("helios")] == [
+        "Lodz - Sukcesja"
     ]
 
 
 @pytest.mark.unit
-def test_find_venues_by_name_returns_matching_venues(db_manager: DatabaseManager) -> None:
-    db_manager.update_cinema_venues(
+def test_find_venues_by_name_returns_matching_venues_for_selected_chain(
+    db_manager: DatabaseManager,
+) -> None:
+    db_manager.replace_venues(
+        "cinema-city",
         [
-            CinemaVenues(venue_name="Warszawa - Janki", venue_id="1"),
-            CinemaVenues(venue_name="Warszawa - Arkadia", venue_id="2"),
-            CinemaVenues(venue_name="Wrocław - Wroclavia", venue_id="3"),
-        ]
+            CinemaVenue(chain_id="cinema-city", venue_name="Warszawa - Janki", venue_id="1"),
+            CinemaVenue(chain_id="cinema-city", venue_name="Warszawa - Arkadia", venue_id="2"),
+            CinemaVenue(chain_id="cinema-city", venue_name="Wroclaw - Wroclavia", venue_id="3"),
+        ],
+    )
+    db_manager.replace_venues(
+        "helios", [CinemaVenue(chain_id="helios", venue_name="Warszawa - Blue City", venue_id="4")]
     )
 
-    found_venues = db_manager.find_venues_by_name("Warszawa")
+    found_venues = db_manager.find_venues_by_name("cinema-city", "Warszawa")
 
     assert [venue.venue_name for venue in found_venues] == [
-        "Warszawa - Janki",
         "Warszawa - Arkadia",
+        "Warszawa - Janki",
     ]
 
 

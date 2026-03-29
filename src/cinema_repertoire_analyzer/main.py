@@ -6,8 +6,15 @@ import httpx
 import typer
 from rich.console import Console
 
-from cinema_repertoire_analyzer.cinema_api.cinema_city import CinemaCity
-from cinema_repertoire_analyzer.cinema_api.models import RepertoireCliTableMetadata
+from cinema_repertoire_analyzer.cinema_api.models import (
+    CinemaChainId,
+    CinemaVenue,
+    RepertoireCliTableMetadata,
+)
+from cinema_repertoire_analyzer.cinema_api.registry import (
+    RegisteredCinemaChain,
+    get_registered_chain,
+)
 from cinema_repertoire_analyzer.cli_utils import (
     cinema_venue_input_parser,
     date_input_parser,
@@ -15,10 +22,10 @@ from cinema_repertoire_analyzer.cli_utils import (
     repertoire_to_cli,
 )
 from cinema_repertoire_analyzer.database.database_manager import DatabaseManager
-from cinema_repertoire_analyzer.database.models import CinemaVenues
 from cinema_repertoire_analyzer.exceptions import (
     AmbiguousVenueMatchError,
     AppError,
+    DefaultVenueNotConfiguredError,
     VenueNotFoundError,
 )
 from cinema_repertoire_analyzer.ratings_api.models import TmdbMovieDetails
@@ -26,13 +33,30 @@ from cinema_repertoire_analyzer.ratings_api.tmdb import get_movie_ratings_and_su
 from cinema_repertoire_analyzer.settings import Settings, get_settings
 
 
-def _resolve_single_venue(found_venues: list[CinemaVenues]) -> CinemaVenues:
+def _resolve_single_venue(found_venues: list[CinemaVenue]) -> CinemaVenue:
     """Resolve a venue search result to exactly one venue."""
     if not found_venues:
         raise VenueNotFoundError("Nie znaleziono żadnego lokalu o podanej nazwie.")
     if len(found_venues) > 1:
         raise AmbiguousVenueMatchError(len(found_venues))
     return found_venues[0]
+
+
+def _resolve_chain(chain: str) -> RegisteredCinemaChain:
+    """Resolve CLI chain input to a registered chain definition."""
+    return get_registered_chain(CinemaChainId.from_value(chain))
+
+
+def _resolve_venue_name(
+    venue_name: str | None, chain: RegisteredCinemaChain, settings: Settings
+) -> str:
+    """Resolve the requested venue name, falling back to chain defaults."""
+    if venue_name:
+        return venue_name
+    default_venue = chain.default_venue_getter(settings)
+    if not default_venue:
+        raise DefaultVenueNotConfiguredError(chain.display_name)
+    return default_venue
 
 
 def _handle_cli_error(error: AppError) -> None:
@@ -92,21 +116,21 @@ def make_app(settings: Settings | None = None) -> typer.Typer:
 
     @app.command()
     def repertoire(
-        venue_name: Annotated[
-            str, typer.Argument()
-        ] = settings.USER_PREFERENCES.DEFAULT_CINEMA_VENUE,
+        chain: Annotated[str, typer.Option(help="Id sieci kin, np. cinema-city")],
+        venue_name: Annotated[str | None, typer.Argument()] = None,
         date: Annotated[str, typer.Argument()] = settings.USER_PREFERENCES.DEFAULT_DAY,
     ) -> None:
         try:
-            venue_name_parsed = cinema_venue_input_parser(venue_name)
-            found_venues = db_manager.find_venues_by_name(venue_name_parsed)
+            registered_chain = _resolve_chain(chain)
+            resolved_venue_name = _resolve_venue_name(venue_name, registered_chain, settings)
+            venue_name_parsed = cinema_venue_input_parser(resolved_venue_name)
+            found_venues = db_manager.find_venues_by_name(
+                registered_chain.chain_id, venue_name_parsed
+            )
             venue = _resolve_single_venue(found_venues)
             date_parsed: str = date_input_parser(date)
 
-            cinema_instance = CinemaCity(
-                settings.CINEMA_CITY_SETTINGS.REPERTOIRE_URL,
-                settings.CINEMA_CITY_SETTINGS.VENUES_LIST_URL,
-            )
+            cinema_instance = registered_chain.client_factory(settings)
             fetched_repertoire = anyio.run(cinema_instance.fetch_repertoire, date_parsed, venue)
             movie_titles = [repertoire.title for repertoire in fetched_repertoire]
             ratings = _load_tmdb_ratings(
@@ -114,32 +138,48 @@ def make_app(settings: Settings | None = None) -> typer.Typer:
             )
 
             table_metadata = RepertoireCliTableMetadata(
-                repertoire_date=date_parsed, cinema_venue_name=str(venue.venue_name)
+                chain_display_name=registered_chain.display_name,
+                repertoire_date=date_parsed,
+                cinema_venue_name=str(venue.venue_name),
             )
             repertoire_to_cli(fetched_repertoire, table_metadata, ratings, console)
         except AppError as error:
             _handle_cli_error(error)
 
     @venues_app.command()
-    def list() -> None:
-        venues = db_manager.get_all_venues()
-        db_venues_to_cli(venues, console)
+    def list(chain: Annotated[str, typer.Option(help="Id sieci kin, np. cinema-city")]) -> None:
+        try:
+            registered_chain = _resolve_chain(chain)
+            venues = db_manager.get_all_venues(registered_chain.chain_id)
+            db_venues_to_cli(venues, registered_chain.display_name, console)
+        except AppError as error:
+            _handle_cli_error(error)
 
     @venues_app.command()
-    def update() -> None:
-        typer.echo("Aktualizowanie lokali dla kina: Cinema City...")
-        cinema_instance = CinemaCity(
-            settings.CINEMA_CITY_SETTINGS.REPERTOIRE_URL,
-            settings.CINEMA_CITY_SETTINGS.VENUES_LIST_URL,
-        )
-        venues = anyio.run(cinema_instance.fetch_cinema_venues_list)
-        db_manager.update_cinema_venues(venues)
-        typer.echo("Lokale zaktualizowane w lokalnej bazie danych.")
+    def update(chain: Annotated[str, typer.Option(help="Id sieci kin, np. cinema-city")]) -> None:
+        try:
+            registered_chain = _resolve_chain(chain)
+            typer.echo(f"Aktualizowanie lokali dla sieci: {registered_chain.display_name}...")
+            cinema_instance = registered_chain.client_factory(settings)
+            venues = anyio.run(cinema_instance.fetch_venues)
+            db_manager.replace_venues(registered_chain.chain_id, venues)
+            typer.echo("Lokale zaktualizowane w lokalnej bazie danych.")
+        except AppError as error:
+            _handle_cli_error(error)
 
     @venues_app.command()
-    def search(venue_name: Annotated[str, typer.Argument()] = "") -> None:
-        found_venues = db_manager.find_venues_by_name(cinema_venue_input_parser(venue_name))
-        db_venues_to_cli(found_venues, console)
+    def search(
+        chain: Annotated[str, typer.Option(help="Id sieci kin, np. cinema-city")],
+        venue_name: Annotated[str, typer.Argument()] = "",
+    ) -> None:
+        try:
+            registered_chain = _resolve_chain(chain)
+            found_venues = db_manager.find_venues_by_name(
+                registered_chain.chain_id, cinema_venue_input_parser(venue_name)
+            )
+            db_venues_to_cli(found_venues, registered_chain.display_name, console)
+        except AppError as error:
+            _handle_cli_error(error)
 
     return app
 

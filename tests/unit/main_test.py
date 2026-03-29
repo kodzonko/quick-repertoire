@@ -7,8 +7,13 @@ from typer import Typer
 from typer.testing import CliRunner
 
 import cinema_repertoire_analyzer.main as tested_module
-from cinema_repertoire_analyzer.cinema_api.models import MoviePlayDetails, Repertoire
-from cinema_repertoire_analyzer.database.models import CinemaVenues
+from cinema_repertoire_analyzer.cinema_api.models import (
+    CinemaChainId,
+    CinemaVenue,
+    MoviePlayDetails,
+    Repertoire,
+)
+from cinema_repertoire_analyzer.cinema_api.registry import RegisteredCinemaChain
 from cinema_repertoire_analyzer.exceptions import AmbiguousVenueMatchError, VenueNotFoundError
 from cinema_repertoire_analyzer.ratings_api.models import TmdbMovieDetails
 from cinema_repertoire_analyzer.settings import Settings
@@ -20,8 +25,8 @@ def runner() -> CliRunner:
 
 
 @pytest.fixture
-def venue() -> CinemaVenues:
-    return CinemaVenues(venue_name="Wroclaw - Wroclavia", venue_id="1097")
+def venue() -> CinemaVenue:
+    return CinemaVenue(chain_id="cinema-city", venue_name="Wroclaw - Wroclavia", venue_id="1097")
 
 
 @pytest.fixture
@@ -41,9 +46,20 @@ def repertoire() -> list[Repertoire]:
     ]
 
 
+def build_registered_chain(
+    client: object, default_venue_name: str | None = "Wroclaw - Wroclavia"
+) -> RegisteredCinemaChain:
+    return RegisteredCinemaChain(
+        chain_id=CinemaChainId.CINEMA_CITY,
+        display_name="Cinema City",
+        default_venue_getter=lambda _settings: default_venue_name,
+        client_factory=lambda _settings: client,
+    )
+
+
 @pytest.mark.unit
 def test_resolve_single_venue_returns_single_match() -> None:
-    venue = CinemaVenues(venue_name="Warszawa - Janki", venue_id="1")
+    venue = CinemaVenue(chain_id="cinema-city", venue_name="Warszawa - Janki", venue_id="1")
 
     assert tested_module._resolve_single_venue([venue]) == venue
 
@@ -59,8 +75,8 @@ def test_resolve_single_venue_raises_ambiguous_for_multiple_matches() -> None:
     with pytest.raises(AmbiguousVenueMatchError):
         tested_module._resolve_single_venue(
             [
-                CinemaVenues(venue_name="Warszawa - Janki", venue_id="1"),
-                CinemaVenues(venue_name="Warszawa - Arkadia", venue_id="2"),
+                CinemaVenue(chain_id="cinema-city", venue_name="Warszawa - Janki", venue_id="1"),
+                CinemaVenue(chain_id="cinema-city", venue_name="Warszawa - Arkadia", venue_id="2"),
             ]
         )
 
@@ -81,19 +97,33 @@ def test_make_app_uses_get_settings_when_settings_are_not_provided(
 
 
 @pytest.mark.unit
+def test_repertoire_command_exits_for_unsupported_chain(
+    monkeypatch: pytest.MonkeyPatch, settings: Settings, runner: CliRunner
+) -> None:
+    monkeypatch.setattr(tested_module, "_build_database_manager", lambda *_: MagicMock())
+    monkeypatch.setattr(tested_module, "Console", lambda: MagicMock())
+
+    app = tested_module.make_app(settings)
+    result = runner.invoke(app, ["repertoire", "--chain", "unsupported-chain"])
+
+    assert result.exit_code == 1
+    assert "Nieobsługiwana sieć kin" in result.stdout
+
+
+@pytest.mark.unit
 def test_repertoire_command_exits_for_ambiguous_venue_name(
     monkeypatch: pytest.MonkeyPatch, settings: Settings, runner: CliRunner
 ) -> None:
     fake_db_manager = MagicMock()
     fake_db_manager.find_venues_by_name.return_value = [
-        CinemaVenues(venue_name="Venue A", venue_id="1"),
-        CinemaVenues(venue_name="Venue B", venue_id="2"),
+        CinemaVenue(chain_id="cinema-city", venue_name="Venue A", venue_id="1"),
+        CinemaVenue(chain_id="cinema-city", venue_name="Venue B", venue_id="2"),
     ]
     monkeypatch.setattr(tested_module, "_build_database_manager", lambda *_: fake_db_manager)
     monkeypatch.setattr(tested_module, "Console", lambda: MagicMock())
 
     app = tested_module.make_app(settings)
-    result = runner.invoke(app, ["repertoire", "venue"])
+    result = runner.invoke(app, ["repertoire", "--chain", "cinema-city", "venue"])
 
     assert result.exit_code == 1
     assert "Podana nazwa lokalu jest niejednoznaczna." in result.stdout
@@ -109,7 +139,7 @@ def test_repertoire_command_exits_for_missing_venue_name(
     monkeypatch.setattr(tested_module, "Console", lambda: MagicMock())
 
     app = tested_module.make_app(settings)
-    result = runner.invoke(app, ["repertoire", "venue"])
+    result = runner.invoke(app, ["repertoire", "--chain", "cinema-city", "venue"])
 
     assert result.exit_code == 1
     assert "Nie znaleziono żadnego lokalu o podanej nazwie." in result.stdout
@@ -120,7 +150,7 @@ def test_repertoire_command_fetches_tmdb_data_when_api_key_is_valid(
     monkeypatch: pytest.MonkeyPatch,
     settings: Settings,
     runner: CliRunner,
-    venue: CinemaVenues,
+    venue: CinemaVenue,
     repertoire: list[Repertoire],
 ) -> None:
     fake_console = MagicMock()
@@ -141,20 +171,71 @@ def test_repertoire_command_fetches_tmdb_data_when_api_key_is_valid(
         rendered["console"] = console
 
     monkeypatch.setattr(tested_module, "_build_database_manager", lambda *_: fake_db_manager)
-    monkeypatch.setattr(tested_module, "CinemaCity", lambda *_: fake_cinema)
+    monkeypatch.setattr(
+        tested_module, "get_registered_chain", lambda *_: build_registered_chain(fake_cinema)
+    )
     monkeypatch.setattr(tested_module, "Console", lambda: fake_console)
     monkeypatch.setattr(tested_module, "get_movie_ratings_and_summaries", tmdb_mock)
     monkeypatch.setattr(tested_module, "repertoire_to_cli", fake_repertoire_to_cli)
 
     app = tested_module.make_app(settings)
-    result = runner.invoke(app, ["repertoire", "wroclavia", "2021-12-31"])
+    result = runner.invoke(app, ["repertoire", "--chain", "cinema-city", "wroclavia", "2021-12-31"])
 
     assert result.exit_code == 0
     tmdb_mock.assert_called_once_with(["Test Movie"], settings.USER_PREFERENCES.TMDB_ACCESS_TOKEN)
     assert rendered["repertoire"] == repertoire
     assert rendered["ratings"] == ratings
+    assert rendered["table_metadata"].chain_display_name == "Cinema City"
     assert rendered["table_metadata"].repertoire_date == "2021-12-31"
     assert rendered["console"] is fake_console
+
+
+@pytest.mark.unit
+def test_repertoire_command_uses_chain_default_venue_when_name_not_provided(
+    monkeypatch: pytest.MonkeyPatch,
+    settings: Settings,
+    runner: CliRunner,
+    venue: CinemaVenue,
+    repertoire: list[Repertoire],
+) -> None:
+    fake_db_manager = MagicMock()
+    fake_db_manager.find_venues_by_name.return_value = [venue]
+    fake_cinema = MagicMock()
+    fake_cinema.fetch_repertoire = AsyncMock(return_value=repertoire)
+    monkeypatch.setattr(tested_module, "_build_database_manager", lambda *_: fake_db_manager)
+    monkeypatch.setattr(
+        tested_module, "get_registered_chain", lambda *_: build_registered_chain(fake_cinema)
+    )
+    monkeypatch.setattr(tested_module, "Console", lambda: MagicMock())
+    monkeypatch.setattr(tested_module, "get_movie_ratings_and_summaries", lambda *_: {})
+    monkeypatch.setattr(tested_module, "repertoire_to_cli", lambda *_: None)
+
+    app = tested_module.make_app(settings)
+    result = runner.invoke(app, ["repertoire", "--chain", "cinema-city"])
+
+    assert result.exit_code == 0
+    fake_db_manager.find_venues_by_name.assert_called_once_with(
+        CinemaChainId.CINEMA_CITY, "%Wroclaw%Wroclavia%"
+    )
+
+
+@pytest.mark.unit
+def test_repertoire_command_fails_when_chain_default_venue_is_missing(
+    monkeypatch: pytest.MonkeyPatch, settings: Settings, runner: CliRunner
+) -> None:
+    monkeypatch.setattr(tested_module, "_build_database_manager", lambda *_: MagicMock())
+    monkeypatch.setattr(
+        tested_module,
+        "get_registered_chain",
+        lambda *_: build_registered_chain(MagicMock(), default_venue_name=None),
+    )
+    monkeypatch.setattr(tested_module, "Console", lambda: MagicMock())
+
+    app = tested_module.make_app(settings)
+    result = runner.invoke(app, ["repertoire", "--chain", "cinema-city"])
+
+    assert result.exit_code == 1
+    assert "Brak domyślnego lokalu skonfigurowanego dla sieci Cinema City." in result.stdout
 
 
 @pytest.mark.unit
@@ -162,7 +243,7 @@ def test_repertoire_command_warns_when_tmdb_is_disabled(
     monkeypatch: pytest.MonkeyPatch,
     settings: Settings,
     runner: CliRunner,
-    venue: CinemaVenues,
+    venue: CinemaVenue,
     repertoire: list[Repertoire],
 ) -> None:
     fake_console = MagicMock()
@@ -181,13 +262,15 @@ def test_repertoire_command_warns_when_tmdb_is_disabled(
 
     settings.USER_PREFERENCES.TMDB_ACCESS_TOKEN = None
     monkeypatch.setattr(tested_module, "_build_database_manager", lambda *_: fake_db_manager)
-    monkeypatch.setattr(tested_module, "CinemaCity", lambda *_: fake_cinema)
+    monkeypatch.setattr(
+        tested_module, "get_registered_chain", lambda *_: build_registered_chain(fake_cinema)
+    )
     monkeypatch.setattr(tested_module, "Console", lambda: fake_console)
     monkeypatch.setattr(tested_module, "get_movie_ratings_and_summaries", tmdb_mock)
     monkeypatch.setattr(tested_module, "repertoire_to_cli", fake_repertoire_to_cli)
 
     app = tested_module.make_app(settings)
-    result = runner.invoke(app, ["repertoire"])
+    result = runner.invoke(app, ["repertoire", "--chain", "cinema-city", "wroclavia"])
 
     assert result.exit_code == 0
     fake_console.print.assert_called_once()
@@ -201,7 +284,7 @@ def test_repertoire_command_warns_when_tmdb_lookup_fails(
     monkeypatch: pytest.MonkeyPatch,
     settings: Settings,
     runner: CliRunner,
-    venue: CinemaVenues,
+    venue: CinemaVenue,
     repertoire: list[Repertoire],
 ) -> None:
     fake_console = MagicMock()
@@ -225,13 +308,15 @@ def test_repertoire_command_warns_when_tmdb_lookup_fails(
         rendered["ratings"] = ratings_payload
 
     monkeypatch.setattr(tested_module, "_build_database_manager", lambda *_: fake_db_manager)
-    monkeypatch.setattr(tested_module, "CinemaCity", lambda *_: fake_cinema)
+    monkeypatch.setattr(
+        tested_module, "get_registered_chain", lambda *_: build_registered_chain(fake_cinema)
+    )
     monkeypatch.setattr(tested_module, "Console", lambda: fake_console)
     monkeypatch.setattr(tested_module, "get_movie_ratings_and_summaries", tmdb_mock)
     monkeypatch.setattr(tested_module, "repertoire_to_cli", fake_repertoire_to_cli)
 
     app = tested_module.make_app(settings)
-    result = runner.invoke(app, ["repertoire"])
+    result = runner.invoke(app, ["repertoire", "--chain", "cinema-city", "wroclavia"])
 
     assert result.exit_code == 0
     fake_console.print.assert_called_once()
