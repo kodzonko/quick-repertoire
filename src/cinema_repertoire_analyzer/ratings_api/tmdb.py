@@ -52,7 +52,7 @@ class TmdbClient:
         for movie_name in movie_names:
             try:
                 output[movie_name] = self.fetch_movie_details(movie_name, access_token)
-            except (httpx.RequestError, ValueError):
+            except httpx.RequestError, ValueError:
                 output[movie_name] = {}
         return output
 
