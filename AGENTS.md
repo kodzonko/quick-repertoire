@@ -5,3 +5,4 @@
 - Prefer integration and e2e tests over heavily patched unit tests. Use unit tests when certain conditions are hard to reproduce without patching or to test specific edge cases. In general, try to avoid patching as much as possible.
 - Do not report task as done until it is tested and all tests pass.
 - If you spot a bug or regression first implement a test reproducing the error (which should fail) and then fix the bug and make sure the test passes.
+- Make sure to always pick the latest stable/LTS versions of dependencies, including github actions unless there is a specific reason to use an older version.
