@@ -1,5 +1,7 @@
+from http import HTTPStatus
 from unittest.mock import AsyncMock, MagicMock
 
+import httpx
 import pytest
 from typer import Typer
 from typer.testing import CliRunner
@@ -141,7 +143,6 @@ def test_repertoire_command_fetches_tmdb_data_when_api_key_is_valid(
     monkeypatch.setattr(tested_module, "_build_database_manager", lambda *_: fake_db_manager)
     monkeypatch.setattr(tested_module, "CinemaCity", lambda *_: fake_cinema)
     monkeypatch.setattr(tested_module, "Console", lambda: fake_console)
-    monkeypatch.setattr(tested_module, "verify_api_key", lambda _: True)
     monkeypatch.setattr(tested_module, "get_movie_ratings_and_summaries", tmdb_mock)
     monkeypatch.setattr(tested_module, "repertoire_to_cli", fake_repertoire_to_cli)
 
@@ -178,10 +179,10 @@ def test_repertoire_command_warns_when_tmdb_is_disabled(
         rendered["repertoire"] = fetched_repertoire
         rendered["ratings"] = ratings_payload
 
+    settings.USER_PREFERENCES.TMDB_ACCESS_TOKEN = None
     monkeypatch.setattr(tested_module, "_build_database_manager", lambda *_: fake_db_manager)
     monkeypatch.setattr(tested_module, "CinemaCity", lambda *_: fake_cinema)
     monkeypatch.setattr(tested_module, "Console", lambda: fake_console)
-    monkeypatch.setattr(tested_module, "verify_api_key", lambda _: False)
     monkeypatch.setattr(tested_module, "get_movie_ratings_and_summaries", tmdb_mock)
     monkeypatch.setattr(tested_module, "repertoire_to_cli", fake_repertoire_to_cli)
 
@@ -191,6 +192,50 @@ def test_repertoire_command_warns_when_tmdb_is_disabled(
     assert result.exit_code == 0
     fake_console.print.assert_called_once()
     tmdb_mock.assert_not_called()
+    assert rendered["repertoire"] == repertoire
+    assert rendered["ratings"] == {}
+
+
+@pytest.mark.unit
+def test_repertoire_command_warns_when_tmdb_lookup_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    settings: Settings,
+    runner: CliRunner,
+    venue: CinemaVenues,
+    repertoire: list[Repertoire],
+) -> None:
+    fake_console = MagicMock()
+    fake_db_manager = MagicMock()
+    fake_db_manager.find_venues_by_name.return_value = [venue]
+    fake_cinema = MagicMock()
+    fake_cinema.fetch_repertoire = AsyncMock(return_value=repertoire)
+    request = httpx.Request("GET", "https://api.themoviedb.org/3/search/movie")
+    response = httpx.Response(status_code=HTTPStatus.UNAUTHORIZED, request=request)
+    tmdb_mock = MagicMock(
+        side_effect=httpx.HTTPStatusError(
+            "TMDB request failed.", request=request, response=response
+        )
+    )
+    rendered = {}
+
+    def fake_repertoire_to_cli(
+        fetched_repertoire, table_metadata, ratings_payload, console
+    ) -> None:
+        rendered["repertoire"] = fetched_repertoire
+        rendered["ratings"] = ratings_payload
+
+    monkeypatch.setattr(tested_module, "_build_database_manager", lambda *_: fake_db_manager)
+    monkeypatch.setattr(tested_module, "CinemaCity", lambda *_: fake_cinema)
+    monkeypatch.setattr(tested_module, "Console", lambda: fake_console)
+    monkeypatch.setattr(tested_module, "get_movie_ratings_and_summaries", tmdb_mock)
+    monkeypatch.setattr(tested_module, "repertoire_to_cli", fake_repertoire_to_cli)
+
+    app = tested_module.make_app(settings)
+    result = runner.invoke(app, ["repertoire"])
+
+    assert result.exit_code == 0
+    fake_console.print.assert_called_once()
+    tmdb_mock.assert_called_once_with(["Test Movie"], settings.USER_PREFERENCES.TMDB_ACCESS_TOKEN)
     assert rendered["repertoire"] == repertoire
     assert rendered["ratings"] == {}
 

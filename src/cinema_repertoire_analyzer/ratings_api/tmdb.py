@@ -10,10 +10,13 @@ from cinema_repertoire_analyzer.ratings_api.models import TmdbMovieDetails
 REQUEST_TIMEOUT_SECONDS = 30
 AUTH_URL = "https://api.themoviedb.org/3/authentication"
 SEARCH_URL = "https://api.themoviedb.org/3/search/movie?"
+AUTH_FAILURE_STATUSES = {HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN}
 
 
 class _SupportsGet(Protocol):
-    def get(self, url: str, headers: dict[str, str], timeout: float | int) -> Any: ...
+    def get(
+        self, url: str, *, headers: dict[str, str] | None = None, timeout: float | int | None = None
+    ) -> Any: ...
 
 
 class TmdbClient:
@@ -41,19 +44,40 @@ class TmdbClient:
             )
         else:
             with httpx.Client(timeout=REQUEST_TIMEOUT_SECONDS) as session:
-                response = session.get(url, headers=self._make_headers(access_token))
+                response = session.get(
+                    url, headers=self._make_headers(access_token), timeout=REQUEST_TIMEOUT_SECONDS
+                )
+        if response.status_code >= HTTPStatus.BAD_REQUEST:
+            raise httpx.HTTPStatusError(
+                "TMDB request failed.", request=httpx.Request("GET", url), response=response
+            )
         return response.json()  # type: ignore[no-any-return]
 
     def fetch_all_movie_details(
         self, movie_names: list[str], access_token: str
     ) -> dict[str, dict[str, Any]]:
         """Get details about multiple movies from the TMDB API."""
+        unique_movie_names = list(dict.fromkeys(movie_names))
+        if self._session is None:
+            with httpx.Client(timeout=REQUEST_TIMEOUT_SECONDS) as session:
+                return TmdbClient(session=session).fetch_all_movie_details(
+                    unique_movie_names, access_token
+                )
+
         output: dict[str, dict[str, Any]] = {}
-        for movie_name in movie_names:
+        for movie_name in unique_movie_names:
             try:
                 output[movie_name] = self.fetch_movie_details(movie_name, access_token)
+            except httpx.HTTPStatusError as error:
+                if error.response.status_code in AUTH_FAILURE_STATUSES:
+                    raise
+                output[movie_name] = {}
             except httpx.RequestError, ValueError:
                 output[movie_name] = {}
+        if output and all(not movie_data for movie_data in output.values()):
+            raise httpx.RequestError(
+                "All TMDB requests failed.", request=httpx.Request("GET", SEARCH_URL)
+            )
         return output
 
     def get_movie_ratings_and_summaries(

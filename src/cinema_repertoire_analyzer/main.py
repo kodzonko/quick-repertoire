@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Annotated
 
 import anyio
+import httpx
 import typer
 from rich.console import Console
 
@@ -20,10 +21,8 @@ from cinema_repertoire_analyzer.exceptions import (
     AppError,
     VenueNotFoundError,
 )
-from cinema_repertoire_analyzer.ratings_api.tmdb import (
-    get_movie_ratings_and_summaries,
-    verify_api_key,
-)
+from cinema_repertoire_analyzer.ratings_api.models import TmdbMovieDetails
+from cinema_repertoire_analyzer.ratings_api.tmdb import get_movie_ratings_and_summaries
 from cinema_repertoire_analyzer.settings import Settings, get_settings
 
 
@@ -49,6 +48,34 @@ def _build_database_manager(db_file_path: Path | str) -> DatabaseManager:
     except AppError as error:
         _handle_cli_error(error)
     raise AssertionError("unreachable")
+
+
+def _warn_tmdb_unavailable(console: Console, message: str) -> None:
+    """Display a warning when TMDB data cannot be loaded."""
+    console.print(message, style="bold red")
+
+
+def _load_tmdb_ratings(
+    movie_titles: list[str], access_token: str | None, console: Console
+) -> dict[str, TmdbMovieDetails]:
+    """Fetch TMDB ratings when a token is configured and the service is reachable."""
+    if not movie_titles:
+        return {}
+    if not access_token:
+        _warn_tmdb_unavailable(
+            console,
+            "Klucz API do usługi TMDB nie jest skonfigurowany. "
+            "Niektóre funkcje mogą być niedostępne.",
+        )
+        return {}
+    try:
+        return get_movie_ratings_and_summaries(movie_titles, access_token)
+    except httpx.HTTPError:
+        _warn_tmdb_unavailable(
+            console,
+            "Nie udało się pobrać danych z usługi TMDB. Niektóre funkcje mogą być niedostępne.",
+        )
+        return {}
 
 
 def make_app(settings: Settings | None = None) -> typer.Typer:
@@ -81,17 +108,10 @@ def make_app(settings: Settings | None = None) -> typer.Typer:
                 settings.CINEMA_CITY_SETTINGS.VENUES_LIST_URL,
             )
             fetched_repertoire = anyio.run(cinema_instance.fetch_repertoire, date_parsed, venue)
-            ratings = {}
-            tmdb_access_token = settings.USER_PREFERENCES.TMDB_ACCESS_TOKEN
-            if verify_api_key(tmdb_access_token) and tmdb_access_token:
-                movie_titles = [repertoire.title for repertoire in fetched_repertoire]
-                ratings = get_movie_ratings_and_summaries(movie_titles, tmdb_access_token)
-            else:
-                console.print(
-                    "Klucz API do usługi TMDB nie jest skonfigurowany. "
-                    "Niektóre funkcje mogą być niedostępne.",
-                    style="bold red",
-                )
+            movie_titles = [repertoire.title for repertoire in fetched_repertoire]
+            ratings = _load_tmdb_ratings(
+                movie_titles, settings.USER_PREFERENCES.TMDB_ACCESS_TOKEN, console
+            )
 
             table_metadata = RepertoireCliTableMetadata(
                 repertoire_date=date_parsed, cinema_venue_name=str(venue.venue_name)
