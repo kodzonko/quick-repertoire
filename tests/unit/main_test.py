@@ -182,7 +182,7 @@ def test_repertoire_command_fetches_tmdb_data_when_api_key_is_valid(
     result = runner.invoke(app, ["repertoire", "--chain", "cinema-city", "wroclavia", "2021-12-31"])
 
     assert result.exit_code == 0
-    tmdb_mock.assert_called_once_with(["Test Movie"], settings.USER_PREFERENCES.TMDB_ACCESS_TOKEN)
+    tmdb_mock.assert_called_once_with(["Test Movie"], settings.user_preferences.tmdb_access_token)
     assert rendered["repertoire"] == repertoire
     assert rendered["ratings"] == ratings
     assert rendered["table_metadata"].chain_display_name == "Cinema City"
@@ -260,7 +260,7 @@ def test_repertoire_command_warns_when_tmdb_is_disabled(
         rendered["repertoire"] = fetched_repertoire
         rendered["ratings"] = ratings_payload
 
-    settings.USER_PREFERENCES.TMDB_ACCESS_TOKEN = None
+    settings.user_preferences.tmdb_access_token = None
     monkeypatch.setattr(tested_module, "_build_database_manager", lambda *_: fake_db_manager)
     monkeypatch.setattr(
         tested_module, "get_registered_chain", lambda *_: build_registered_chain(fake_cinema)
@@ -320,7 +320,7 @@ def test_repertoire_command_warns_when_tmdb_lookup_fails(
 
     assert result.exit_code == 0
     fake_console.print.assert_called_once()
-    tmdb_mock.assert_called_once_with(["Test Movie"], settings.USER_PREFERENCES.TMDB_ACCESS_TOKEN)
+    tmdb_mock.assert_called_once_with(["Test Movie"], settings.user_preferences.tmdb_access_token)
     assert rendered["repertoire"] == repertoire
     assert rendered["ratings"] == {}
 

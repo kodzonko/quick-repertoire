@@ -36,7 +36,7 @@ def test_fetch_movie_details_successfully_returns_movie_details(settings: Settin
 
     response = client.fetch_movie_details(
         "Furiosa: A Mad Max Saga",
-        settings.USER_PREFERENCES.TMDB_ACCESS_TOKEN,  # type: ignore[arg-type]
+        settings.user_preferences.tmdb_access_token,  # type: ignore[arg-type]
     )
 
     assert response["results"][0]["original_title"] == "Furiosa: A Mad Max Saga"
@@ -51,7 +51,7 @@ def test_fetch_all_movie_details_successfully_returns_multiple_movies_details(
 
     response = client.fetch_all_movie_details(
         ["The Watchers", "Garfield", "Puchatek: Krew i miód 2"],
-        settings.USER_PREFERENCES.TMDB_ACCESS_TOKEN,  # type: ignore[arg-type]
+        settings.user_preferences.tmdb_access_token,  # type: ignore[arg-type]
     )
 
     assert len(response.items()) == 3
@@ -66,7 +66,7 @@ def test_get_movie_ratings_and_summaries_returns_correct_tmdb_movie_details(
     assert (
         get_movie_ratings_and_summaries(
             ["Garfield", "Furiosa: Saga Mad Max"],
-            settings.USER_PREFERENCES.TMDB_ACCESS_TOKEN,  # type: ignore[arg-type]
+            settings.user_preferences.tmdb_access_token,  # type: ignore[arg-type]
         )
         == tmdb_movies_details_dict
     )

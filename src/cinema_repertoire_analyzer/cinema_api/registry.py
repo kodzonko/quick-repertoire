@@ -31,18 +31,18 @@ class RegisteredCinemaChain:
 
 
 def _build_cinema_city_client(settings: Settings) -> CinemaChainClient:
-    cinema_city_settings = settings.CINEMA_CHAINS.CINEMA_CITY
+    cinema_city_settings = settings.cinema_chains.cinema_city
     return cast(
         CinemaChainClient,
         CinemaCity(
-            repertoire_url=cinema_city_settings.REPERTOIRE_URL,
-            cinema_venues_url=cinema_city_settings.VENUES_LIST_URL,
+            repertoire_url=cinema_city_settings.repertoire_url,
+            cinema_venues_url=cinema_city_settings.venues_list_url,
         ),
     )
 
 
 def _get_cinema_city_default_venue(settings: Settings) -> str | None:
-    return settings.USER_PREFERENCES.DEFAULT_VENUES.CINEMA_CITY
+    return settings.user_preferences.default_venues.cinema_city
 
 
 REGISTERED_CINEMA_CHAINS: dict[CinemaChainId, RegisteredCinemaChain] = {

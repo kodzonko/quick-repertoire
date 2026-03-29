@@ -51,7 +51,7 @@ def settings(monkeypatch: pytest.MonkeyPatch) -> Iterator[Settings]:
     )
     get_settings.cache_clear()
     settings_instance = get_settings()
-    db_manager = DatabaseManager(db_file_path=settings_instance.DB_FILE)
+    db_manager = DatabaseManager(db_file_path=settings_instance.db_file)
     db_manager.replace_venues(
         "cinema-city",
         [
@@ -84,6 +84,6 @@ def typer_app(settings: Settings) -> Iterator[Typer]:
 
 @pytest.fixture
 def db_manager(settings: Settings) -> Iterator[DatabaseManager]:
-    manager = DatabaseManager(db_file_path=settings.DB_FILE)
+    manager = DatabaseManager(db_file_path=settings.db_file)
     yield manager
     manager.close()

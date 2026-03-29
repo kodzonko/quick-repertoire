@@ -110,7 +110,7 @@ def make_app(settings: Settings | None = None) -> typer.Typer:
     venues_app = typer.Typer()
     app = typer.Typer()
     app.add_typer(venues_app, name="venues")
-    db_manager = _build_database_manager(settings.DB_FILE)
+    db_manager = _build_database_manager(settings.db_file)
     setattr(app, "_db_manager", db_manager)
     console = Console()
 
@@ -118,7 +118,7 @@ def make_app(settings: Settings | None = None) -> typer.Typer:
     def repertoire(
         chain: Annotated[str, typer.Option(help="Id sieci kin, np. cinema-city")],
         venue_name: Annotated[str | None, typer.Argument()] = None,
-        date: Annotated[str, typer.Argument()] = settings.USER_PREFERENCES.DEFAULT_DAY,
+        date: Annotated[str, typer.Argument()] = settings.user_preferences.default_day,
     ) -> None:
         try:
             registered_chain = _resolve_chain(chain)
@@ -134,7 +134,7 @@ def make_app(settings: Settings | None = None) -> typer.Typer:
             fetched_repertoire = anyio.run(cinema_instance.fetch_repertoire, date_parsed, venue)
             movie_titles = [repertoire.title for repertoire in fetched_repertoire]
             ratings = _load_tmdb_ratings(
-                movie_titles, settings.USER_PREFERENCES.TMDB_ACCESS_TOKEN, console
+                movie_titles, settings.user_preferences.tmdb_access_token, console
             )
 
             table_metadata = RepertoireCliTableMetadata(

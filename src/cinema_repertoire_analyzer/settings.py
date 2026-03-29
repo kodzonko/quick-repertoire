@@ -18,47 +18,47 @@ LOG_LVLS = Literal["TRACE", "WARNING", "DEBUG", "INFO", "ERROR", "CRITICAL"]
 class DefaultVenues(BaseModel):
     """Per-chain default venue names."""
 
-    CINEMA_CITY: str | None = None
+    cinema_city: str | None = None
 
 
 class UserPreferences(BaseModel):
     """User preferences for the application."""
 
-    DEFAULT_DAY: AllowedDefaultDays
-    TMDB_ACCESS_TOKEN: str | None = None
-    DEFAULT_VENUES: DefaultVenues = Field(default_factory=DefaultVenues)
+    default_day: AllowedDefaultDays
+    tmdb_access_token: str | None = None
+    default_venues: DefaultVenues = Field(default_factory=DefaultVenues)
 
 
 class CinemaChainSettings(BaseModel):
     """Settings for a single cinema chain adapter."""
 
-    REPERTOIRE_URL: str
-    VENUES_LIST_URL: str
+    repertoire_url: str
+    venues_list_url: str
 
 
 class CinemaChainsSettings(BaseModel):
     """Settings for all configured cinema chains."""
 
-    CINEMA_CITY: CinemaChainSettings
+    cinema_city: CinemaChainSettings
 
 
 class Settings(BaseSettings):
     """Settings for the application."""
 
-    DB_FILE: Path
-    USER_PREFERENCES: UserPreferences
-    CINEMA_CHAINS: CinemaChainsSettings
-    LOGURU_LEVEL: LOG_LVLS = "INFO"
+    db_file: Path
+    user_preferences: UserPreferences
+    cinema_chains: CinemaChainsSettings
+    loguru_level: LOG_LVLS = "INFO"
 
-    @field_validator("LOGURU_LEVEL")
-    def set_env_for_loguru(cls, LOGURU_LEVEL: LOG_LVLS) -> LOG_LVLS:  # noqa: N803, N805
+    @field_validator("loguru_level")
+    def set_env_for_loguru(cls, loguru_level: LOG_LVLS) -> LOG_LVLS:  # noqa: N805
         """Set the loguru handler according to log level.
 
         This handles clearing loguru log handlers and adding the one with appropriate log level.
         """
         logger.remove()
-        logger.add(sys.stdout, level=LOGURU_LEVEL)
-        return LOGURU_LEVEL
+        logger.add(sys.stdout, level=loguru_level)
+        return loguru_level
 
     model_config = SettingsConfigDict(extra="allow")
 
