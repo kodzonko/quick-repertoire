@@ -1,4 +1,4 @@
-import builtins
+from pathlib import Path
 from typing import Annotated
 
 import anyio
@@ -14,11 +14,41 @@ from cinema_repertoire_analyzer.cli_utils import (
     repertoire_to_cli,
 )
 from cinema_repertoire_analyzer.database.database_manager import DatabaseManager
+from cinema_repertoire_analyzer.database.models import CinemaVenues
+from cinema_repertoire_analyzer.exceptions import (
+    AmbiguousVenueMatchError,
+    AppError,
+    VenueNotFoundError,
+)
 from cinema_repertoire_analyzer.ratings_api.tmdb import (
     get_movie_ratings_and_summaries,
     verify_api_key,
 )
 from cinema_repertoire_analyzer.settings import Settings, get_settings
+
+
+def _resolve_single_venue(found_venues: list[CinemaVenues]) -> CinemaVenues:
+    """Resolve a venue search result to exactly one venue."""
+    if not found_venues:
+        raise VenueNotFoundError("Nie znaleziono żadnego lokalu o podanej nazwie.")
+    if len(found_venues) > 1:
+        raise AmbiguousVenueMatchError(len(found_venues))
+    return found_venues[0]
+
+
+def _handle_cli_error(error: AppError) -> None:
+    """Display a user-facing error and exit the CLI."""
+    typer.echo(str(error))
+    raise typer.Exit(code=1) from error
+
+
+def _build_database_manager(db_file_path: Path | str) -> DatabaseManager:
+    """Create a database manager and map app errors to CLI output."""
+    try:
+        return DatabaseManager(db_file_path)
+    except AppError as error:
+        _handle_cli_error(error)
+    raise AssertionError("unreachable")
 
 
 def make_app(settings: Settings | None = None) -> typer.Typer:
@@ -29,7 +59,8 @@ def make_app(settings: Settings | None = None) -> typer.Typer:
     venues_app = typer.Typer()
     app = typer.Typer()
     app.add_typer(venues_app, name="venues")
-    db_manager = DatabaseManager(settings.DB_FILE)
+    db_manager = _build_database_manager(settings.DB_FILE)
+    setattr(app, "_db_manager", db_manager)
     console = Console()
 
     @app.command()
@@ -39,41 +70,35 @@ def make_app(settings: Settings | None = None) -> typer.Typer:
         ] = settings.USER_PREFERENCES.DEFAULT_CINEMA_VENUE,
         date: Annotated[str, typer.Argument()] = settings.USER_PREFERENCES.DEFAULT_DAY,
     ) -> None:
-        venue_name_parsed = cinema_venue_input_parser(venue_name)
-        venue = db_manager.find_venues_by_name(venue_name_parsed)
-        if isinstance(venue, builtins.list):
-            typer.echo(
-                f"Podana nazwa lokalu jest niejednoznaczna. Znaleziono "
-                f"{len(venue)} {'pasujące wyniki' if len(venue) < 5 else 'pasujących wyników'}."
-            )
-            raise typer.Exit(code=1)
+        try:
+            venue_name_parsed = cinema_venue_input_parser(venue_name)
+            found_venues = db_manager.find_venues_by_name(venue_name_parsed)
+            venue = _resolve_single_venue(found_venues)
+            date_parsed: str = date_input_parser(date)
 
-        date_parsed: str = date_input_parser(date)
-
-        cinema_instance = CinemaCity(
-            settings.CINEMA_CITY_SETTINGS.REPERTOIRE_URL,
-            settings.CINEMA_CITY_SETTINGS.VENUES_LIST_URL,
-        )
-        fetched_repertoire = anyio.run(cinema_instance.fetch_repertoire, date_parsed, venue)
-        tmdb_enabled = verify_api_key(settings.USER_PREFERENCES.TMDB_ACCESS_TOKEN)
-        ratings = {}
-        if tmdb_enabled and settings.USER_PREFERENCES.TMDB_ACCESS_TOKEN:
-            movie_titles = [repertoire.title for repertoire in fetched_repertoire]
-            ratings = get_movie_ratings_and_summaries(
-                movie_titles, settings.USER_PREFERENCES.TMDB_ACCESS_TOKEN
+            cinema_instance = CinemaCity(
+                settings.CINEMA_CITY_SETTINGS.REPERTOIRE_URL,
+                settings.CINEMA_CITY_SETTINGS.VENUES_LIST_URL,
             )
-        else:
-            console.print(
-                "Klucz API do usługi TMDB nie jest skonfigurowany. "
-                "Niektóre funkcje mogą być niedostępne.",
-                style="bold red",
-            )
+            fetched_repertoire = anyio.run(cinema_instance.fetch_repertoire, date_parsed, venue)
+            ratings = {}
+            tmdb_access_token = settings.USER_PREFERENCES.TMDB_ACCESS_TOKEN
+            if verify_api_key(tmdb_access_token) and tmdb_access_token:
+                movie_titles = [repertoire.title for repertoire in fetched_repertoire]
+                ratings = get_movie_ratings_and_summaries(movie_titles, tmdb_access_token)
+            else:
+                console.print(
+                    "Klucz API do usługi TMDB nie jest skonfigurowany. "
+                    "Niektóre funkcje mogą być niedostępne.",
+                    style="bold red",
+                )
 
-        table_metadata = RepertoireCliTableMetadata(
-            repertoire_date=date_parsed,
-            cinema_venue_name=venue.venue_name,  # type: ignore
-        )
-        repertoire_to_cli(fetched_repertoire, table_metadata, ratings, console)
+            table_metadata = RepertoireCliTableMetadata(
+                repertoire_date=date_parsed, cinema_venue_name=str(venue.venue_name)
+            )
+            repertoire_to_cli(fetched_repertoire, table_metadata, ratings, console)
+        except AppError as error:
+            _handle_cli_error(error)
 
     @venues_app.command()
     def list() -> None:
@@ -92,8 +117,8 @@ def make_app(settings: Settings | None = None) -> typer.Typer:
         typer.echo("Lokale zaktualizowane w lokalnej bazie danych.")
 
     @venues_app.command()
-    def search(venue_name: Annotated[str, typer.Argument()] = ""):
-        found_venues = db_manager.find_venues_by_name(venue_name)
+    def search(venue_name: Annotated[str, typer.Argument()] = "") -> None:
+        found_venues = db_manager.find_venues_by_name(cinema_venue_input_parser(venue_name))
         db_venues_to_cli(found_venues, console)
 
     return app

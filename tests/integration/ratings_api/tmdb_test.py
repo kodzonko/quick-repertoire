@@ -1,15 +1,8 @@
-import httpx
 import pytest
 
 from cinema_repertoire_analyzer.ratings_api.models import TmdbMovieDetails
-from cinema_repertoire_analyzer.ratings_api.tmdb import (
-    fetch_all_movie_details,
-    fetch_movie_details,
-    get_movie_ratings_and_summaries,
-)
+from cinema_repertoire_analyzer.ratings_api.tmdb import TmdbClient, get_movie_ratings_and_summaries
 from cinema_repertoire_analyzer.settings import Settings
-
-pytestmark = pytest.mark.anyio
 
 
 @pytest.fixture
@@ -38,23 +31,25 @@ def tmdb_movies_details_dict() -> dict[str, TmdbMovieDetails]:
 
 @pytest.mark.integration
 @pytest.mark.vcr()
-async def test_fetch_movie_details_successfully_returns_movie_details(settings: Settings) -> None:
-    async with httpx.AsyncClient(timeout=30.0) as session:
-        response = await fetch_movie_details(
-            session,
-            "Furiosa: A Mad Max Saga",
-            settings.USER_PREFERENCES.TMDB_ACCESS_TOKEN,  # type: ignore[arg-type]
-        )
+def test_fetch_movie_details_successfully_returns_movie_details(settings: Settings) -> None:
+    client = TmdbClient()
 
-        assert response["results"][0]["original_title"] == "Furiosa: A Mad Max Saga"
+    response = client.fetch_movie_details(
+        "Furiosa: A Mad Max Saga",
+        settings.USER_PREFERENCES.TMDB_ACCESS_TOKEN,  # type: ignore[arg-type]
+    )
+
+    assert response["results"][0]["original_title"] == "Furiosa: A Mad Max Saga"
 
 
 @pytest.mark.integration
 @pytest.mark.vcr()
-async def test_fetch_all_movie_details_successfully_returns_multiple_movies_details(
+def test_fetch_all_movie_details_successfully_returns_multiple_movies_details(
     settings: Settings,
 ) -> None:
-    response = await fetch_all_movie_details(
+    client = TmdbClient()
+
+    response = client.fetch_all_movie_details(
         ["The Watchers", "Garfield", "Puchatek: Krew i miód 2"],
         settings.USER_PREFERENCES.TMDB_ACCESS_TOKEN,  # type: ignore[arg-type]
     )

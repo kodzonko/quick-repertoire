@@ -569,10 +569,8 @@ def test_parse_play_format_returns_na_when_section_is_missing(
         pytest.param('<div><span aria-label="subbed-lang">PL</span></div>', "N/A"),
         pytest.param('<div><span aria-label="noSubs">ORG</span></div>', "ORG"),
         pytest.param(
-            (
-                '<div><span aria-label="subAbbr">NAP</span>'
-                '<span aria-label="subbed-lang">PL</span></div>'
-            ),
+            '<div><span aria-label="subAbbr">NAP</span>'
+            '<span aria-label="subbed-lang">PL</span></div>',
             "NAP: PL",
         ),
     ],

@@ -1,142 +1,106 @@
+from pathlib import Path
 from sqlite3 import Error
 
-import click
 import pytest
 import sqlalchemy
-from mockito import args, mock, when
+from mockito import mock, when
 
 from cinema_repertoire_analyzer.database.database_manager import DatabaseManager
-from cinema_repertoire_analyzer.database.models import CinemaVenues
+from cinema_repertoire_analyzer.database.models import Base, CinemaVenues
+from cinema_repertoire_analyzer.exceptions import DatabaseConnectionError
 
 
 @pytest.fixture
-def db_manager() -> DatabaseManager:
-    return DatabaseManager("test_db.sqlite")
+def db_path(tmp_path: Path) -> Path:
+    return tmp_path / "test_db.sqlite"
 
 
 @pytest.fixture
-def engine() -> sqlalchemy.Engine:
-    return mock(sqlalchemy.Engine)  # type: ignore[no-any-return]
-
-
-@pytest.fixture
-def session() -> sqlalchemy.orm.Session:
-    return mock(sqlalchemy.orm.Session)  # type: ignore[no-any-return]
-
-
-@pytest.fixture
-def query() -> sqlalchemy.orm.Query:
-    return mock(sqlalchemy.orm.Query)  # type: ignore[no-any-return]
-
-
-@pytest.fixture
-def row_returning_query() -> sqlalchemy.orm.query.RowReturningQuery:
-    return mock(sqlalchemy.orm.query.RowReturningQuery)  # type: ignore[no-any-return]
-
-
-@pytest.fixture
-def cinema_venues() -> list[CinemaVenues]:
-    return [mock(CinemaVenues), mock(CinemaVenues)]
+def db_manager(db_path: Path) -> DatabaseManager:
+    return DatabaseManager(db_path)
 
 
 @pytest.mark.unit
-def test_update_cinema_venues_inserts_records_to_db(
-    db_manager: DatabaseManager,
-    session: sqlalchemy.orm.Session,
-    query: sqlalchemy.orm.Query,
-    cinema_venues: list[CinemaVenues],
-) -> None:
-    when(session).__enter__().thenReturn(session)
-    when(session).__exit__(*args)
-    when(db_manager)._session_constructor().thenReturn(session)
-    when(session).query(CinemaVenues).thenReturn(query)
-    when(query).delete()
-    when(session).add_all(cinema_venues)
-    when(session).commit()
+def test_database_manager_bootstraps_schema_on_init(db_path: Path) -> None:
+    db_manager = DatabaseManager(db_path)
 
-    db_manager.update_cinema_venues(cinema_venues)
+    assert db_manager.get_all_venues() == []
+    assert db_path.exists() is True
 
 
 @pytest.mark.unit
-def test_database_manager_fails_to_create_instance_due_to_error() -> None:
-    when(sqlalchemy).create_engine("sqlite:///test_db.sqlite").thenRaise(
-        Error("some connection error")
+def test_update_cinema_venues_replaces_existing_records(db_manager: DatabaseManager) -> None:
+    venues = [
+        CinemaVenues(venue_name="Warszawa - Janki", venue_id="1"),
+        CinemaVenues(venue_name="Wrocław - Wroclavia", venue_id="2"),
+    ]
+
+    db_manager.update_cinema_venues(venues)
+
+    assert [venue.venue_name for venue in db_manager.get_all_venues()] == [
+        "Warszawa - Janki",
+        "Wrocław - Wroclavia",
+    ]
+
+
+@pytest.mark.unit
+def test_find_venues_by_name_returns_matching_venues(db_manager: DatabaseManager) -> None:
+    db_manager.update_cinema_venues(
+        [
+            CinemaVenues(venue_name="Warszawa - Janki", venue_id="1"),
+            CinemaVenues(venue_name="Warszawa - Arkadia", venue_id="2"),
+            CinemaVenues(venue_name="Wrocław - Wroclavia", venue_id="3"),
+        ]
     )
 
-    with pytest.raises(click.exceptions.Exit):
-        DatabaseManager("test_db.sqlite")
+    found_venues = db_manager.find_venues_by_name("Warszawa")
+
+    assert [venue.venue_name for venue in found_venues] == [
+        "Warszawa - Janki",
+        "Warszawa - Arkadia",
+    ]
 
 
 @pytest.mark.unit
-def test_get_venue_by_name_returns_venue(
-    db_manager: DatabaseManager,
-    session: sqlalchemy.orm.Session,
-    engine: sqlalchemy.Engine,
-    row_returning_query: sqlalchemy.orm.query.RowReturningQuery,
-    cinema_venues: CinemaVenues,
-) -> None:
-    when(session).__enter__().thenReturn(session)
-    when(session).__exit__(*args)
-    when(sqlalchemy).create_engine("sqlite:///test_db.sqlite").thenReturn(engine)
-    when(sqlalchemy.orm).sessionmaker(engine).thenReturn(session)
-    when(db_manager)._session_constructor().thenReturn(session)
-    when(session).query(CinemaVenues).thenReturn(row_returning_query)
-    when(row_returning_query).filter(...).thenReturn(row_returning_query)
-    when(row_returning_query).all().thenReturn(cinema_venues)
+def test_database_manager_raises_domain_error_when_engine_creation_fails(db_path: Path) -> None:
+    engine_factory = mock()
+    when(sqlalchemy).create_engine(f"sqlite:///{db_path}").thenRaise(Error("boom"))
+    when(sqlalchemy.orm).sessionmaker(engine_factory).thenReturn(mock())
 
-    assert db_manager.find_venues_by_name("some-name") == cinema_venues
+    with pytest.raises(DatabaseConnectionError):
+        DatabaseManager(db_path)
 
 
 @pytest.mark.unit
-def test_get_all_venues_returns_all_records(
-    db_manager: DatabaseManager,
-    session: sqlalchemy.orm.Session,
-    query: sqlalchemy.orm.Query,
-    cinema_venues: list[CinemaVenues],
-) -> None:
-    when(session).__enter__().thenReturn(session)
-    when(session).__exit__(*args)
-    when(db_manager)._session_constructor().thenReturn(session)
-    when(session).query(CinemaVenues).thenReturn(query)
-    when(query).all().thenReturn(cinema_venues)
+def test_database_manager_raises_domain_error_when_schema_bootstrap_fails(db_path: Path) -> None:
+    engine = mock()
+    metadata = mock()
+    original_metadata = Base.metadata
+    Base.metadata = metadata
+    when(sqlalchemy).create_engine(f"sqlite:///{db_path}").thenReturn(engine)
+    when(metadata).create_all(engine).thenRaise(sqlalchemy.exc.SQLAlchemyError("boom"))
 
-    assert db_manager.get_all_venues() == cinema_venues
-
-
-@pytest.mark.unit
-def test_find_venues_by_name_returns_single_match(
-    db_manager: DatabaseManager,
-    session: sqlalchemy.orm.Session,
-    row_returning_query: sqlalchemy.orm.query.RowReturningQuery,
-) -> None:
-    matching_venue = mock(CinemaVenues)
-    when(session).__enter__().thenReturn(session)
-    when(session).__exit__(*args)
-    when(db_manager)._session_constructor().thenReturn(session)
-    when(session).query(CinemaVenues).thenReturn(row_returning_query)
-    when(row_returning_query).filter(...).thenReturn(row_returning_query)
-    when(row_returning_query).all().thenReturn([matching_venue])
-
-    assert db_manager.find_venues_by_name("exact-match") == matching_venue
+    try:
+        with pytest.raises(DatabaseConnectionError):
+            DatabaseManager(db_path)
+    finally:
+        Base.metadata = original_metadata
 
 
 @pytest.mark.unit
-def test_find_venues_by_name_raises_on_missing_match(
-    db_manager: DatabaseManager,
-    session: sqlalchemy.orm.Session,
-    row_returning_query: sqlalchemy.orm.query.RowReturningQuery,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    when(session).__enter__().thenReturn(session)
-    when(session).__exit__(*args)
-    when(db_manager)._session_constructor().thenReturn(session)
-    when(session).query(CinemaVenues).thenReturn(row_returning_query)
-    when(row_returning_query).filter(...).thenReturn(row_returning_query)
-    when(row_returning_query).all().thenReturn([])
+def test_database_manager_calls_create_all_on_init(db_path: Path) -> None:
+    engine = mock()
+    session_factory = mock()
+    metadata = mock()
+    original_metadata = Base.metadata
+    Base.metadata = metadata
+    when(sqlalchemy).create_engine(f"sqlite:///{db_path}").thenReturn(engine)
+    when(metadata).create_all(engine)
+    when(sqlalchemy.orm).sessionmaker(engine).thenReturn(session_factory)
 
-    with pytest.raises(click.exceptions.Exit):
-        db_manager.find_venues_by_name("missing")
+    try:
+        manager = DatabaseManager(db_path)
+    finally:
+        Base.metadata = original_metadata
 
-    rendered_output = capsys.readouterr().out
-    assert "Nie znaleziono" in rendered_output
-    assert "lokalu o podanej nazwie" in rendered_output
+    assert manager._session_constructor is session_factory

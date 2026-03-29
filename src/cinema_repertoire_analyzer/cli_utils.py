@@ -1,8 +1,8 @@
 import re
 from datetime import datetime, timedelta
 
-import rich
 import typer
+from rich.console import Console
 from rich.table import Table
 
 from cinema_repertoire_analyzer.cinema_api.models import Repertoire, RepertoireCliTableMetadata
@@ -41,7 +41,7 @@ def date_input_parser(date: str) -> str:
         )
 
 
-def db_venues_to_cli(venues: list[CinemaVenues], sink: rich.console.Console) -> None:
+def db_venues_to_cli(venues: list[CinemaVenues], sink: Console) -> None:
     """Print cinema venues as a pretty-printed table in a console."""
     if not venues:
         sink.print("Brak kin tej sieci w bazie danych.")
@@ -59,7 +59,7 @@ def repertoire_to_cli(
     repertoire: list[Repertoire],
     table_metadata: RepertoireCliTableMetadata,
     ratings: dict[str, TmdbMovieDetails],
-    sink: rich.console.Console,
+    sink: Console,
 ) -> None:
     """Print a repertoire as a pretty-printed table in a console."""
     if not repertoire:
