@@ -1,0 +1,166 @@
+from unittest.mock import MagicMock
+
+import pytest
+from typer import Typer
+from typer.testing import CliRunner
+
+import cinema_repertoire_analyzer.main as tested_module
+from cinema_repertoire_analyzer.cinema_api.models import MoviePlayDetails, Repertoire
+from cinema_repertoire_analyzer.database.models import CinemaVenues
+from cinema_repertoire_analyzer.ratings_api.models import TmdbMovieDetails
+from cinema_repertoire_analyzer.settings import Settings
+
+
+@pytest.fixture
+def runner() -> CliRunner:
+    return CliRunner()
+
+
+@pytest.fixture
+def venue() -> CinemaVenues:
+    return CinemaVenues(venue_name="Wroclaw - Wroclavia", venue_id="1097")
+
+
+@pytest.fixture
+def repertoire() -> list[Repertoire]:
+    return [
+        Repertoire(
+            title="Test Movie",
+            genres="Thriller",
+            play_length="120 min",
+            original_language="EN",
+            play_details=[
+                MoviePlayDetails(
+                    format="2D",
+                    play_language="NAP: PL",
+                    play_times=["10:00", "12:30"],
+                )
+            ],
+        )
+    ]
+
+
+@pytest.mark.unit
+def test_make_app_uses_get_settings_when_settings_are_not_provided(
+    monkeypatch: pytest.MonkeyPatch, settings: Settings
+) -> None:
+    get_settings_mock = MagicMock(return_value=settings)
+    monkeypatch.setattr(tested_module, "get_settings", get_settings_mock)
+    monkeypatch.setattr(tested_module, "DatabaseManager", lambda *_: MagicMock())
+    monkeypatch.setattr(tested_module, "Console", lambda: MagicMock())
+
+    app = tested_module.make_app()
+
+    get_settings_mock.assert_called_once_with()
+    assert isinstance(app, Typer)
+
+
+@pytest.mark.unit
+def test_repertoire_command_exits_for_ambiguous_venue_name(
+    monkeypatch: pytest.MonkeyPatch, settings: Settings, runner: CliRunner
+) -> None:
+    fake_db_manager = MagicMock()
+    fake_db_manager.find_venues_by_name.return_value = [
+        CinemaVenues(venue_name="Venue A", venue_id="1"),
+        CinemaVenues(venue_name="Venue B", venue_id="2"),
+    ]
+    monkeypatch.setattr(tested_module, "DatabaseManager", lambda *_: fake_db_manager)
+    monkeypatch.setattr(tested_module, "Console", lambda: MagicMock())
+
+    app = tested_module.make_app(settings)
+    result = runner.invoke(app, ["repertoire", "venue"])
+
+    assert result.exit_code == 1
+    assert "Podana nazwa lokalu jest niejednoznaczna." in result.stdout
+
+
+@pytest.mark.unit
+def test_repertoire_command_fetches_tmdb_data_when_api_key_is_valid(
+    monkeypatch: pytest.MonkeyPatch,
+    settings: Settings,
+    runner: CliRunner,
+    venue: CinemaVenues,
+    repertoire: list[Repertoire],
+) -> None:
+    fake_console = MagicMock()
+    fake_db_manager = MagicMock()
+    fake_db_manager.find_venues_by_name.return_value = venue
+    fake_cinema = MagicMock()
+    fake_cinema.fetch_repertoire.return_value = repertoire
+    ratings = {
+        "Test Movie": TmdbMovieDetails(rating="8.5/10", summary="A tense mystery."),
+    }
+    tmdb_mock = MagicMock(return_value=ratings)
+    rendered = {}
+
+    def fake_repertoire_to_cli(fetched_repertoire, table_metadata, ratings_payload, console) -> None:
+        rendered["repertoire"] = fetched_repertoire
+        rendered["table_metadata"] = table_metadata
+        rendered["ratings"] = ratings_payload
+        rendered["console"] = console
+
+    monkeypatch.setattr(tested_module, "DatabaseManager", lambda *_: fake_db_manager)
+    monkeypatch.setattr(tested_module, "CinemaCity", lambda *_: fake_cinema)
+    monkeypatch.setattr(tested_module, "Console", lambda: fake_console)
+    monkeypatch.setattr(tested_module, "verify_api_key", lambda _: True)
+    monkeypatch.setattr(tested_module, "get_movie_ratings_and_summaries", tmdb_mock)
+    monkeypatch.setattr(tested_module, "repertoire_to_cli", fake_repertoire_to_cli)
+
+    app = tested_module.make_app(settings)
+    result = runner.invoke(app, ["repertoire", "wroclavia", "2021-12-31"])
+
+    assert result.exit_code == 0
+    tmdb_mock.assert_called_once_with(["Test Movie"], settings.USER_PREFERENCES.TMDB_ACCESS_TOKEN)
+    assert rendered["repertoire"] == repertoire
+    assert rendered["ratings"] == ratings
+    assert rendered["table_metadata"].repertoire_date == "2021-12-31"
+    assert rendered["console"] is fake_console
+
+
+@pytest.mark.unit
+def test_repertoire_command_warns_when_tmdb_is_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+    settings: Settings,
+    runner: CliRunner,
+    venue: CinemaVenues,
+    repertoire: list[Repertoire],
+) -> None:
+    fake_console = MagicMock()
+    fake_db_manager = MagicMock()
+    fake_db_manager.find_venues_by_name.return_value = venue
+    fake_cinema = MagicMock()
+    fake_cinema.fetch_repertoire.return_value = repertoire
+    tmdb_mock = MagicMock()
+    rendered = {}
+
+    def fake_repertoire_to_cli(fetched_repertoire, table_metadata, ratings_payload, console) -> None:
+        rendered["repertoire"] = fetched_repertoire
+        rendered["ratings"] = ratings_payload
+
+    monkeypatch.setattr(tested_module, "DatabaseManager", lambda *_: fake_db_manager)
+    monkeypatch.setattr(tested_module, "CinemaCity", lambda *_: fake_cinema)
+    monkeypatch.setattr(tested_module, "Console", lambda: fake_console)
+    monkeypatch.setattr(tested_module, "verify_api_key", lambda _: False)
+    monkeypatch.setattr(tested_module, "get_movie_ratings_and_summaries", tmdb_mock)
+    monkeypatch.setattr(tested_module, "repertoire_to_cli", fake_repertoire_to_cli)
+
+    app = tested_module.make_app(settings)
+    result = runner.invoke(app, ["repertoire"])
+
+    assert result.exit_code == 0
+    fake_console.print.assert_called_once()
+    tmdb_mock.assert_not_called()
+    assert rendered["repertoire"] == repertoire
+    assert rendered["ratings"] == {}
+
+
+@pytest.mark.unit
+def test_main_invokes_created_typer_app(monkeypatch: pytest.MonkeyPatch) -> None:
+    app = MagicMock()
+    make_app_mock = MagicMock(return_value=app)
+    monkeypatch.setattr(tested_module, "make_app", make_app_mock)
+
+    tested_module.main()
+
+    make_app_mock.assert_called_once_with()
+    app.assert_called_once_with()

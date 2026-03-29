@@ -1,8 +1,8 @@
 import builtins
 from typing import Annotated
 
-import rich
 import typer
+from rich.console import Console
 
 from cinema_repertoire_analyzer.cinema_api.cinema_city import CinemaCity
 from cinema_repertoire_analyzer.cinema_api.models import RepertoireCliTableMetadata
@@ -29,7 +29,7 @@ def make_app(settings: Settings | None = None) -> typer.Typer:
     app = typer.Typer()
     app.add_typer(venues_app, name="venues")
     db_manager = DatabaseManager(settings.DB_FILE)
-    console = rich.console.Console()
+    console = Console()
 
     @app.command()
     def repertoire(

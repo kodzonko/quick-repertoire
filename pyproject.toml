@@ -67,6 +67,7 @@ module-root = "src"
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+testpaths = ["tests"]
 markers = [
   "unit: unit tests",
   "integration: integration tests",

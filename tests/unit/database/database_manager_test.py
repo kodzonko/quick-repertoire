@@ -85,3 +85,58 @@ def test_get_venue_by_name_returns_venue(
     when(row_returning_query).all().thenReturn(cinema_venues)
 
     assert db_manager.find_venues_by_name("some-name") == cinema_venues
+
+
+@pytest.mark.unit
+def test_get_all_venues_returns_all_records(
+    db_manager: DatabaseManager,
+    session: sqlalchemy.orm.Session,
+    query: sqlalchemy.orm.Query,
+    cinema_venues: list[CinemaVenues],
+) -> None:
+    when(session).__enter__().thenReturn(session)
+    when(session).__exit__(*args)
+    when(db_manager)._session_constructor().thenReturn(session)
+    when(session).query(CinemaVenues).thenReturn(query)
+    when(query).all().thenReturn(cinema_venues)
+
+    assert db_manager.get_all_venues() == cinema_venues
+
+
+@pytest.mark.unit
+def test_find_venues_by_name_returns_single_match(
+    db_manager: DatabaseManager,
+    session: sqlalchemy.orm.Session,
+    row_returning_query: sqlalchemy.orm.query.RowReturningQuery,
+) -> None:
+    matching_venue = mock(CinemaVenues)
+    when(session).__enter__().thenReturn(session)
+    when(session).__exit__(*args)
+    when(db_manager)._session_constructor().thenReturn(session)
+    when(session).query(CinemaVenues).thenReturn(row_returning_query)
+    when(row_returning_query).filter(...).thenReturn(row_returning_query)
+    when(row_returning_query).all().thenReturn([matching_venue])
+
+    assert db_manager.find_venues_by_name("exact-match") == matching_venue
+
+
+@pytest.mark.unit
+def test_find_venues_by_name_raises_on_missing_match(
+    db_manager: DatabaseManager,
+    session: sqlalchemy.orm.Session,
+    row_returning_query: sqlalchemy.orm.query.RowReturningQuery,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    when(session).__enter__().thenReturn(session)
+    when(session).__exit__(*args)
+    when(db_manager)._session_constructor().thenReturn(session)
+    when(session).query(CinemaVenues).thenReturn(row_returning_query)
+    when(row_returning_query).filter(...).thenReturn(row_returning_query)
+    when(row_returning_query).all().thenReturn([])
+
+    with pytest.raises(click.exceptions.Exit):
+        db_manager.find_venues_by_name("missing")
+
+    rendered_output = capsys.readouterr().out
+    assert "Nie znaleziono" in rendered_output
+    assert "lokalu o podanej nazwie" in rendered_output

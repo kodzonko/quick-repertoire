@@ -222,3 +222,35 @@ def test_parse_movie_summary_parses_summary_correctly(
     response: dict[str, Any], outcome: bool, request: Any
 ) -> None:
     assert tested_module.parse_movie_summary(request.getfixturevalue(response)) == outcome
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_fetch_all_movie_details_returns_empty_payload_for_failed_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_fetch_movie_details(session, movie_name: str, access_token: str) -> dict[str, Any]:
+        if movie_name == "Broken Movie":
+            raise RuntimeError("boom")
+        return {"results": [{"title": movie_name}], "query": movie_name}
+
+    monkeypatch.setattr(tested_module, "fetch_movie_details", fake_fetch_movie_details)
+
+    response = await tested_module.fetch_all_movie_details(
+        ["Working Movie", "Broken Movie"], access_token="1234"
+    )
+
+    assert response == {
+        "Working Movie": {"results": [{"title": "Working Movie"}], "query": "Working Movie"},
+        "Broken Movie": {},
+    }
+
+
+@pytest.mark.unit
+def test_parse_movie_rating_returns_default_for_malformed_payload() -> None:
+    assert tested_module.parse_movie_rating({"results": [{}]}) == "0.0/10"
+
+
+@pytest.mark.unit
+def test_parse_movie_summary_returns_default_for_malformed_payload() -> None:
+    assert tested_module.parse_movie_summary({"results": [{}]}) == "Brak opisu filmu."
