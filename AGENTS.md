@@ -1,2 +1,2 @@
-- After introducing changes run `uv run ruff format`, `uv run ruff check --fix` and `uv run ty`. Make sure all 3 pass without errors.
+- After introducing changes run `uv run ruff format`, `uv run ruff check --fix` and `uv run ty check`. Make sure all 3 pass without errors.
 - After completing the implementation make sure it is covered by tests and all tests pass. If you broke any existing tests, fix them and make sure they pass as well.

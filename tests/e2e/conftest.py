@@ -1,15 +1,14 @@
 import shutil
-from pathlib import Path
 from uuid import uuid4
 
 import pytest
 from typer import Typer
 from typer.testing import CliRunner
 
-from conftest import RESOURCE_DIR
 from cinema_repertoire_analyzer.database.database_manager import DatabaseManager
 from cinema_repertoire_analyzer.main import make_app
 from cinema_repertoire_analyzer.settings import Settings, get_settings
+from conftest import RESOURCE_DIR
 
 
 @pytest.fixture

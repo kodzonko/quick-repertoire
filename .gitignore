@@ -10,3 +10,4 @@ node_modules/
 run.env
 test.env
 chromedriver.exe
+.codex-tmp/

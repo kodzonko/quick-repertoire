@@ -4,7 +4,11 @@ import pytest
 import typer
 from rich.console import Console
 
-from cinema_repertoire_analyzer.cinema_api.models import MoviePlayDetails, Repertoire, RepertoireCliTableMetadata
+from cinema_repertoire_analyzer.cinema_api.models import (
+    MoviePlayDetails,
+    Repertoire,
+    RepertoireCliTableMetadata,
+)
 from cinema_repertoire_analyzer.cli_utils import (
     cinema_venue_input_parser,
     date_input_parser,
@@ -108,18 +112,13 @@ def test_repertoire_to_cli_renders_ratings_when_available() -> None:
             original_language="EN",
             play_details=[
                 MoviePlayDetails(
-                    format="2D",
-                    play_language="NAP: PL",
-                    play_times=["10:00", "12:30"],
+                    format="2D", play_language="NAP: PL", play_times=["10:00", "12:30"]
                 )
             ],
         )
     ]
     ratings = {
-        "Test Movie": TmdbMovieDetails(
-            rating="8.5/10\n(głosy: 2000)",
-            summary="A tense mystery.",
-        )
+        "Test Movie": TmdbMovieDetails(rating="8.5/10\n(głosy: 2000)", summary="A tense mystery.")
     }
 
     repertoire_to_cli(repertoire, metadata, ratings, console)

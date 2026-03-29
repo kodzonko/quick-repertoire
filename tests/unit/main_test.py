@@ -31,9 +31,7 @@ def repertoire() -> list[Repertoire]:
             original_language="EN",
             play_details=[
                 MoviePlayDetails(
-                    format="2D",
-                    play_language="NAP: PL",
-                    play_times=["10:00", "12:30"],
+                    format="2D", play_language="NAP: PL", play_times=["10:00", "12:30"]
                 )
             ],
         )
@@ -87,13 +85,13 @@ def test_repertoire_command_fetches_tmdb_data_when_api_key_is_valid(
     fake_db_manager.find_venues_by_name.return_value = venue
     fake_cinema = MagicMock()
     fake_cinema.fetch_repertoire = AsyncMock(return_value=repertoire)
-    ratings = {
-        "Test Movie": TmdbMovieDetails(rating="8.5/10", summary="A tense mystery."),
-    }
+    ratings = {"Test Movie": TmdbMovieDetails(rating="8.5/10", summary="A tense mystery.")}
     tmdb_mock = MagicMock(return_value=ratings)
     rendered = {}
 
-    def fake_repertoire_to_cli(fetched_repertoire, table_metadata, ratings_payload, console) -> None:
+    def fake_repertoire_to_cli(
+        fetched_repertoire, table_metadata, ratings_payload, console
+    ) -> None:
         rendered["repertoire"] = fetched_repertoire
         rendered["table_metadata"] = table_metadata
         rendered["ratings"] = ratings_payload
@@ -133,7 +131,9 @@ def test_repertoire_command_warns_when_tmdb_is_disabled(
     tmdb_mock = MagicMock()
     rendered = {}
 
-    def fake_repertoire_to_cli(fetched_repertoire, table_metadata, ratings_payload, console) -> None:
+    def fake_repertoire_to_cli(
+        fetched_repertoire, table_metadata, ratings_payload, console
+    ) -> None:
         rendered["repertoire"] = fetched_repertoire
         rendered["ratings"] = ratings_payload
 

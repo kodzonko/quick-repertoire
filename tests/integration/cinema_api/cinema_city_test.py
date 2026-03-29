@@ -63,20 +63,14 @@ async def test_fetch_repertoire_parses_saved_repertoire_snapshot(
         play_length="N/A",
         original_language="EN",
         play_details=[
-            MoviePlayDetails(
-                format="2D",
-                play_language="NAP: PL",
-                play_times=["17:45", "19:50"],
-            )
+            MoviePlayDetails(format="2D", play_language="NAP: PL", play_times=["17:45", "19:50"])
         ],
     )
 
 
 @pytest.mark.integration
 async def test_fetch_cinema_venues_list_filters_out_invalid_venues(
-    cinema: CinemaCity,
-    rendered_venues_html: str,
-    monkeypatch: pytest.MonkeyPatch,
+    cinema: CinemaCity, rendered_venues_html: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     async def fake_fetch_rendered_html(url: str, selector: str) -> str:
         return rendered_venues_html
