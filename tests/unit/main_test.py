@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from typer import Typer
@@ -86,7 +86,7 @@ def test_repertoire_command_fetches_tmdb_data_when_api_key_is_valid(
     fake_db_manager = MagicMock()
     fake_db_manager.find_venues_by_name.return_value = venue
     fake_cinema = MagicMock()
-    fake_cinema.fetch_repertoire.return_value = repertoire
+    fake_cinema.fetch_repertoire = AsyncMock(return_value=repertoire)
     ratings = {
         "Test Movie": TmdbMovieDetails(rating="8.5/10", summary="A tense mystery."),
     }
@@ -129,7 +129,7 @@ def test_repertoire_command_warns_when_tmdb_is_disabled(
     fake_db_manager = MagicMock()
     fake_db_manager.find_venues_by_name.return_value = venue
     fake_cinema = MagicMock()
-    fake_cinema.fetch_repertoire.return_value = repertoire
+    fake_cinema.fetch_repertoire = AsyncMock(return_value=repertoire)
     tmdb_mock = MagicMock()
     rendered = {}
 

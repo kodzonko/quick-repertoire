@@ -2,16 +2,14 @@ import re
 
 from bs4 import BeautifulSoup
 from bs4.element import NavigableString, Tag
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
+from playwright.async_api import async_playwright
 
 from cinema_repertoire_analyzer.cinema_api.models import MoviePlayDetails, Repertoire
 from cinema_repertoire_analyzer.cinema_api.template_utils import fill_string_template
 from cinema_repertoire_analyzer.database.models import CinemaVenues
 
 REQUEST_TIMEOUT_SECONDS = 30
+REQUEST_TIMEOUT_MILLISECONDS = REQUEST_TIMEOUT_SECONDS * 1000
 REPERTOIRE_SELECTOR = "div.row.qb-movie"
 CINEMA_VENUES_SELECTOR = "option[value][data-tokens]"
 
@@ -23,12 +21,12 @@ class CinemaCity:
         self.repertoire_url = repertoire_url
         self.cinema_venues_url = cinema_venues_url
 
-    def fetch_repertoire(self, date: str, venue_data: CinemaVenues) -> list[Repertoire]:
+    async def fetch_repertoire(self, date: str, venue_data: CinemaVenues) -> list[Repertoire]:
         """Download repertoire for a specified date and venue from the cinema website."""
         url = fill_string_template(
             self.repertoire_url, cinema_venue_id=venue_data.venue_id, repertoire_date=date
         )
-        rendered_html = self._fetch_rendered_html(url, REPERTOIRE_SELECTOR)
+        rendered_html = await self._fetch_rendered_html(url, REPERTOIRE_SELECTOR)
         soup = BeautifulSoup(rendered_html, "lxml")
         output = []
         movies_details: list[Tag] = soup.find_all("div", class_="row qb-movie")
@@ -50,9 +48,11 @@ class CinemaCity:
 
         return output
 
-    def fetch_cinema_venues_list(self) -> list[CinemaVenues]:
+    async def fetch_cinema_venues_list(self) -> list[CinemaVenues]:
         """Download list of cinema venues from the cinema website."""
-        rendered_html = self._fetch_rendered_html(self.cinema_venues_url, CINEMA_VENUES_SELECTOR)
+        rendered_html = await self._fetch_rendered_html(
+            self.cinema_venues_url, CINEMA_VENUES_SELECTOR
+        )
         soup = BeautifulSoup(rendered_html, "lxml")
         output: list[CinemaVenues] = []
         for cinema in soup.select(CINEMA_VENUES_SELECTOR):
@@ -64,24 +64,23 @@ class CinemaCity:
 
         return output
 
-    def _fetch_rendered_html(self, url: str, wait_selector: str) -> str:
+    async def _fetch_rendered_html(self, url: str, wait_selector: str) -> str:
         """Load a page in a headless browser and return its rendered HTML."""
-        options = Options()
-        options.add_argument("--headless=new")
-        options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("--disable-gpu")
-        options.add_argument("--no-sandbox")
-        options.add_argument("--window-size=1920,1080")
+        launch_args = ["--disable-dev-shm-usage", "--disable-gpu", "--no-sandbox"]
 
-        with webdriver.Chrome(options=options) as driver:
-            driver.set_page_load_timeout(REQUEST_TIMEOUT_SECONDS)
-            driver.get(url)
-            WebDriverWait(driver, REQUEST_TIMEOUT_SECONDS).until(
-                lambda current_driver: bool(
-                    current_driver.find_elements(By.CSS_SELECTOR, wait_selector)
+        async with async_playwright() as playwright:
+            browser = await playwright.chromium.launch(headless=True, args=launch_args)
+            try:
+                page = await browser.new_page(viewport={"width": 1920, "height": 1080})
+                await page.goto(
+                    url, wait_until="domcontentloaded", timeout=REQUEST_TIMEOUT_MILLISECONDS
                 )
-            )
-            return driver.page_source
+                await page.wait_for_selector(
+                    wait_selector, state="attached", timeout=REQUEST_TIMEOUT_MILLISECONDS
+                )
+                return await page.content()
+            finally:
+                await browser.close()
 
     def _parse_title(self, html: Tag) -> str:
         """Parse HTML element of a single movie to extract title."""

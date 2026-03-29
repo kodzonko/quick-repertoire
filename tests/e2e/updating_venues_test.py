@@ -14,10 +14,13 @@ def test_update_venues_updates_venues_correctly(
     db_manager: DatabaseManager,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    async def fake_fetch_cinema_venues_list(self):
+        return [CinemaVenues(venue_name="Test Venue", venue_id="9999")]
+
     monkeypatch.setattr(
         tested_module.CinemaCity,
         "fetch_cinema_venues_list",
-        lambda self: [CinemaVenues(venue_name="Test Venue", venue_id="9999")],
+        fake_fetch_cinema_venues_list,
     )
 
     result = runner.invoke(typer_app, ["venues", "update"])

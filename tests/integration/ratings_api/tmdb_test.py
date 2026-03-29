@@ -1,4 +1,4 @@
-import aiohttp
+import httpx
 import pytest
 
 from cinema_repertoire_analyzer.ratings_api.models import TmdbMovieDetails
@@ -8,6 +8,8 @@ from cinema_repertoire_analyzer.ratings_api.tmdb import (
     get_movie_ratings_and_summaries,
 )
 from cinema_repertoire_analyzer.settings import Settings
+
+pytestmark = pytest.mark.anyio
 
 
 @pytest.fixture
@@ -37,7 +39,7 @@ def tmdb_movies_details_dict() -> dict[str, TmdbMovieDetails]:
 @pytest.mark.integration
 @pytest.mark.vcr()
 async def test_fetch_movie_details_successfully_returns_movie_details(settings: Settings) -> None:
-    async with aiohttp.ClientSession() as session:
+    async with httpx.AsyncClient(timeout=30.0) as session:
         response = await fetch_movie_details(
             session,
             "Furiosa: A Mad Max Saga",

@@ -1,14 +1,14 @@
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from bs4 import BeautifulSoup
 from bs4.element import NavigableString, Tag
-from mockito import when
-
 import cinema_repertoire_analyzer.cinema_api.cinema_city as tested_module
 from cinema_repertoire_analyzer.cinema_api.models import MoviePlayDetails, Repertoire
 from cinema_repertoire_analyzer.database.models import CinemaVenues
 from conftest import RESOURCE_DIR
+
+pytestmark = pytest.mark.anyio
 
 
 @pytest.fixture
@@ -35,13 +35,16 @@ def _as_tag(html: str) -> Tag:
 
 
 @pytest.mark.unit
-def test_fetch_repertoire_downloads_and_parses_repertoire_correctly(
-    cinema_city: tested_module.CinemaCity, rendered_repertoire_html: str
+async def test_fetch_repertoire_downloads_and_parses_repertoire_correctly(
+    cinema_city: tested_module.CinemaCity,
+    rendered_repertoire_html: str,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    when(cinema_city)._fetch_rendered_html(
-        "https://www.cinema-city.pl/#/buy-tickets-by-cinema?in-cinema=1097&at=2023-04-01",
-        tested_module.REPERTOIRE_SELECTOR,
-    ).thenReturn(rendered_repertoire_html)
+    monkeypatch.setattr(
+        cinema_city,
+        "_fetch_rendered_html",
+        AsyncMock(return_value=rendered_repertoire_html),
+    )
     expected = [
         Repertoire(
             title="65",
@@ -397,18 +400,15 @@ def test_fetch_repertoire_downloads_and_parses_repertoire_correctly(
         ),
     ]
 
-    assert (
-        cinema_city.fetch_repertoire(
-            date="2023-04-01",
-            venue_data=CinemaVenues(venue_id="1097", venue_name="Wrocław - Wroclavia"),
-        )
-        == expected
-    )
+    assert await cinema_city.fetch_repertoire(
+        date="2023-04-01",
+        venue_data=CinemaVenues(venue_id="1097", venue_name="Wrocław - Wroclavia"),
+    ) == expected
 
 
 @pytest.mark.unit
-def test_fetch_cinema_venues_list_downloads_and_parses_venues_correctly(
-    cinema_city: tested_module.CinemaCity,
+async def test_fetch_cinema_venues_list_downloads_and_parses_venues_correctly(
+    cinema_city: tested_module.CinemaCity, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     rendered_venues_html = """
     <select>
@@ -418,11 +418,13 @@ def test_fetch_cinema_venues_list_downloads_and_parses_venues_correctly(
       <option value="9999" data-tokens="null">Ignored</option>
     </select>
     """
-    when(cinema_city)._fetch_rendered_html(
-        "https://www.cinema-city.pl/#/buy-tickets-by-cinema", tested_module.CINEMA_VENUES_SELECTOR
-    ).thenReturn(rendered_venues_html)
+    monkeypatch.setattr(
+        cinema_city,
+        "_fetch_rendered_html",
+        AsyncMock(return_value=rendered_venues_html),
+    )
 
-    venues = cinema_city.fetch_cinema_venues_list()
+    venues = await cinema_city.fetch_cinema_venues_list()
 
     assert [(venue.venue_name, venue.venue_id) for venue in venues] == [
         ("Lodz - Manufaktura", "1080"),
@@ -431,8 +433,8 @@ def test_fetch_cinema_venues_list_downloads_and_parses_venues_correctly(
 
 
 @pytest.mark.unit
-def test_fetch_repertoire_skips_movies_in_presale(
-    cinema_city: tested_module.CinemaCity,
+async def test_fetch_repertoire_skips_movies_in_presale(
+    cinema_city: tested_module.CinemaCity, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     rendered_html = """
     <div class="row qb-movie">
@@ -455,12 +457,13 @@ def test_fetch_repertoire_skips_movies_in_presale(
       </div>
     </div>
     """
-    when(cinema_city)._fetch_rendered_html(
-        "https://www.cinema-city.pl/#/buy-tickets-by-cinema?in-cinema=1097&at=2023-04-01",
-        tested_module.REPERTOIRE_SELECTOR,
-    ).thenReturn(rendered_html)
+    monkeypatch.setattr(
+        cinema_city,
+        "_fetch_rendered_html",
+        AsyncMock(return_value=rendered_html),
+    )
 
-    repertoire = cinema_city.fetch_repertoire(
+    repertoire = await cinema_city.fetch_repertoire(
         date="2023-04-01",
         venue_data=CinemaVenues(venue_id="1097", venue_name="Wroclaw - Wroclavia"),
     )
@@ -469,26 +472,46 @@ def test_fetch_repertoire_skips_movies_in_presale(
 
 
 @pytest.mark.unit
-def test_fetch_rendered_html_returns_page_source_after_waiting(
+async def test_fetch_rendered_html_returns_page_source_after_waiting(
     cinema_city: tested_module.CinemaCity,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    driver = MagicMock()
-    driver.page_source = "<html>rendered</html>"
-    chrome_constructor = MagicMock()
-    chrome_constructor.return_value.__enter__.return_value = driver
-    wait = MagicMock()
-    wait_constructor = MagicMock(return_value=wait)
-    monkeypatch.setattr(tested_module.webdriver, "Chrome", chrome_constructor)
-    monkeypatch.setattr(tested_module, "WebDriverWait", wait_constructor)
+    page = AsyncMock()
+    page.content.return_value = "<html>rendered</html>"
+    browser = AsyncMock()
+    browser.new_page.return_value = page
+    chromium = AsyncMock()
+    chromium.launch.return_value = browser
+    playwright = MagicMock()
+    playwright.chromium = chromium
+    playwright_context = AsyncMock()
+    playwright_context.__aenter__.return_value = playwright
+    playwright_context.__aexit__.return_value = None
+    monkeypatch.setattr(
+        tested_module,
+        "async_playwright",
+        MagicMock(return_value=playwright_context),
+    )
 
-    rendered_html = cinema_city._fetch_rendered_html("https://example.com", "div.ready")
+    rendered_html = await cinema_city._fetch_rendered_html("https://example.com", "div.ready")
 
     assert rendered_html == "<html>rendered</html>"
-    driver.set_page_load_timeout.assert_called_once_with(tested_module.REQUEST_TIMEOUT_SECONDS)
-    driver.get.assert_called_once_with("https://example.com")
-    wait_constructor.assert_called_once_with(driver, tested_module.REQUEST_TIMEOUT_SECONDS)
-    wait.until.assert_called_once()
+    chromium.launch.assert_awaited_once_with(
+        headless=True,
+        args=["--disable-dev-shm-usage", "--disable-gpu", "--no-sandbox"],
+    )
+    browser.new_page.assert_awaited_once_with(viewport={"width": 1920, "height": 1080})
+    page.goto.assert_awaited_once_with(
+        "https://example.com",
+        wait_until="domcontentloaded",
+        timeout=tested_module.REQUEST_TIMEOUT_MILLISECONDS,
+    )
+    page.wait_for_selector.assert_awaited_once_with(
+        "div.ready",
+        state="attached",
+        timeout=tested_module.REQUEST_TIMEOUT_MILLISECONDS,
+    )
+    browser.close.assert_awaited_once()
 
 
 @pytest.mark.unit

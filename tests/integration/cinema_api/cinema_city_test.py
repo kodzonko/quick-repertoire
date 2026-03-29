@@ -1,9 +1,11 @@
 import pytest
 
-from conftest import RESOURCE_DIR
 from cinema_repertoire_analyzer.cinema_api.cinema_city import CinemaCity
 from cinema_repertoire_analyzer.cinema_api.models import MoviePlayDetails, Repertoire
 from cinema_repertoire_analyzer.database.models import CinemaVenues
+from conftest import RESOURCE_DIR
+
+pytestmark = pytest.mark.anyio
 
 
 @pytest.fixture
@@ -42,15 +44,18 @@ def rendered_venues_html() -> str:
 
 
 @pytest.mark.integration
-def test_fetch_repertoire_parses_saved_repertoire_snapshot(
+async def test_fetch_repertoire_parses_saved_repertoire_snapshot(
     cinema: CinemaCity,
     venue_data: CinemaVenues,
     rendered_repertoire_html: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(cinema, "_fetch_rendered_html", lambda url, selector: rendered_repertoire_html)
+    async def fake_fetch_rendered_html(url: str, selector: str) -> str:
+        return rendered_repertoire_html
 
-    repertoire = cinema.fetch_repertoire(date="2023-04-01", venue_data=venue_data)
+    monkeypatch.setattr(cinema, "_fetch_rendered_html", fake_fetch_rendered_html)
+
+    repertoire = await cinema.fetch_repertoire(date="2023-04-01", venue_data=venue_data)
 
     assert repertoire[0] == Repertoire(
         title="65",
@@ -68,14 +73,17 @@ def test_fetch_repertoire_parses_saved_repertoire_snapshot(
 
 
 @pytest.mark.integration
-def test_fetch_cinema_venues_list_filters_out_invalid_venues(
+async def test_fetch_cinema_venues_list_filters_out_invalid_venues(
     cinema: CinemaCity,
     rendered_venues_html: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(cinema, "_fetch_rendered_html", lambda url, selector: rendered_venues_html)
+    async def fake_fetch_rendered_html(url: str, selector: str) -> str:
+        return rendered_venues_html
 
-    venues = cinema.fetch_cinema_venues_list()
+    monkeypatch.setattr(cinema, "_fetch_rendered_html", fake_fetch_rendered_html)
+
+    venues = await cinema.fetch_cinema_venues_list()
 
     assert [(venue.venue_name, venue.venue_id) for venue in venues] == [
         ("Lodz - Manufaktura", "1080"),

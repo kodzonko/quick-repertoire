@@ -8,14 +8,29 @@ from cinema_repertoire_analyzer.settings import Settings, get_settings
 RESOURCE_DIR = Path(__file__).parent / "resources"
 
 
+def remove_compression_headers(response: dict) -> dict:
+    """Normalize recorded responses so playback matches the stored body."""
+    headers = response.get("headers", {})
+    headers.pop("Content-Encoding", None)
+    headers.pop("content-encoding", None)
+    return response
+
+
 @pytest.fixture(scope="session")
 def vcr_config():
     return {
         "cassette_library_dir": str(RESOURCE_DIR / "vcr_cassettes"),
         "match_on": ["method", "uri", "path"],
         "filter_headers": [("authorization", "DUMMY")],
+        "decode_compressed_response": True,
+        "before_record_response": remove_compression_headers,
         "record_mode": "once",
     }
+
+
+@pytest.fixture
+def anyio_backend() -> str:
+    return "trio"
 
 
 @pytest.fixture

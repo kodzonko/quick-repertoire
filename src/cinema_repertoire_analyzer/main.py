@@ -1,6 +1,7 @@
 import builtins
 from typing import Annotated
 
+import anyio
 import typer
 from rich.console import Console
 
@@ -53,7 +54,7 @@ def make_app(settings: Settings | None = None) -> typer.Typer:
             settings.CINEMA_CITY_SETTINGS.REPERTOIRE_URL,
             settings.CINEMA_CITY_SETTINGS.VENUES_LIST_URL,
         )
-        fetched_repertoire = cinema_instance.fetch_repertoire(date_parsed, venue)
+        fetched_repertoire = anyio.run(cinema_instance.fetch_repertoire, date_parsed, venue)
         tmdb_enabled = verify_api_key(settings.USER_PREFERENCES.TMDB_ACCESS_TOKEN)
         ratings = {}
         if tmdb_enabled and settings.USER_PREFERENCES.TMDB_ACCESS_TOKEN:
@@ -86,7 +87,7 @@ def make_app(settings: Settings | None = None) -> typer.Typer:
             settings.CINEMA_CITY_SETTINGS.REPERTOIRE_URL,
             settings.CINEMA_CITY_SETTINGS.VENUES_LIST_URL,
         )
-        venues = cinema_instance.fetch_cinema_venues_list()
+        venues = anyio.run(cinema_instance.fetch_cinema_venues_list)
         db_manager.update_cinema_venues(venues)
         typer.echo("Lokale zaktualizowane w lokalnej bazie danych.")
 

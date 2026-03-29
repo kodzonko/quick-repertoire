@@ -27,7 +27,6 @@
                 "x-memc-age": ["0"],
                 "x-memc-expires": ["21691"],
                 "Etag": ['W/"20c90e7874a00b846d408dcc98a3ce04"'],
-                "Content-Encoding": ["gzip"],
                 "Vary": ["Accept-Encoding,accept-encoding", "Origin"],
                 "X-Cache": ["Hit from cloudfront"],
                 "Via":
@@ -71,7 +70,6 @@
                 "x-memc-age": ["0"],
                 "x-memc-expires": ["24126"],
                 "Etag": ['W/"0f0b87e6b3835beb474db98a8dd9c618"'],
-                "Content-Encoding": ["gzip"],
                 "Vary": ["Accept-Encoding,accept-encoding", "Origin"],
                 "X-Cache": ["Miss from cloudfront"],
                 "Via":
@@ -114,7 +112,6 @@
                 "x-memc-age": ["0"],
                 "x-memc-expires": ["26006"],
                 "Etag": ['W/"8fe24a4d2519b2bf8daab540b1419889"'],
-                "Content-Encoding": ["gzip"],
                 "Vary": ["Accept-Encoding,accept-encoding", "Origin"],
                 "X-Cache": ["Miss from cloudfront"],
                 "Via":

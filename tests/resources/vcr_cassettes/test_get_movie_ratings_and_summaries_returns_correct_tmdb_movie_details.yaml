@@ -29,8 +29,6 @@ interactions:
           - public, max-age=22483
         Connection:
           - keep-alive
-        Content-Encoding:
-          - gzip
         Content-Type:
           - application/json;charset=utf-8
         Date:
@@ -91,8 +89,6 @@ interactions:
           - public, max-age=24126
         Connection:
           - keep-alive
-        Content-Encoding:
-          - gzip
         Content-Type:
           - application/json;charset=utf-8
         Date:

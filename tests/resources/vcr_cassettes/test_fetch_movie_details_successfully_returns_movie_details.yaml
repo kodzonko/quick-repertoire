@@ -27,7 +27,6 @@
                 "x-memc-age": ["0"],
                 "x-memc-expires": ["28760"],
                 "Etag": ['W/"b97ac574f5e610c977edc81afc44bc27"'],
-                "Content-Encoding": ["gzip"],
                 "Vary": ["Accept-Encoding,accept-encoding", "Origin"],
                 "X-Cache": ["Miss from cloudfront"],
                 "Via":

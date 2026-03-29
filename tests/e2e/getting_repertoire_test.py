@@ -11,10 +11,9 @@ def test_get_repertoire_with_default_values_returns_repertoire_correctly(
     typer_app: Typer, runner: CliRunner, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(tested_module, "verify_api_key", lambda _: False)
-    monkeypatch.setattr(
-        tested_module.CinemaCity,
-        "fetch_repertoire",
-        lambda self, date, venue_data: [
+
+    async def fake_fetch_repertoire(self, date, venue_data):
+        return [
             Repertoire(
                 title="Test Movie",
                 genres="Thriller",
@@ -28,7 +27,12 @@ def test_get_repertoire_with_default_values_returns_repertoire_correctly(
                     )
                 ],
             )
-        ],
+        ]
+
+    monkeypatch.setattr(
+        tested_module.CinemaCity,
+        "fetch_repertoire",
+        fake_fetch_repertoire,
     )
 
     result = runner.invoke(typer_app, ["repertoire"])

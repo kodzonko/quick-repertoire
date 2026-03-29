@@ -1,11 +1,10 @@
-import asyncio
 from datetime import datetime
 from http import HTTPStatus
+from typing import Any
 from urllib.parse import urlencode
 
-import aiohttp
-import async_timeout
-import requests
+import anyio
+import httpx
 
 from cinema_repertoire_analyzer.ratings_api.models import TmdbMovieDetails
 
@@ -18,12 +17,12 @@ def verify_api_key(access_token: str | None) -> bool:
         return False
     url = "https://api.themoviedb.org/3/authentication"
     headers = {"accept": "application/json", "Authorization": f"Bearer {access_token}"}
-    return requests.get(url, headers=headers).status_code == HTTPStatus.OK
+    return httpx.get(url, headers=headers, timeout=30.0).status_code == HTTPStatus.OK
 
 
 async def fetch_movie_details(
-    session: aiohttp.ClientSession, movie_name: str, access_token: str
-) -> dict:
+    session: httpx.AsyncClient, movie_name: str, access_token: str
+) -> dict[str, Any]:
     """Get details about a movie from the TMDB API."""
     base_url = "https://api.themoviedb.org/3/search/movie?"
     params = {
@@ -33,28 +32,30 @@ async def fetch_movie_details(
         "year": f"{datetime.now().year},{datetime.now().year - 1}",
         "page": 1,
     }
-    url = base_url + urlencode(params)
+    # Keep query serialization aligned with existing VCR cassettes.
+    url = base_url + urlencode(params, safe=":,")
     headers = {"accept": "application/json", "Authorization": f"Bearer {access_token}"}
-    async with async_timeout.timeout(30):
-        async with session.get(url, headers=headers) as response:
-            return await response.json()  # type: ignore[no-any-return]
+    response = await session.get(url, headers=headers)
+    return response.json()  # type: ignore[no-any-return]
 
 
-async def fetch_all_movie_details(movie_names: list[str], access_token: str) -> dict[str, dict]:
+async def fetch_all_movie_details(
+    movie_names: list[str], access_token: str
+) -> dict[str, dict[str, Any]]:
     """Get details about multiple movies from the TMDB API."""
-    async with aiohttp.ClientSession() as session:
-        tasks = {}
+    output: dict[str, dict[str, Any]] = {movie_name: {} for movie_name in movie_names}
+
+    async def fetch_and_store(session: httpx.AsyncClient, movie_name: str) -> None:
+        try:
+            output[movie_name] = await fetch_movie_details(session, movie_name, access_token)
+        except Exception:
+            output[movie_name] = {}
+
+    async with httpx.AsyncClient(timeout=30.0) as session, anyio.create_task_group() as task_group:
         for movie_name in movie_names:
-            task = asyncio.ensure_future(fetch_movie_details(session, movie_name, access_token))
-            tasks[movie_name] = task
-        await asyncio.gather(*tasks.values(), return_exceptions=True)
-        output: dict[str, dict] = {}
-        for movie_name, task in tasks.items():
-            if task.exception():
-                output[movie_name] = {}
-            else:
-                output[movie_name] = task.result()
-        return output
+            task_group.start_soon(fetch_and_store, session, movie_name)
+
+    return output
 
 
 def ensure_single_result(movie_data: dict) -> bool:
@@ -89,7 +90,7 @@ def get_movie_ratings_and_summaries(
     movie_names: list[str], access_token: str
 ) -> dict[str, TmdbMovieDetails]:
     """Get ratings for a list of movies."""
-    movie_data: dict = asyncio.run(fetch_all_movie_details(movie_names, access_token))
+    movie_data = anyio.run(fetch_all_movie_details, movie_names, access_token, backend="trio")
     output = {}
     for movie_name, data in movie_data.items():
         rating = parse_movie_rating(data)

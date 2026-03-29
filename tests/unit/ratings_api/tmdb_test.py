@@ -1,12 +1,13 @@
 from http import HTTPStatus
 from typing import Any
 
-import aiohttp
+import httpx
 import pytest
 from mockito import mock, when
-from requests import Response
 
 import cinema_repertoire_analyzer.ratings_api.tmdb as tested_module
+
+pytestmark = pytest.mark.anyio
 
 
 @pytest.fixture
@@ -20,22 +21,17 @@ def authorization_url() -> str:
 
 
 @pytest.fixture
-def ok_response() -> Response:
-    response = mock(Response)
+def ok_response() -> httpx.Response:
+    response = mock(httpx.Response)
     response.status_code = HTTPStatus.OK
     return response  # type: ignore[no-any-return]
 
 
 @pytest.fixture
-def unauthorized_response() -> Response:
-    response = mock(Response)
+def unauthorized_response() -> httpx.Response:
+    response = mock(httpx.Response)
     response.status_code = HTTPStatus.UNAUTHORIZED
     return response  # type: ignore[no-any-return]
-
-
-@pytest.fixture
-def session() -> aiohttp.ClientSession:
-    return mock(aiohttp.ClientSession)  # type: ignore[no-any-return]
 
 
 @pytest.fixture
@@ -140,19 +136,21 @@ def multiple_results_response_body() -> dict[str, Any]:
 
 @pytest.mark.unit
 def test_verify_api_key_makes_request_with_successful_status_code(
-    access_token: str, authorization_url: str, ok_response: Response
+    access_token: str, authorization_url: str, ok_response: httpx.Response
 ) -> None:
     headers = {"accept": "application/json", "Authorization": f"Bearer {access_token}"}
-    when(tested_module.requests).get(authorization_url, headers=headers).thenReturn(ok_response)
+    when(tested_module.httpx).get(authorization_url, headers=headers, timeout=30.0).thenReturn(
+        ok_response
+    )
     assert tested_module.verify_api_key(access_token) is True
 
 
 @pytest.mark.unit
 def test_verify_api_key_makes_request_with_unauthorized_status_code(
-    access_token: str, authorization_url: str, unauthorized_response: Response
+    access_token: str, authorization_url: str, unauthorized_response: httpx.Response
 ) -> None:
     headers = {"accept": "application/json", "Authorization": f"Bearer {access_token}"}
-    when(tested_module.requests).get(authorization_url, headers=headers).thenReturn(
+    when(tested_module.httpx).get(authorization_url, headers=headers, timeout=30.0).thenReturn(
         unauthorized_response
     )
     assert tested_module.verify_api_key(access_token) is False
@@ -225,11 +223,12 @@ def test_parse_movie_summary_parses_summary_correctly(
 
 
 @pytest.mark.unit
-@pytest.mark.asyncio
 async def test_fetch_all_movie_details_returns_empty_payload_for_failed_request(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    async def fake_fetch_movie_details(session, movie_name: str, access_token: str) -> dict[str, Any]:
+    async def fake_fetch_movie_details(
+        session, movie_name: str, access_token: str
+    ) -> dict[str, Any]:
         if movie_name == "Broken Movie":
             raise RuntimeError("boom")
         return {"results": [{"title": movie_name}], "query": movie_name}
