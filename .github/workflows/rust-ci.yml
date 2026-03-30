@@ -61,7 +61,7 @@ jobs:
         runner:
           - ubuntu-24.04
           - windows-latest
-          - macos-14
+          - macos-15
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
