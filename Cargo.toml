@@ -1,0 +1,35 @@
+[package]
+name = "cinema-repertoire-analyzer"
+version = "1.0.0"
+edition = "2024"
+rust-version = "1.94"
+default-run = "app"
+
+[[bin]]
+name = "app"
+path = "src/main.rs"
+
+[dependencies]
+async-trait = "0.1.89"
+chrono = { version = "0.4.44", features = ["clock"] }
+chromiumoxide = "0.9.1"
+clap = { version = "4.6.0", features = ["derive"] }
+clap_complete = "4.6.0"
+comfy-table = "7.2.2"
+dialoguer = "0.12.0"
+futures = "0.3.32"
+indicatif = "0.18.4"
+regex = "1.12.3"
+reqwest = { version = "0.13.2", default-features = false, features = ["json", "query", "rustls"] }
+rusqlite = { version = "0.39.0", features = ["bundled"] }
+scraper = "0.26.0"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+thiserror = "2.0.18"
+tokio = { version = "1.50.0", features = ["macros", "rt-multi-thread", "sync", "time"] }
+
+[dev-dependencies]
+assert_cmd = "2.2.0"
+httpmock = "0.8.3"
+predicates = "3.1.4"
+tempfile = "3.27.0"

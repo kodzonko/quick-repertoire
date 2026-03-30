@@ -1,13 +1,9 @@
 .idea/
 .vscode/
-.pytest_cache/
-__pycache__/
-*venv/
-.coverage
-.mypy_cache/
 .run/
 node_modules/
 run.env
 test.env
 chromedriver.exe
 .codex-tmp/
+target/

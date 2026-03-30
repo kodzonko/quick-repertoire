@@ -1,24 +1,13 @@
 version: 2
 
 updates:
-  - package-ecosystem: "uv"
+  - package-ecosystem: "cargo"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "sunday"
-    groups:
-      security-patches:
-        applies-to: "security-updates"
-        patterns:
-          - "*"
-      major-version-bumps:
-        applies-to: "version-updates"
-        patterns:
-          - "*"
-        update-types:
-          - "major"
-    ignore:
-      - dependency-name: "*"
-        update-types:
-          - "version-update:semver-minor"
-          - "version-update:semver-patch"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "sunday"

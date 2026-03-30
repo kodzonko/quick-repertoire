@@ -4,7 +4,12 @@ on:
   push:
     branches: [master]
   pull_request:
-    branches: [master]
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+      - converted_to_draft
   workflow_dispatch:
 
 jobs:
@@ -18,7 +23,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: ["python"]
+        language: ["rust"]
 
     steps:
       - name: Checkout repository

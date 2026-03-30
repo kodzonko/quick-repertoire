@@ -2,27 +2,25 @@
 
 ![Demo](docs/demo.gif)
 
-Scraper repertuarów kin, przygotowany obecnie dla Cinema City i gotowy na
-rozszerzanie o kolejne sieci. Wyniki są pokazywane wraz z oceną i
-streszczeniem filmu z TMDB.
+Terminalowy scraper repertuarów kin napisany w Rust. Aktualnie obsługuje
+Cinema City, zapisuje konfigurację w `config.ini`, cache'uje lokale w SQLite i
+wzbogaca repertuar o oceny oraz opisy z TMDB.
 
 ## Wymagania
 
-- uv
-- python 3.14
-- (opcjonalnie) make
+- Rust 1.94+
+- cargo
+- zainstalowany Chrome lub Chromium
 
 ## Instalacja
 
 ```shell
-uv sync
+cargo build
 ```
-
-Przy pierwszym uruchomieniu Playwright może pobrać przeglądarkę.
 
 ## Konfiguracja
 
-Aplikacja zapisuje konfigurację w pliku `config.ini` w katalogu głównym repo.
+Aplikacja zapisuje konfigurację w `config.ini` w katalogu głównym repo.
 Przy pierwszym uruchomieniu uruchomi się interaktywny kreator:
 
 - pobierze listy lokali dla wszystkich obsługiwanych sieci z widocznym postępem
@@ -32,27 +30,42 @@ Przy pierwszym uruchomieniu uruchomi się interaktywny kreator:
 Aby uruchomić kreator ponownie:
 
 ```shell
-uv run app configure
+cargo run --bin app -- configure
 ```
 
 ## Uruchomienie
 
 ```shell
-uv run app repertoire
-uv run app repertoire bemowo 2024-12-06
-uv run app repertoire --chain cinema-city
-uv run app venues list
-uv run app venues update
-uv run app venues search manufaktura
+cargo run --bin app -- repertoire
+cargo run --bin app -- repertoire bemowo 2024-12-06
+cargo run --bin app -- repertoire --chain cinema-city
+cargo run --bin app -- venues list
+cargo run --bin app -- venues update
+cargo run --bin app -- venues search manufaktura
 ```
 
 Polecenia nadal przyjmują jawne `--chain`, ale gdy go pominiesz, aplikacja użyje
 domyślnej sieci z `config.ini`.
 
-## Testy
+## Testy i jakość
 
-Komendy do uruchamiania testów wybiórczo znajdują się w `Makefile`.
+Codzienny przepływ dla kontroli jakości:
 
 ```shell
-uv run pytest tests
+cargo fmt --all
+cargo fmtcheck
+cargo lint
+cargo test
+```
+
+`cargo fmt --all` formatuje kod według ustawień z `rustfmt.toml`.
+`cargo fmtcheck` uruchamia `cargo fmt --all --check`.
+`cargo lint` uruchamia `cargo clippy --all-targets --all-features -- -D warnings`.
+
+Jeśli wolisz uruchamiać pełne komendy bez aliasów z `.cargo/config.toml`:
+
+```shell
+cargo fmt --check
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test
 ```
