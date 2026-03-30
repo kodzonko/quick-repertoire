@@ -1,5 +1,5 @@
 [package]
-name = "cinema-repertoire-analyzer"
+name = "quick-repertoire"
 version = "1.0.0"
 edition = "2024"
 rust-version = "1.94"

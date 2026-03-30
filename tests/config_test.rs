@@ -2,13 +2,13 @@ mod support;
 
 use std::fs;
 
-use cinema_repertoire_analyzer::config::{
+use quick_repertoire::config::{
     load_settings, run_interactive_configuration, should_defer_bootstrap_to_command,
     should_skip_bootstrap_for_argv, write_settings,
 };
-use cinema_repertoire_analyzer::domain::CinemaVenue;
-use cinema_repertoire_analyzer::error::AppError;
-use cinema_repertoire_analyzer::persistence::DatabaseManager;
+use quick_repertoire::domain::CinemaVenue;
+use quick_repertoire::error::AppError;
+use quick_repertoire::persistence::DatabaseManager;
 use support::{FakeCinemaClient, FakePrompt, FakeTmdbService, dependencies, settings};
 use tempfile::tempdir;
 
@@ -114,8 +114,7 @@ async fn run_interactive_configuration_persists_selected_settings_and_venues() {
         Some("tmdb-token".to_string())
     );
     assert_eq!(
-        configured_settings
-            .get_default_venue(cinema_repertoire_analyzer::domain::CinemaChainId::CinemaCity),
+        configured_settings.get_default_venue(quick_repertoire::domain::CinemaChainId::CinemaCity),
         Some("Wroclaw - Wroclavia")
     );
     assert!(temp_dir.path().join("config.ini").exists());

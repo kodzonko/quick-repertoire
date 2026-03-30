@@ -2,10 +2,10 @@ mod support;
 
 use std::collections::HashMap;
 
-use cinema_repertoire_analyzer::domain::{
+use quick_repertoire::domain::{
     CinemaVenue, MoviePlayDetails, Repertoire, RepertoireCliTableMetadata, TmdbMovieDetails,
 };
-use cinema_repertoire_analyzer::output::{
+use quick_repertoire::output::{
     cinema_venue_input_parser, date_input_parser, render_repertoire_table, render_venues_table,
 };
 

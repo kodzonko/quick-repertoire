@@ -3,9 +3,9 @@ mod support;
 use std::fs;
 use std::sync::Arc;
 
-use cinema_repertoire_analyzer::cinema::cinema_city::CinemaCity;
-use cinema_repertoire_analyzer::cinema::registry::CinemaChainClient;
-use cinema_repertoire_analyzer::domain::CinemaVenue;
+use quick_repertoire::cinema::cinema_city::CinemaCity;
+use quick_repertoire::cinema::registry::CinemaChainClient;
+use quick_repertoire::domain::CinemaVenue;
 
 use support::FakeHtmlRenderer;
 

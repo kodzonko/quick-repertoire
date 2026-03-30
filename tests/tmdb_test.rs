@@ -2,12 +2,12 @@ mod support;
 
 use std::collections::HashMap;
 
-use cinema_repertoire_analyzer::domain::TmdbMovieDetails;
-use cinema_repertoire_analyzer::tmdb::{
-    ReqwestTmdbClient, TmdbService, ensure_single_result, parse_movie_rating, parse_movie_summary,
-};
 use httpmock::Method::GET;
 use httpmock::MockServer;
+use quick_repertoire::domain::TmdbMovieDetails;
+use quick_repertoire::tmdb::{
+    ReqwestTmdbClient, TmdbService, ensure_single_result, parse_movie_rating, parse_movie_summary,
+};
 use serde_json::json;
 
 #[tokio::test]

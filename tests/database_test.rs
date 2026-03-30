@@ -1,7 +1,7 @@
 mod support;
 
-use cinema_repertoire_analyzer::domain::CinemaVenue;
-use cinema_repertoire_analyzer::persistence::DatabaseManager;
+use quick_repertoire::domain::CinemaVenue;
+use quick_repertoire::persistence::DatabaseManager;
 use tempfile::tempdir;
 
 #[test]

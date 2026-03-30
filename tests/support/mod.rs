@@ -5,20 +5,16 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use cinema_repertoire_analyzer::app::AppDependencies;
-use cinema_repertoire_analyzer::cinema::cinema_city::HtmlRenderer;
-use cinema_repertoire_analyzer::cinema::registry::{
-    CinemaChainClient, RegisteredCinemaChain, Registry,
-};
-use cinema_repertoire_analyzer::config::{
+use quick_repertoire::app::AppDependencies;
+use quick_repertoire::cinema::cinema_city::HtmlRenderer;
+use quick_repertoire::cinema::registry::{CinemaChainClient, RegisteredCinemaChain, Registry};
+use quick_repertoire::config::{
     CinemaChainSettings, CinemaChainsSettings, DefaultVenues, PromptAdapter, SelectionChoice,
     Settings, UserPreferences,
 };
-use cinema_repertoire_analyzer::domain::{
-    CinemaChainId, CinemaVenue, Repertoire, TmdbMovieDetails,
-};
-use cinema_repertoire_analyzer::error::{AppError, AppResult};
-use cinema_repertoire_analyzer::tmdb::TmdbService;
+use quick_repertoire::domain::{CinemaChainId, CinemaVenue, Repertoire, TmdbMovieDetails};
+use quick_repertoire::error::{AppError, AppResult};
+use quick_repertoire::tmdb::TmdbService;
 
 pub fn settings(project_root: &Path) -> Settings {
     Settings {

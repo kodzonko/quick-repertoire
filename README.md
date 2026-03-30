@@ -1,4 +1,4 @@
-# Cinema Repertoire Analyzer
+# Quick repertoire
 
 ![Demo](docs/demo.gif)
 

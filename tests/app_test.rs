@@ -4,12 +4,12 @@ use std::collections::HashMap;
 use std::fs;
 
 use assert_cmd::Command;
-use cinema_repertoire_analyzer::app::run_with_args;
-use cinema_repertoire_analyzer::config::write_settings;
-use cinema_repertoire_analyzer::domain::{CinemaVenue, MoviePlayDetails, Repertoire};
-use cinema_repertoire_analyzer::error::AppError;
-use cinema_repertoire_analyzer::output::BufferTerminal;
-use cinema_repertoire_analyzer::persistence::DatabaseManager;
+use quick_repertoire::app::run_with_args;
+use quick_repertoire::config::write_settings;
+use quick_repertoire::domain::{CinemaVenue, MoviePlayDetails, Repertoire};
+use quick_repertoire::error::AppError;
+use quick_repertoire::output::BufferTerminal;
+use quick_repertoire::persistence::DatabaseManager;
 use support::{FakeCinemaClient, FakePrompt, FakeTmdbService, dependencies, settings};
 use tempfile::tempdir;
 
