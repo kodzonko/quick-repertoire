@@ -1,7 +1,5 @@
 # Quick repertoire
 
-![Demo](docs/demo.gif)
-
 Terminalowy scraper repertuarów kin napisany w Rust. Aktualnie obsługuje
 Cinema City, zapisuje konfigurację w `config.ini`, cache'uje lokale w SQLite i
 wzbogaca repertuar o oceny oraz opisy z TMDB.
