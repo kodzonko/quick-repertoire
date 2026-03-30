@@ -71,7 +71,7 @@ jobs:
             target: aarch64-unknown-linux-musl
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.ref }}
       - name: Build Linux release binary
@@ -113,7 +113,7 @@ jobs:
           mkdir -p dist
           tar -C "target/${{ matrix.target }}/release" -czf "dist/${{ matrix.asset_name }}" "${{ env.BINARY_NAME }}"
       - name: Upload Linux binary
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact_name }}
           path: dist/${{ matrix.asset_name }}
@@ -149,7 +149,7 @@ jobs:
             binary_path: target/aarch64-apple-darwin/release/app
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.ref }}
       - name: Install Rust toolchain
@@ -172,7 +172,7 @@ jobs:
           mkdir -p dist
           tar -C "$(dirname "${{ matrix.binary_path }}")" -czf "dist/${{ matrix.asset_name }}" "$(basename "${{ matrix.binary_path }}")"
       - name: Upload native binary
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact_name }}
           path: dist/${{ matrix.asset_name }}
