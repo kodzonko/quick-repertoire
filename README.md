@@ -1,7 +1,8 @@
 # Quick repertoire
 
 Terminalowy scraper repertuarów kin napisany w Rust. Aktualnie obsługuje
-Cinema City, zapisuje konfigurację w `config.ini`, cache'uje lokale w SQLite i
+Cinema City, zapisuje konfigurację w `config.ini` obok binarki, cache'uje lokale
+w SQLite i
 wzbogaca repertuar o oceny oraz opisy z TMDB.
 
 ## Wymagania
@@ -18,12 +19,15 @@ cargo build
 
 ## Konfiguracja
 
-Aplikacja zapisuje konfigurację w `config.ini` w katalogu głównym repo.
+Aplikacja zapisuje `config.ini` oraz `db.sqlite` w katalogu binarki.
+Przy `cargo run --bin app` oznacza to zwykle `target/debug` albo `target/release`.
 Przy pierwszym uruchomieniu uruchomi się interaktywny kreator:
 
 - pobierze listy lokali dla wszystkich obsługiwanych sieci z widocznym postępem
-- pozwoli wybrać domyślną sieć, lokal, datę repertuaru, poziom logowania i plik bazy
+- pozwoli wybrać domyślną sieć, lokal, datę repertuaru i poziom logowania
 - zapyta o opcjonalny token TMDB
+- przed zapisem sprawdzi, czy katalog binarki pozwala na utworzenie lub modyfikację
+  plików konfiguracyjnych
 
 Aby uruchomić kreator ponownie:
 

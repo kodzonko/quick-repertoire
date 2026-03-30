@@ -1,5 +1,6 @@
 use std::collections::HashMap;
-use std::fs;
+use std::fs::{self, OpenOptions};
+use std::io;
 use std::path::{Path, PathBuf};
 
 use dialoguer::{Input, Select, theme::ColorfulTheme};
@@ -11,7 +12,7 @@ use crate::error::{AppError, AppResult};
 use crate::persistence::DatabaseManager;
 
 pub const CONFIG_FILE_NAME: &str = "config.ini";
-pub const DB_FILE_CHOICES: [&str; 2] = ["db.sqlite", "data/db.sqlite"];
+pub const DB_FILE_NAME: &str = "db.sqlite";
 pub const DEFAULT_DAY_CHOICES: [&str; 2] = ["today", "tomorrow"];
 pub const LOG_LEVEL_CHOICES: [&str; 6] = ["INFO", "DEBUG", "WARNING", "ERROR", "CRITICAL", "TRACE"];
 pub const HELP_AND_COMPLETION_FLAGS: [&str; 4] =
@@ -19,6 +20,57 @@ pub const HELP_AND_COMPLETION_FLAGS: [&str; 4] =
 pub const DEFAULT_CINEMA_CITY_REPERTOIRE_URL: &str = "https://www.cinema-city.pl/#/buy-tickets-by-cinema?in-cinema={cinema_venue_id}&at={repertoire_date}";
 pub const DEFAULT_CINEMA_CITY_VENUES_LIST_URL: &str =
     "https://www.cinema-city.pl/#/buy-tickets-by-cinema";
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AppPaths {
+    runtime_dir: PathBuf,
+}
+
+impl AppPaths {
+    pub fn from_current_exe() -> AppResult<Self> {
+        let executable_path = std::env::current_exe().map_err(|error| {
+            AppError::configuration(format!(
+                "Nie udało się ustalić ścieżki binarki aplikacji: {error}"
+            ))
+        })?;
+        let runtime_dir = executable_path.parent().ok_or_else(|| {
+            AppError::configuration("Nie udało się ustalić katalogu binarki aplikacji.")
+        })?;
+        Ok(Self::for_runtime_dir(runtime_dir.to_path_buf()))
+    }
+
+    pub fn for_runtime_dir(runtime_dir: PathBuf) -> Self {
+        Self { runtime_dir }
+    }
+
+    pub fn runtime_dir(&self) -> &Path {
+        &self.runtime_dir
+    }
+
+    pub fn config_file(&self) -> PathBuf {
+        self.runtime_dir.join(CONFIG_FILE_NAME)
+    }
+
+    pub fn db_file(&self) -> PathBuf {
+        self.runtime_dir.join(DB_FILE_NAME)
+    }
+}
+
+pub trait RuntimeWriteAccessProbe: Send + Sync {
+    fn verify_target_writable(&self, target_path: &Path, runtime_dir: &Path) -> io::Result<()>;
+}
+
+pub struct FileSystemRuntimeWriteAccessProbe;
+
+impl RuntimeWriteAccessProbe for FileSystemRuntimeWriteAccessProbe {
+    fn verify_target_writable(&self, target_path: &Path, runtime_dir: &Path) -> io::Result<()> {
+        verify_target_writable(target_path, runtime_dir)
+    }
+}
+
+pub fn build_runtime_write_access_probe() -> Box<dyn RuntimeWriteAccessProbe> {
+    Box::new(FileSystemRuntimeWriteAccessProbe)
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DefaultVenues {
@@ -94,24 +146,22 @@ impl CinemaChainsSettings {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Settings {
-    pub project_root: PathBuf,
-    pub db_file: PathBuf,
     pub user_preferences: UserPreferences,
     pub cinema_chains: CinemaChainsSettings,
     pub loguru_level: String,
 }
 
-impl Settings {
-    pub fn default_for(project_root: PathBuf) -> Self {
+impl Default for Settings {
+    fn default() -> Self {
         Self {
-            db_file: project_root.join("db.sqlite"),
-            project_root,
             user_preferences: UserPreferences::default(),
             cinema_chains: CinemaChainsSettings::default(),
             loguru_level: "INFO".to_string(),
         }
     }
+}
 
+impl Settings {
     pub fn get_default_venue(&self, chain_id: CinemaChainId) -> Option<&str> {
         self.user_preferences.default_venues.get(chain_id)
     }
@@ -169,10 +219,6 @@ pub fn build_prompt_adapter() -> Box<dyn PromptAdapter> {
     Box::new(DialoguerPrompt)
 }
 
-pub fn config_file_path(project_root: &Path) -> PathBuf {
-    project_root.join(CONFIG_FILE_NAME)
-}
-
 pub fn should_skip_bootstrap_for_argv(argv: &[String]) -> bool {
     if argv.iter().any(|argument| HELP_AND_COMPLETION_FLAGS.contains(&argument.as_str())) {
         return true;
@@ -187,25 +233,43 @@ pub fn should_defer_bootstrap_to_command(argv: &[String]) -> bool {
 }
 
 pub async fn ensure_settings_for_argv(
-    project_root: &Path,
+    paths: &AppPaths,
     registry: &Registry,
     prompt: &dyn PromptAdapter,
 ) -> AppResult<Settings> {
-    match load_settings(project_root) {
+    let write_access_probe = FileSystemRuntimeWriteAccessProbe;
+    ensure_settings_for_argv_with_write_access_probe(paths, registry, prompt, &write_access_probe)
+        .await
+}
+
+pub async fn ensure_settings_for_argv_with_write_access_probe(
+    paths: &AppPaths,
+    registry: &Registry,
+    prompt: &dyn PromptAdapter,
+    write_access_probe: &dyn RuntimeWriteAccessProbe,
+) -> AppResult<Settings> {
+    match load_settings(paths) {
         Ok(settings) => Ok(settings),
         Err(AppError::ConfigurationNotFound) => {
-            run_interactive_configuration(project_root, None, registry, prompt).await
+            run_interactive_configuration_with_write_access_probe(
+                paths,
+                None,
+                registry,
+                prompt,
+                write_access_probe,
+            )
+            .await
         }
         Err(error) => Err(error),
     }
 }
 
-pub fn load_settings_if_available(project_root: &Path) -> Option<Settings> {
-    load_settings(project_root).ok()
+pub fn load_settings_if_available(paths: &AppPaths) -> Option<Settings> {
+    load_settings(paths).ok()
 }
 
-pub fn load_settings(project_root: &Path) -> AppResult<Settings> {
-    let config_path = config_file_path(project_root);
+pub fn load_settings(paths: &AppPaths) -> AppResult<Settings> {
+    let config_path = paths.config_file();
     let content = fs::read_to_string(&config_path).map_err(|error| {
         if error.kind() == std::io::ErrorKind::NotFound {
             AppError::ConfigurationNotFound
@@ -220,18 +284,7 @@ pub fn load_settings(project_root: &Path) -> AppResult<Settings> {
         )
     })?;
 
-    let db_file = resolve_db_file_path(
-        project_root,
-        get_required(&sections, "app", "db_file").map_err(|_| {
-            AppError::configuration(
-                "Nie udało się wczytać config.ini. Uruchom `app configure`, aby odtworzyć konfigurację.",
-            )
-        })?,
-    )?;
-
     Ok(Settings {
-        project_root: project_root.to_path_buf(),
-        db_file,
         loguru_level: get_required(&sections, "app", "loguru_level")
             .unwrap_or("INFO")
             .to_string(),
@@ -280,15 +333,14 @@ pub fn load_settings(project_root: &Path) -> AppResult<Settings> {
     })
 }
 
-pub fn write_settings(settings: &Settings) -> AppResult<()> {
-    let config_path = config_file_path(&settings.project_root);
+pub fn write_settings(settings: &Settings, paths: &AppPaths) -> AppResult<()> {
+    let config_path = paths.config_file();
     if let Some(parent) = config_path.parent() {
         fs::create_dir_all(parent).map_err(|error| AppError::configuration(error.to_string()))?;
     }
 
     let config_body = format!(
         "[app]\n\
-db_file = {}\n\
 loguru_level = {}\n\
 \n\
 [user_preferences]\n\
@@ -302,7 +354,6 @@ cinema_city = {}\n\
 [cinema_chains.cinema_city]\n\
 repertoire_url = {}\n\
 venues_list_url = {}\n",
-        relative_db_file_path(&settings.project_root, &settings.db_file)?.display(),
         settings.loguru_level,
         settings.user_preferences.default_chain.as_str(),
         settings.user_preferences.default_day,
@@ -321,13 +372,32 @@ venues_list_url = {}\n",
 }
 
 pub async fn run_interactive_configuration(
-    project_root: &Path,
+    paths: &AppPaths,
     existing_settings: Option<Settings>,
     registry: &Registry,
     prompt: &dyn PromptAdapter,
 ) -> AppResult<Settings> {
-    let base_settings =
-        existing_settings.unwrap_or_else(|| Settings::default_for(project_root.to_path_buf()));
+    let write_access_probe = FileSystemRuntimeWriteAccessProbe;
+    run_interactive_configuration_with_write_access_probe(
+        paths,
+        existing_settings,
+        registry,
+        prompt,
+        &write_access_probe,
+    )
+    .await
+}
+
+pub async fn run_interactive_configuration_with_write_access_probe(
+    paths: &AppPaths,
+    existing_settings: Option<Settings>,
+    registry: &Registry,
+    prompt: &dyn PromptAdapter,
+    write_access_probe: &dyn RuntimeWriteAccessProbe,
+) -> AppResult<Settings> {
+    verify_runtime_write_access(paths, write_access_probe)?;
+
+    let base_settings = existing_settings.unwrap_or_default();
     let selected_log_level = prompt.select(
         "Wybierz domyślny poziom logowania:",
         &LOG_LEVEL_CHOICES
@@ -339,25 +409,9 @@ pub async fn run_interactive_configuration(
             .collect::<Vec<_>>(),
         Some(base_settings.loguru_level.as_str()),
     )?;
-    let selected_db_file = prompt.select(
-        "Wybierz lokalizację pliku bazy danych:",
-        &DB_FILE_CHOICES
-            .iter()
-            .map(|choice| SelectionChoice {
-                title: (*choice).to_string(),
-                value: (*choice).to_string(),
-            })
-            .collect::<Vec<_>>(),
-        Some(
-            relative_db_file_path(&base_settings.project_root, &base_settings.db_file)?
-                .to_string_lossy()
-                .as_ref(),
-        ),
-    )?;
 
     let mut working_settings = base_settings.clone();
     working_settings.loguru_level = selected_log_level;
-    working_settings.db_file = project_root.join(&selected_db_file);
 
     let venues_by_chain = fetch_all_registered_venues(&working_settings, registry).await?;
 
@@ -412,8 +466,8 @@ pub async fn run_interactive_configuration(
         .default_venues
         .set(selected_default_chain, Some(selected_default_venue));
 
-    persist_venues(&working_settings, &venues_by_chain)?;
-    write_settings(&working_settings)?;
+    persist_venues(paths, &venues_by_chain)?;
+    write_settings(&working_settings, paths)?;
     Ok(working_settings)
 }
 
@@ -473,10 +527,10 @@ async fn fetch_all_registered_venues(
 }
 
 fn persist_venues(
-    settings: &Settings,
+    paths: &AppPaths,
     venues_by_chain: &HashMap<CinemaChainId, Vec<CinemaVenue>>,
 ) -> AppResult<()> {
-    let db_manager = DatabaseManager::new(settings.db_file.clone())?;
+    let db_manager = DatabaseManager::new(paths.db_file())?;
     let payload = venues_by_chain
         .iter()
         .map(|(chain_id, venues)| (chain_id.as_str().to_string(), venues.clone()))
@@ -484,30 +538,53 @@ fn persist_venues(
     db_manager.replace_venues_batch(&payload)
 }
 
-fn relative_db_file_path(project_root: &Path, db_file: &Path) -> AppResult<PathBuf> {
-    if db_file.is_absolute() {
-        db_file.strip_prefix(project_root).map(Path::to_path_buf).map_err(|_| {
-            AppError::configuration(
-                "Ścieżka pliku bazy danych musi wskazywać lokalizację wewnątrz katalogu projektu.",
-            )
-        })
+fn verify_runtime_write_access(
+    paths: &AppPaths,
+    write_access_probe: &dyn RuntimeWriteAccessProbe,
+) -> AppResult<()> {
+    for target_path in [paths.config_file(), paths.db_file()] {
+        write_access_probe
+            .verify_target_writable(&target_path, paths.runtime_dir())
+            .map_err(|error| map_runtime_write_access_error(paths, &target_path, error))?;
+    }
+    Ok(())
+}
+
+fn verify_target_writable(target_path: &Path, runtime_dir: &Path) -> io::Result<()> {
+    if target_path.exists() {
+        OpenOptions::new().write(true).open(target_path).map(|_| ())
     } else {
-        Ok(db_file.to_path_buf())
+        let probe_path = runtime_probe_path(target_path, runtime_dir);
+        let probe_file = OpenOptions::new().write(true).create_new(true).open(&probe_path)?;
+        drop(probe_file);
+        fs::remove_file(&probe_path)
     }
 }
 
-fn resolve_db_file_path(project_root: &Path, raw_db_file_path: &str) -> AppResult<PathBuf> {
-    let stripped_path = raw_db_file_path.trim();
-    if stripped_path.is_empty() {
-        return Err(AppError::configuration("W config.ini brakuje wartosci app.db_file."));
+fn runtime_probe_path(target_path: &Path, runtime_dir: &Path) -> PathBuf {
+    let file_name =
+        target_path.file_name().and_then(|value| value.to_str()).unwrap_or("runtime-file");
+    runtime_dir.join(format!(".{file_name}.write-test.{}", std::process::id()))
+}
+
+fn map_runtime_write_access_error(
+    paths: &AppPaths,
+    target_path: &Path,
+    error: io::Error,
+) -> AppError {
+    match error.kind() {
+        io::ErrorKind::PermissionDenied => AppError::configuration(format!(
+            "Brak uprawnień do zapisu w katalogu aplikacji {}. Nie można przygotować pliku {}. Uruchom aplikację z podwyższonymi uprawnieniami albo przenieś binarkę do katalogu, w którym masz prawo zapisu.",
+            paths.runtime_dir().display(),
+            target_path.display(),
+        )),
+        _ => AppError::configuration(format!(
+            "Nie udało się sprawdzić możliwości zapisu w katalogu aplikacji {} dla pliku {}: {}",
+            paths.runtime_dir().display(),
+            target_path.display(),
+            error
+        )),
     }
-    let db_file_path = PathBuf::from(stripped_path);
-    if db_file_path.is_absolute() {
-        return Err(AppError::configuration(
-            "Ścieżka pliku bazy danych w config.ini musi być względna wobec katalogu projektu.",
-        ));
-    }
-    Ok(project_root.join(db_file_path))
 }
 
 fn parse_ini(content: &str) -> Result<HashMap<String, HashMap<String, String>>, ()> {

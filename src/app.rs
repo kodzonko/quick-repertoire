@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 
 use clap::{CommandFactory, Parser};
@@ -9,8 +9,10 @@ use crate::cinema::cinema_city::ChromiumHtmlRenderer;
 use crate::cinema::registry::{RegisteredCinemaChain, Registry};
 use crate::cli::{Cli, Commands, VenueCommands};
 use crate::config::{
-    PromptAdapter, Settings, build_prompt_adapter, ensure_settings_for_argv, load_settings,
-    load_settings_if_available, run_interactive_configuration, should_defer_bootstrap_to_command,
+    AppPaths, PromptAdapter, RuntimeWriteAccessProbe, Settings, build_prompt_adapter,
+    build_runtime_write_access_probe, ensure_settings_for_argv_with_write_access_probe,
+    load_settings, load_settings_if_available,
+    run_interactive_configuration_with_write_access_probe, should_defer_bootstrap_to_command,
     should_skip_bootstrap_for_argv,
 };
 use crate::domain::{CinemaChainId, CinemaVenue, RepertoireCliTableMetadata, TmdbMovieDetails};
@@ -23,26 +25,40 @@ use crate::persistence::DatabaseManager;
 use crate::tmdb::{ReqwestTmdbClient, TmdbService};
 
 pub struct AppDependencies {
-    pub project_root: PathBuf,
+    pub paths: AppPaths,
     pub prompt: Box<dyn PromptAdapter>,
     pub registry: Registry,
     pub tmdb_client: Arc<dyn TmdbService>,
+    pub runtime_write_access_probe: Box<dyn RuntimeWriteAccessProbe>,
+}
+
+#[derive(Clone, Copy)]
+struct CommandContext<'a> {
+    settings: &'a Settings,
+    paths: &'a AppPaths,
 }
 
 impl AppDependencies {
-    pub fn real(project_root: PathBuf) -> AppResult<Self> {
+    pub fn real(paths: AppPaths) -> AppResult<Self> {
         Ok(Self {
-            project_root,
+            paths,
             prompt: build_prompt_adapter(),
             registry: Registry::new(Arc::new(ChromiumHtmlRenderer)),
             tmdb_client: Arc::new(ReqwestTmdbClient::new()?),
+            runtime_write_access_probe: build_runtime_write_access_probe(),
         })
     }
 }
 
 pub async fn run_main() -> i32 {
-    let project_root = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    let dependencies = match AppDependencies::real(project_root) {
+    let paths = match AppPaths::from_current_exe() {
+        Ok(paths) => paths,
+        Err(error) => {
+            eprintln!("{error}");
+            return 1;
+        }
+    };
+    let dependencies = match AppDependencies::real(paths) {
         Ok(dependencies) => dependencies,
         Err(error) => {
             eprintln!("{error}");
@@ -62,12 +78,13 @@ pub async fn run_with_args(
     let argv = args.iter().skip(1).cloned().collect::<Vec<_>>();
     let mut settings =
         if should_skip_bootstrap_for_argv(&argv) || should_defer_bootstrap_to_command(&argv) {
-            load_settings_if_available(&dependencies.project_root)
+            load_settings_if_available(&dependencies.paths)
         } else {
-            match ensure_settings_for_argv(
-                &dependencies.project_root,
+            match ensure_settings_for_argv_with_write_access_probe(
+                &dependencies.paths,
                 &dependencies.registry,
                 dependencies.prompt.as_ref(),
+                dependencies.runtime_write_access_probe.as_ref(),
             )
             .await
             {
@@ -99,11 +116,12 @@ pub async fn run_with_args(
     };
 
     if matches!(command, Commands::Configure) {
-        return match run_interactive_configuration(
-            &dependencies.project_root,
+        return match run_interactive_configuration_with_write_access_probe(
+            &dependencies.paths,
             settings.take(),
             &dependencies.registry,
             dependencies.prompt.as_ref(),
+            dependencies.runtime_write_access_probe.as_ref(),
         )
         .await
         {
@@ -120,7 +138,7 @@ pub async fn run_with_args(
 
     let settings = match settings {
         Some(settings) => settings,
-        None => match load_settings(&dependencies.project_root) {
+        None => match load_settings(&dependencies.paths) {
             Ok(settings) => settings,
             Err(error) => {
                 terminal.write_line(&error.to_string());
@@ -133,7 +151,7 @@ pub async fn run_with_args(
         Commands::Configure => unreachable!(),
         Commands::Repertoire { chain, venue_name, date } => {
             handle_repertoire(
-                &settings,
+                CommandContext { settings: &settings, paths: &dependencies.paths },
                 &dependencies.registry,
                 dependencies.tmdb_client.as_ref(),
                 chain,
@@ -145,14 +163,35 @@ pub async fn run_with_args(
         }
         Commands::Venues { command } => match command {
             VenueCommands::List { chain } => {
-                handle_venues_list(&settings, &dependencies.registry, chain, terminal).await
+                handle_venues_list(
+                    &settings,
+                    &dependencies.paths,
+                    &dependencies.registry,
+                    chain,
+                    terminal,
+                )
+                .await
             }
             VenueCommands::Update { chain } => {
-                handle_venues_update(&settings, &dependencies.registry, chain, terminal).await
+                handle_venues_update(
+                    &settings,
+                    &dependencies.paths,
+                    &dependencies.registry,
+                    chain,
+                    terminal,
+                )
+                .await
             }
             VenueCommands::Search { venue_name, chain } => {
-                handle_venues_search(&settings, &dependencies.registry, chain, venue_name, terminal)
-                    .await
+                handle_venues_search(
+                    &settings,
+                    &dependencies.paths,
+                    &dependencies.registry,
+                    chain,
+                    venue_name,
+                    terminal,
+                )
+                .await
             }
         },
     };
@@ -199,12 +238,12 @@ fn resolve_venue_name(
     }
 }
 
-fn build_database_manager(settings: &Settings) -> AppResult<DatabaseManager> {
-    DatabaseManager::new(settings.db_file.clone())
+fn build_database_manager(paths: &AppPaths) -> AppResult<DatabaseManager> {
+    DatabaseManager::new(paths.db_file())
 }
 
 async fn handle_repertoire(
-    settings: &Settings,
+    context: CommandContext<'_>,
     registry: &Registry,
     tmdb_client: &dyn TmdbService,
     chain: Option<String>,
@@ -212,22 +251,23 @@ async fn handle_repertoire(
     date: Option<String>,
     terminal: &mut dyn Terminal,
 ) -> AppResult<()> {
-    let registered_chain = resolve_chain(chain, settings, registry)?;
-    let resolved_venue_name = resolve_venue_name(venue_name, &registered_chain, settings)?;
+    let registered_chain = resolve_chain(chain, context.settings, registry)?;
+    let resolved_venue_name = resolve_venue_name(venue_name, &registered_chain, context.settings)?;
     let venue_name_parsed = cinema_venue_input_parser(&resolved_venue_name);
-    let db_manager = build_database_manager(settings)?;
+    let db_manager = build_database_manager(context.paths)?;
     let found_venues =
         db_manager.find_venues_by_name(registered_chain.chain_id.as_str(), &venue_name_parsed)?;
     let venue = resolve_single_venue(&found_venues)?;
-    let date_parsed =
-        date_input_parser(date.as_deref().unwrap_or(&settings.user_preferences.default_day))?;
-    let cinema_client = (registered_chain.client_factory)(settings);
+    let date_parsed = date_input_parser(
+        date.as_deref().unwrap_or(&context.settings.user_preferences.default_day),
+    )?;
+    let cinema_client = (registered_chain.client_factory)(context.settings);
     let fetched_repertoire = cinema_client.fetch_repertoire(&date_parsed, &venue).await?;
     let movie_titles =
         fetched_repertoire.iter().map(|repertoire| repertoire.title.clone()).collect::<Vec<_>>();
     let ratings = load_tmdb_ratings(
         &movie_titles,
-        settings.user_preferences.tmdb_access_token.as_deref(),
+        context.settings.user_preferences.tmdb_access_token.as_deref(),
         tmdb_client,
         terminal,
     )
@@ -244,12 +284,13 @@ async fn handle_repertoire(
 
 async fn handle_venues_list(
     settings: &Settings,
+    paths: &AppPaths,
     registry: &Registry,
     chain: Option<String>,
     terminal: &mut dyn Terminal,
 ) -> AppResult<()> {
     let registered_chain = resolve_chain(chain, settings, registry)?;
-    let db_manager = build_database_manager(settings)?;
+    let db_manager = build_database_manager(paths)?;
     let venues = db_manager.get_all_venues(registered_chain.chain_id.as_str())?;
     terminal.write_line(&render_venues_table(&venues, &registered_chain.display_name));
     Ok(())
@@ -257,6 +298,7 @@ async fn handle_venues_list(
 
 async fn handle_venues_update(
     settings: &Settings,
+    paths: &AppPaths,
     registry: &Registry,
     chain: Option<String>,
     terminal: &mut dyn Terminal,
@@ -268,7 +310,7 @@ async fn handle_venues_update(
     ));
     let cinema_client = (registered_chain.client_factory)(settings);
     let venues = cinema_client.fetch_venues().await?;
-    let db_manager = build_database_manager(settings)?;
+    let db_manager = build_database_manager(paths)?;
     db_manager.replace_venues(registered_chain.chain_id.as_str(), &venues)?;
     terminal.write_line("Lokale zaktualizowane w lokalnej bazie danych.");
     Ok(())
@@ -276,13 +318,14 @@ async fn handle_venues_update(
 
 async fn handle_venues_search(
     settings: &Settings,
+    paths: &AppPaths,
     registry: &Registry,
     chain: Option<String>,
     venue_name: Option<String>,
     terminal: &mut dyn Terminal,
 ) -> AppResult<()> {
     let registered_chain = resolve_chain(chain, settings, registry)?;
-    let db_manager = build_database_manager(settings)?;
+    let db_manager = build_database_manager(paths)?;
     let venues = db_manager.find_venues_by_name(
         registered_chain.chain_id.as_str(),
         &cinema_venue_input_parser(venue_name.as_deref().unwrap_or_default()),

@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use std::collections::{HashMap, VecDeque};
+use std::io;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
@@ -9,17 +10,16 @@ use quick_repertoire::app::AppDependencies;
 use quick_repertoire::cinema::cinema_city::HtmlRenderer;
 use quick_repertoire::cinema::registry::{CinemaChainClient, RegisteredCinemaChain, Registry};
 use quick_repertoire::config::{
-    CinemaChainSettings, CinemaChainsSettings, DefaultVenues, PromptAdapter, SelectionChoice,
+    AppPaths, CinemaChainSettings, CinemaChainsSettings, DefaultVenues,
+    FileSystemRuntimeWriteAccessProbe, PromptAdapter, RuntimeWriteAccessProbe, SelectionChoice,
     Settings, UserPreferences,
 };
 use quick_repertoire::domain::{CinemaChainId, CinemaVenue, Repertoire, TmdbMovieDetails};
 use quick_repertoire::error::{AppError, AppResult};
 use quick_repertoire::tmdb::TmdbService;
 
-pub fn settings(project_root: &Path) -> Settings {
+pub fn settings() -> Settings {
     Settings {
-        project_root: project_root.to_path_buf(),
-        db_file: project_root.join("test_db.sqlite"),
         user_preferences: UserPreferences {
             default_chain: CinemaChainId::CinemaCity,
             default_day: "today".to_string(),
@@ -35,6 +35,17 @@ pub fn settings(project_root: &Path) -> Settings {
             },
         },
         loguru_level: "TRACE".to_string(),
+    }
+}
+
+pub struct FailingWriteAccessProbe {
+    pub error_kind: io::ErrorKind,
+    pub message: String,
+}
+
+impl RuntimeWriteAccessProbe for FailingWriteAccessProbe {
+    fn verify_target_writable(&self, _target_path: &Path, _runtime_dir: &Path) -> io::Result<()> {
+        Err(io::Error::new(self.error_kind, self.message.clone()))
     }
 }
 
@@ -132,10 +143,26 @@ impl TmdbService for FakeTmdbService {
 }
 
 pub fn dependencies(
-    project_root: &Path,
+    runtime_dir: &Path,
     prompt: FakePrompt,
     cinema_client: FakeCinemaClient,
     tmdb_service: FakeTmdbService,
+) -> AppDependencies {
+    dependencies_with_write_access_probe(
+        runtime_dir,
+        prompt,
+        cinema_client,
+        tmdb_service,
+        Box::new(FileSystemRuntimeWriteAccessProbe),
+    )
+}
+
+pub fn dependencies_with_write_access_probe(
+    runtime_dir: &Path,
+    prompt: FakePrompt,
+    cinema_client: FakeCinemaClient,
+    tmdb_service: FakeTmdbService,
+    runtime_write_access_probe: Box<dyn RuntimeWriteAccessProbe>,
 ) -> AppDependencies {
     let factory_client = cinema_client.clone();
     let chain = RegisteredCinemaChain {
@@ -144,10 +171,11 @@ pub fn dependencies(
         client_factory: Arc::new(move |_| Box::new(factory_client.clone())),
     };
     AppDependencies {
-        project_root: project_root.to_path_buf(),
+        paths: AppPaths::for_runtime_dir(runtime_dir.to_path_buf()),
         prompt: Box::new(prompt),
         registry: Registry::from_chains(vec![chain]),
         tmdb_client: Arc::new(tmdb_service),
+        runtime_write_access_probe,
     }
 }
 
