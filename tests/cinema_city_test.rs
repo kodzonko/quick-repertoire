@@ -1,6 +1,5 @@
 mod support;
 
-use std::fs;
 use std::sync::Arc;
 
 use quick_repertoire::cinema::cinema_city::CinemaCity;
@@ -9,15 +8,65 @@ use quick_repertoire::domain::CinemaVenue;
 
 use support::FakeHtmlRenderer;
 
+fn rendered_repertoire_html() -> String {
+    r#"
+    <div class="row qb-movie">
+      <h3 class="qb-movie-name">65</h3>
+      <div class="qb-movie-info-wrapper">
+        <span aria-label="original-lang">EN</span>
+      </div>
+      <div class="qb-movie-info-column">
+        <ul class="qb-screening-attributes">
+          <li><span aria-label="Screening type">2D</span></li>
+          <li><span aria-label="subAbbr">NAP</span></li>
+          <li><span aria-label="subbed-lang">PL</span></li>
+        </ul>
+        <a class="btn btn-primary btn-lg">17:45</a>
+        <a class="btn btn-primary btn-lg">19:50</a>
+      </div>
+    </div>
+    <div class="row qb-movie">
+      <h3 class="qb-movie-name">John Wick 4</h3>
+      <div class="qb-movie-info-wrapper">
+        <span>| Action | Thriller |</span>
+        <span>169 min</span>
+        <span aria-label="original-lang">EN</span>
+      </div>
+      <div class="qb-movie-info-column">
+        <h4>Przedsprzedaż</h4>
+        <ul class="qb-screening-attributes">
+          <li><span aria-label="Screening type">4DX</span></li>
+        </ul>
+        <a class="btn btn-primary btn-lg">21:00</a>
+      </div>
+    </div>
+    <div class="row qb-movie">
+      <h3 class="qb-movie-name">Dungeons & Dragons</h3>
+      <div class="qb-movie-info-wrapper">
+        <span>| Fantasy, Adventure |</span>
+        <span>134 min</span>
+        <span aria-label="original-lang">EN</span>
+      </div>
+      <div class="qb-movie-info-column">
+        <ul class="qb-screening-attributes">
+          <li><span aria-label="Screening type">IMAX</span></li>
+          <li><span aria-label="Screening type">3D</span></li>
+          <li><span aria-label="noSubs">BEZ NAP</span></li>
+        </ul>
+        <a class="btn btn-primary btn-lg">20:15</a>
+      </div>
+    </div>
+    "#
+    .to_string()
+}
+
 #[tokio::test]
-async fn fetch_repertoire_parses_saved_repertoire_snapshot() {
-    let rendered_repertoire_html =
-        fs::read_to_string("tests/resources/cinema_city_example_repertoire.html").unwrap();
+async fn fetch_repertoire_parses_inline_html_fixture_and_skips_presales() {
     let cinema = CinemaCity::new(
         "https://www.cinema-city.pl/#/buy-tickets-by-cinema?in-cinema={cinema_venue_id}&at={repertoire_date}".to_string(),
         "https://www.cinema-city.pl/#/buy-tickets-by-cinema".to_string(),
         Arc::new(FakeHtmlRenderer {
-            html: rendered_repertoire_html,
+            html: rendered_repertoire_html(),
         }),
     );
     let venue_data = CinemaVenue {
@@ -28,6 +77,7 @@ async fn fetch_repertoire_parses_saved_repertoire_snapshot() {
 
     let repertoire = cinema.fetch_repertoire("2023-04-01", &venue_data).await.unwrap();
 
+    assert_eq!(repertoire.len(), 2);
     assert_eq!(repertoire[0].title, "65");
     assert_eq!(repertoire[0].genres, "N/A");
     assert_eq!(repertoire[0].play_length, "N/A");
@@ -38,6 +88,13 @@ async fn fetch_repertoire_parses_saved_repertoire_snapshot() {
         repertoire[0].play_details[0].play_times,
         vec!["17:45".to_string(), "19:50".to_string()]
     );
+    assert_eq!(repertoire[1].title, "Dungeons & Dragons");
+    assert_eq!(repertoire[1].genres, "Fantasy, Adventure");
+    assert_eq!(repertoire[1].play_length, "134 min");
+    assert_eq!(repertoire[1].original_language, "EN");
+    assert_eq!(repertoire[1].play_details[0].format, "IMAX 3D");
+    assert_eq!(repertoire[1].play_details[0].play_language, "BEZ NAP");
+    assert_eq!(repertoire[1].play_details[0].play_times, vec!["20:15".to_string()]);
 }
 
 #[tokio::test]
