@@ -10,6 +10,7 @@ use std::time::Duration;
 use httpmock::Method::GET;
 use httpmock::MockServer;
 use quick_repertoire::domain::TmdbMovieDetails;
+use quick_repertoire::error::AppError;
 use quick_repertoire::retry::RetryPolicy;
 use quick_repertoire::tmdb::{
     ReqwestTmdbClient, TmdbService, ensure_single_result, parse_movie_rating, parse_movie_summary,
@@ -277,6 +278,35 @@ async fn verify_api_key_retries_retryable_tmdb_responses() {
             .iter()
             .all(|request| request.to_ascii_lowercase().contains("authorization: bearer token"))
     );
+}
+
+#[tokio::test]
+async fn get_movie_ratings_and_summaries_reports_invalid_tmdb_json() {
+    let server = MockServer::start_async().await;
+    let invalid_json_mock = server
+        .mock_async(|when, then| {
+            when.method(GET).path("/search/movie").query_param("query", "Garfield");
+            then.status(200).header("content-type", "application/json").body(r#"{"results":["#);
+        })
+        .await;
+
+    let client = ReqwestTmdbClient::with_base_urls(
+        server.url("/authentication"),
+        server.url("/search/movie"),
+    )
+    .unwrap();
+
+    let error = client
+        .get_movie_ratings_and_summaries(&["Garfield".to_string()], "token")
+        .await
+        .expect_err("invalid TMDB JSON should surface as an error");
+
+    invalid_json_mock.assert_async().await;
+    assert!(matches!(
+        error,
+        AppError::Http(message)
+            if message.contains("invalid JSON") && message.contains("Garfield")
+    ));
 }
 
 #[test]

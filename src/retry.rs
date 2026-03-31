@@ -1,6 +1,7 @@
 use std::future::Future;
 use std::time::Duration;
 
+use log::debug;
 use tokio::time::sleep;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -61,15 +62,27 @@ where
             Err(RetryDirective::Fail(error)) => return Err(error),
             Err(RetryDirective::Retry(error)) => {
                 if attempt == policy.max_attempts {
+                    debug!(
+                        "Retry policy exhausted after {attempt} attempt(s) without Retry-After delay"
+                    );
                     return Err(error);
                 }
-                sleep(policy.delay_for_retry(attempt)).await;
+                let delay = policy.delay_for_retry(attempt);
+                debug!("Retryable operation failed on attempt {attempt}; retrying in {delay:?}");
+                sleep(delay).await;
             }
             Err(RetryDirective::RetryAfter { error, delay }) => {
                 if attempt == policy.max_attempts {
+                    debug!(
+                        "Retry policy exhausted after {attempt} attempt(s) while honoring Retry-After"
+                    );
                     return Err(error);
                 }
-                sleep(delay.min(policy.max_delay)).await;
+                let bounded_delay = delay.min(policy.max_delay);
+                debug!(
+                    "Retryable operation failed on attempt {attempt}; retrying in {bounded_delay:?} after Retry-After"
+                );
+                sleep(bounded_delay).await;
             }
         }
     }

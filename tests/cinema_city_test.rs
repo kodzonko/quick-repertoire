@@ -6,10 +6,12 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use httpmock::Method::GET;
+use httpmock::MockServer;
 use quick_repertoire::cinema::cinema_city::CinemaCity;
 use quick_repertoire::cinema::cinema_city::HtmlRenderer;
 use quick_repertoire::cinema::registry::CinemaChainClient;
-use quick_repertoire::domain::CinemaVenue;
+use quick_repertoire::domain::{CinemaVenue, MoviePlayTime};
 use quick_repertoire::error::{AppError, AppResult};
 use quick_repertoire::retry::RetryPolicy;
 
@@ -150,7 +152,8 @@ async fn fetch_repertoire_parses_inline_html_fixture_and_skips_presales() {
         Arc::new(FakeHtmlRenderer {
             html: rendered_repertoire_html(),
         }),
-    );
+    )
+    .with_quickbook_api_base_url("");
     let venue_data = CinemaVenue {
         chain_id: "cinema-city".to_string(),
         venue_id: "1080".to_string(),
@@ -168,7 +171,10 @@ async fn fetch_repertoire_parses_inline_html_fixture_and_skips_presales() {
     assert_eq!(repertoire[0].play_details[0].play_language, "NAP: PL");
     assert_eq!(
         repertoire[0].play_details[0].play_times,
-        vec!["17:45".to_string(), "19:50".to_string()]
+        vec![
+            MoviePlayTime { value: "17:45".to_string(), url: None },
+            MoviePlayTime { value: "19:50".to_string(), url: None },
+        ]
     );
     assert_eq!(repertoire[1].title, "Dungeons & Dragons");
     assert_eq!(repertoire[1].genres, "Fantasy, Adventure");
@@ -176,7 +182,10 @@ async fn fetch_repertoire_parses_inline_html_fixture_and_skips_presales() {
     assert_eq!(repertoire[1].original_language, "EN");
     assert_eq!(repertoire[1].play_details[0].format, "IMAX 3D");
     assert_eq!(repertoire[1].play_details[0].play_language, "BEZ NAP");
-    assert_eq!(repertoire[1].play_details[0].play_times, vec!["20:15".to_string()]);
+    assert_eq!(
+        repertoire[1].play_details[0].play_times,
+        vec![MoviePlayTime { value: "20:15".to_string(), url: None }]
+    );
 }
 
 #[tokio::test]
@@ -189,7 +198,8 @@ async fn fetch_repertoire_upgrades_legacy_url_template_to_canonical_cinema_route
         "https://www.cinema-city.pl/#/buy-tickets-by-cinema?in-cinema={cinema_venue_id}&at={repertoire_date}".to_string(),
         "https://www.cinema-city.pl/#/buy-tickets-by-cinema".to_string(),
         renderer.clone(),
-    );
+    )
+    .with_quickbook_api_base_url("");
     let venue_data = CinemaVenue {
         chain_id: "cinema-city".to_string(),
         venue_id: "1097".to_string(),
@@ -219,7 +229,8 @@ async fn fetch_repertoire_parses_current_language_markup_from_live_schedule_page
         Arc::new(FakeHtmlRenderer {
             html: rendered_repertoire_html_with_current_language_markup(),
         }),
-    );
+    )
+    .with_quickbook_api_base_url("");
     let venue_data = CinemaVenue {
         chain_id: "cinema-city".to_string(),
         venue_id: "1097".to_string(),
@@ -238,7 +249,66 @@ async fn fetch_repertoire_parses_current_language_markup_from_live_schedule_page
         vec![quick_repertoire::domain::MoviePlayDetails {
             format: "2D Projekcja Laserowa BARCO".to_string(),
             play_language: "FILM Z NAPISAMI: PL".to_string(),
-            play_times: vec!["21:40".to_string()],
+            play_times: vec![MoviePlayTime { value: "21:40".to_string(), url: None }],
+        }]
+    );
+}
+
+#[tokio::test]
+async fn fetch_repertoire_adds_movie_page_links_for_bookable_showtimes() {
+    let server = MockServer::start_async().await;
+    let film_events_mock = server
+        .mock_async(|when, then| {
+            when.method(GET)
+                .path("/pl/data-api-service/v1/quickbook/10103/film-events/in-cinema/1097/at-date/2026-03-31");
+            then.status(200).header("content-type", "application/json").body(
+                r#"{
+                  "body": {
+                    "films": [
+                      {
+                        "id": "7945s2r",
+                        "name": "Oni cię zabiją",
+                        "link": "https://www.cinema-city.pl/filmy/oni-cie-zabija/7945s2r"
+                      }
+                    ],
+                    "events": [
+                      {
+                        "filmId": "7945s2r",
+                        "eventDateTime": "2026-03-31T21:40:00",
+                        "bookingLink": "https://tickets.cinema-city.pl/api/order/1350898?lang=pl",
+                        "soldOut": false,
+                        "compositeBookingLink": {
+                          "blockOnlineSales": false
+                        }
+                      }
+                    ]
+                  }
+                }"#,
+            );
+        })
+        .await;
+    let cinema = CinemaCity::new(
+        "https://www.cinema-city.pl/kina/{cinema_venue_slug}/{cinema_venue_id}#/buy-tickets-by-cinema?in-cinema={cinema_venue_id}&at={repertoire_date}&view-mode=list".to_string(),
+        "https://www.cinema-city.pl/#/buy-tickets-by-cinema".to_string(),
+        Arc::new(FakeHtmlRenderer {
+            html: rendered_repertoire_html_with_current_language_markup(),
+        }),
+    )
+    .with_quickbook_api_base_url(server.url("/pl/data-api-service"));
+    let venue_data = CinemaVenue {
+        chain_id: "cinema-city".to_string(),
+        venue_id: "1097".to_string(),
+        venue_name: "Wroclaw - Wroclavia".to_string(),
+    };
+
+    let repertoire = cinema.fetch_repertoire("2026-03-31", &venue_data).await.unwrap();
+
+    film_events_mock.assert_async().await;
+    assert_eq!(
+        repertoire[0].play_details[0].play_times,
+        vec![MoviePlayTime {
+            value: "21:40".to_string(),
+            url: Some("https://www.cinema-city.pl/filmy/oni-cie-zabija/7945s2r".to_string()),
         }]
     );
 }
@@ -254,7 +324,8 @@ async fn fetch_repertoire_retries_transient_browser_failures() {
         "https://www.cinema-city.pl/#/buy-tickets-by-cinema".to_string(),
         renderer.clone(),
     )
-    .with_retry_policy(RetryPolicy::new(2, Duration::ZERO, Duration::ZERO));
+    .with_retry_policy(RetryPolicy::new(2, Duration::ZERO, Duration::ZERO))
+    .with_quickbook_api_base_url("");
     let venue_data = CinemaVenue {
         chain_id: "cinema-city".to_string(),
         venue_id: "1080".to_string(),
@@ -340,6 +411,37 @@ async fn fetch_venues_parses_embedded_api_sites_list_markup() {
             ("cinema-city".to_string(), "Warszawa - Arkadia".to_string(), "1074".to_string())
         ]
     );
+}
+
+#[tokio::test]
+async fn fetch_venues_reports_invalid_embedded_api_sites_list_json() {
+    let cinema = CinemaCity::new(
+        "https://www.cinema-city.pl/#/buy-tickets-by-cinema?in-cinema={cinema_venue_id}&at={repertoire_date}".to_string(),
+        "https://www.cinema-city.pl/#/buy-tickets-by-cinema".to_string(),
+        Arc::new(FakeHtmlRenderer {
+            html: r#"
+            <html>
+              <body>
+                <script>
+                  var apiSitesList = [{"externalCode":"1080","name":];
+                </script>
+              </body>
+            </html>
+            "#
+            .to_string(),
+        }),
+    );
+
+    let error = cinema
+        .fetch_venues()
+        .await
+        .expect_err("invalid embedded venues JSON should return an error");
+
+    assert!(matches!(
+        error,
+        AppError::BrowserUnavailable(message)
+            if message.contains("Nie udało się odczytać listy lokali Cinema City")
+    ));
 }
 
 #[tokio::test]

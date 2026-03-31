@@ -50,10 +50,16 @@ pub struct CinemaVenue {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MoviePlayTime {
+    pub value: String,
+    pub url: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MoviePlayDetails {
     pub format: String,
     pub play_language: String,
-    pub play_times: Vec<String>,
+    pub play_times: Vec<MoviePlayTime>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

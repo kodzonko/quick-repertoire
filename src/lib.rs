@@ -4,6 +4,7 @@ pub mod cli;
 pub mod config;
 pub mod domain;
 pub mod error;
+mod logging;
 pub mod output;
 pub mod persistence;
 pub mod retry;

@@ -17,6 +17,7 @@ use crate::config::{
 };
 use crate::domain::{CinemaChainId, CinemaVenue, RepertoireCliTableMetadata, TmdbMovieDetails};
 use crate::error::{AppError, AppResult};
+use crate::logging::init_logging;
 use crate::output::{
     StdoutTerminal, Terminal, cinema_venue_input_parser, date_input_parser,
     render_repertoire_table, render_venues_table,
@@ -75,6 +76,8 @@ pub async fn run_with_args(
     dependencies: &AppDependencies,
     terminal: &mut dyn Terminal,
 ) -> i32 {
+    init_logging();
+
     let argv = args.iter().skip(1).cloned().collect::<Vec<_>>();
     let mut settings =
         if should_skip_bootstrap_for_argv(&argv) || should_defer_bootstrap_to_command(&argv) {

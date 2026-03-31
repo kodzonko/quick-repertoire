@@ -3,7 +3,8 @@ mod support;
 use std::collections::HashMap;
 
 use quick_repertoire::domain::{
-    CinemaVenue, MoviePlayDetails, Repertoire, RepertoireCliTableMetadata, TmdbMovieDetails,
+    CinemaVenue, MoviePlayDetails, MoviePlayTime, Repertoire, RepertoireCliTableMetadata,
+    TmdbMovieDetails,
 };
 use quick_repertoire::output::{
     cinema_venue_input_parser, date_input_parser, render_repertoire_table, render_venues_table,
@@ -91,7 +92,13 @@ fn render_repertoire_table_renders_ratings_when_available() {
         play_details: vec![MoviePlayDetails {
             format: "2D".to_string(),
             play_language: "NAP: PL".to_string(),
-            play_times: vec!["10:00".to_string(), "12:30".to_string()],
+            play_times: vec![
+                MoviePlayTime {
+                    value: "10:00".to_string(),
+                    url: Some("https://www.cinema-city.pl/filmy/test-movie/123".to_string()),
+                },
+                MoviePlayTime { value: "12:30".to_string(), url: None },
+            ],
         }],
     }];
     let ratings = HashMap::from([(
@@ -108,4 +115,7 @@ fn render_repertoire_table_renders_ratings_when_available() {
     assert!(rendered_output.contains("Ocena z TMDB"));
     assert!(rendered_output.contains("8.5/10"));
     assert!(rendered_output.contains("A tense mystery."));
+    assert!(rendered_output.contains("\u{1b}]8;;https://www.cinema-city.pl/filmy/test-movie/123"));
+    assert!(rendered_output.contains("10:00"));
+    assert!(rendered_output.contains("12:30"));
 }

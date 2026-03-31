@@ -5,7 +5,9 @@ use chrono::{Duration, Local, NaiveDate};
 use comfy_table::{Cell, ContentArrangement, Table, presets::UTF8_FULL};
 use regex::Regex;
 
-use crate::domain::{CinemaVenue, Repertoire, RepertoireCliTableMetadata, TmdbMovieDetails};
+use crate::domain::{
+    CinemaVenue, MoviePlayTime, Repertoire, RepertoireCliTableMetadata, TmdbMovieDetails,
+};
 use crate::error::{AppError, AppResult};
 
 const MISSING_DATA_LABEL: &str = "Brak danych";
@@ -18,6 +20,8 @@ static NON_ASCII_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"[^\x00-\x7F]").expect("non-ascii regex must compile"));
 static MULTI_WILDCARD_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"%{2,}").expect("wildcard regex must compile"));
+const OSC_8_PREFIX: &str = "\u{1b}]8;;";
+const OSC_8_SUFFIX: &str = "\u{1b}\\";
 
 pub trait Terminal {
     fn write_line(&mut self, text: &str);
@@ -131,7 +135,11 @@ pub fn render_repertoire_table(
                             "[{}, {}]:\n{}",
                             play.format,
                             play.play_language,
-                            play.play_times.join(" ")
+                            play.play_times
+                                .iter()
+                                .map(render_play_time)
+                                .collect::<Vec<_>>()
+                                .join(" ")
                         )
                     })
                     .collect::<Vec<_>>()
@@ -156,4 +164,55 @@ pub fn render_repertoire_table(
         table_metadata.repertoire_date,
         table
     )
+}
+
+fn render_play_time(play_time: &MoviePlayTime) -> String {
+    let Some(url) = play_time.url.as_deref().and_then(sanitize_hyperlink_url) else {
+        return play_time.value.clone();
+    };
+
+    format!("{OSC_8_PREFIX}{url}{OSC_8_SUFFIX}{}{OSC_8_PREFIX}{OSC_8_SUFFIX}", play_time.value)
+}
+
+fn sanitize_hyperlink_url(url: &str) -> Option<&str> {
+    let trimmed = url.trim();
+    if trimmed.is_empty()
+        || trimmed.chars().any(|character| matches!(character, '\u{1b}' | '\n' | '\r'))
+    {
+        return None;
+    }
+
+    if trimmed.starts_with("https://") || trimmed.starts_with("http://") {
+        Some(trimmed)
+    } else {
+        None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn render_play_time_wraps_http_links_with_osc8_sequences() {
+        let rendered = render_play_time(&MoviePlayTime {
+            value: "10:00".to_string(),
+            url: Some("https://www.cinema-city.pl/filmy/test-movie/123".to_string()),
+        });
+
+        assert_eq!(
+            rendered,
+            "\u{1b}]8;;https://www.cinema-city.pl/filmy/test-movie/123\u{1b}\\10:00\u{1b}]8;;\u{1b}\\"
+        );
+    }
+
+    #[test]
+    fn render_play_time_falls_back_to_plain_text_for_unsafe_links() {
+        let rendered = render_play_time(&MoviePlayTime {
+            value: "10:00".to_string(),
+            url: Some("javascript:alert(1)".to_string()),
+        });
+
+        assert_eq!(rendered, "10:00");
+    }
 }
