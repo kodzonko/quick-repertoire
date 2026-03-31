@@ -3,13 +3,17 @@ mod support;
 use std::fs;
 
 use quick_repertoire::config::{
-    AppPaths, load_settings, run_interactive_configuration, should_defer_bootstrap_to_command,
+    AppPaths, DEFAULT_DEVELOPMENT_LOG_LEVEL, DEFAULT_PRODUCTION_LOG_LEVEL, default_log_level,
+    load_settings, run_interactive_configuration, should_defer_bootstrap_to_command,
     should_skip_bootstrap_for_argv, write_settings,
 };
 use quick_repertoire::domain::CinemaVenue;
 use quick_repertoire::error::AppError;
 use quick_repertoire::persistence::DatabaseManager;
-use support::{FakeCinemaClient, FakePrompt, FakeTmdbService, dependencies, settings};
+use support::{
+    AcceptDefaultsPrompt, FakeCinemaClient, FakePrompt, FakeTmdbService, dependencies,
+    dependencies_with_prompt_adapter, settings,
+};
 use tempfile::tempdir;
 
 #[test]
@@ -26,7 +30,7 @@ fn load_settings_roundtrips_config_ini() {
 }
 
 #[test]
-fn load_settings_ignores_legacy_db_file_entry() {
+fn load_settings_ignores_legacy_app_section_entries() {
     let temp_dir = tempdir().unwrap();
     let paths = AppPaths::for_runtime_dir(temp_dir.path().to_path_buf());
     fs::write(
@@ -49,17 +53,27 @@ venues_list_url = https://www.cinema-city.pl/#/buy-tickets-by-cinema\n",
     )
     .unwrap();
 
-    assert_eq!(load_settings(&paths).unwrap().loguru_level, "INFO");
+    let loaded_settings = load_settings(&paths).unwrap();
+    assert_eq!(
+        loaded_settings.user_preferences.default_chain,
+        quick_repertoire::domain::CinemaChainId::CinemaCity
+    );
+    assert_eq!(loaded_settings.user_preferences.default_day, "dziś");
 }
 
 #[test]
-fn write_settings_omits_db_file_entry() {
+fn write_settings_omits_legacy_app_entries() {
     let temp_dir = tempdir().unwrap();
     let paths = AppPaths::for_runtime_dir(temp_dir.path().to_path_buf());
 
     write_settings(&settings(), &paths).unwrap();
 
-    assert!(!fs::read_to_string(paths.config_file()).unwrap().contains("db_file ="));
+    let config = fs::read_to_string(paths.config_file()).unwrap();
+    assert!(!config.contains("db_file ="));
+    assert!(!config.contains("loguru_level ="));
+    assert!(!config.contains("[cinema_chains.cinema_city]"));
+    assert!(!config.contains("repertoire_url ="));
+    assert!(!config.contains("venues_list_url ="));
 }
 
 #[test]
@@ -72,6 +86,27 @@ fn bootstrap_rules_match_help_and_configure_flows() {
     ]));
     assert!(should_defer_bootstrap_to_command(&["configure".to_string()]));
     assert!(!should_defer_bootstrap_to_command(&["repertoire".to_string()]));
+}
+
+#[test]
+fn load_settings_reports_recovery_command_with_binary_name() {
+    let temp_dir = tempdir().unwrap();
+    let paths = AppPaths::for_runtime_dir(temp_dir.path().to_path_buf());
+    fs::write(paths.config_file(), "[app\n").unwrap();
+
+    let error = load_settings(&paths).unwrap_err();
+
+    assert!(error.to_string().contains("`quickrep configure`"));
+}
+
+#[test]
+fn default_log_level_matches_current_build_profile() {
+    let expected = if cfg!(debug_assertions) {
+        DEFAULT_DEVELOPMENT_LOG_LEVEL
+    } else {
+        DEFAULT_PRODUCTION_LOG_LEVEL
+    };
+    assert_eq!(default_log_level(), expected);
 }
 
 #[tokio::test]
@@ -95,12 +130,7 @@ async fn run_interactive_configuration_persists_selected_settings_and_venues() {
     let dependencies = dependencies(
         temp_dir.path(),
         FakePrompt::new(
-            vec![
-                "INFO".to_string(),
-                "cinema-city".to_string(),
-                "today".to_string(),
-                "Wroclaw - Wroclavia".to_string(),
-            ],
+            vec!["cinema-city".to_string(), "dziś".to_string(), "Wroclaw - Wroclavia".to_string()],
             vec!["tmdb-token".to_string()],
         ),
         cinema_client,
@@ -143,13 +173,53 @@ async fn run_interactive_configuration_persists_selected_settings_and_venues() {
 }
 
 #[tokio::test]
+async fn run_interactive_configuration_defaults_venue_to_first_sorted_option() {
+    let temp_dir = tempdir().unwrap();
+    let cinema_client = FakeCinemaClient::new(
+        Vec::new(),
+        vec![
+            CinemaVenue {
+                chain_id: "cinema-city".to_string(),
+                venue_name: "Wroclaw - Wroclavia".to_string(),
+                venue_id: "3".to_string(),
+            },
+            CinemaVenue {
+                chain_id: "cinema-city".to_string(),
+                venue_name: "Lodz - Manufaktura".to_string(),
+                venue_id: "2".to_string(),
+            },
+        ],
+    );
+    let dependencies = dependencies_with_prompt_adapter(
+        temp_dir.path(),
+        AcceptDefaultsPrompt::new(Vec::new(), Vec::new()),
+        cinema_client,
+        FakeTmdbService { result: Default::default(), error: None },
+    );
+
+    let configured_settings = run_interactive_configuration(
+        &dependencies.paths,
+        None,
+        &dependencies.registry,
+        dependencies.prompt.as_ref(),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        configured_settings.get_default_venue(quick_repertoire::domain::CinemaChainId::CinemaCity),
+        Some("Lodz - Manufaktura")
+    );
+}
+
+#[tokio::test]
 async fn run_interactive_configuration_does_not_create_config_when_venue_fetch_fails() {
     let temp_dir = tempdir().unwrap();
     let mut cinema_client = FakeCinemaClient::new(Vec::new(), Vec::new());
     cinema_client.venues_error = Some(AppError::configuration("boom"));
     let dependencies = dependencies(
         temp_dir.path(),
-        FakePrompt::new(vec!["INFO".to_string()], Vec::new()),
+        FakePrompt::new(Vec::new(), Vec::new()),
         cinema_client,
         FakeTmdbService { result: Default::default(), error: None },
     );

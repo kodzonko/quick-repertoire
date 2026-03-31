@@ -3,10 +3,10 @@ name = "quick-repertoire"
 version = "1.0.0"
 edition = "2024"
 rust-version = "1.94"
-default-run = "app"
+default-run = "quickrep"
 
 [[bin]]
-name = "app"
+name = "quickrep"
 path = "src/main.rs"
 
 [dependencies]

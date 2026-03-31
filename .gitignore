@@ -6,3 +6,4 @@ run.env
 chromedriver.exe
 .codex-tmp/
 target/
+.playwright-cli/

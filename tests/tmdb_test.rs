@@ -1,14 +1,78 @@
 mod support;
 
 use std::collections::HashMap;
+use std::io::{Read, Write};
+use std::net::TcpListener;
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration;
 
 use httpmock::Method::GET;
 use httpmock::MockServer;
 use quick_repertoire::domain::TmdbMovieDetails;
+use quick_repertoire::retry::RetryPolicy;
 use quick_repertoire::tmdb::{
     ReqwestTmdbClient, TmdbService, ensure_single_result, parse_movie_rating, parse_movie_summary,
 };
 use serde_json::json;
+
+fn json_response(
+    status_code: u16,
+    reason_phrase: &str,
+    body: serde_json::Value,
+    extra_headers: &[(&str, &str)],
+) -> String {
+    let body = body.to_string();
+    let mut response = format!(
+        "HTTP/1.1 {status_code} {reason_phrase}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n",
+        body.len()
+    );
+
+    for (name, value) in extra_headers {
+        response.push_str(&format!("{name}: {value}\r\n"));
+    }
+
+    response.push_str("\r\n");
+    response.push_str(&body);
+    response
+}
+
+fn start_sequenced_http_server(
+    responses: Vec<String>,
+) -> (String, Arc<Mutex<Vec<String>>>, thread::JoinHandle<()>) {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("test server should bind");
+    let address = listener.local_addr().expect("test server should expose its address");
+    let recorded_requests = Arc::new(Mutex::new(Vec::new()));
+    let recorded_requests_handle = recorded_requests.clone();
+
+    let server = thread::spawn(move || {
+        for response in responses {
+            let (mut stream, _) = listener.accept().expect("test server should accept a request");
+            let mut request = Vec::new();
+            let mut buffer = [0_u8; 1024];
+
+            loop {
+                let bytes_read = stream.read(&mut buffer).expect("request should be readable");
+                if bytes_read == 0 {
+                    break;
+                }
+                request.extend_from_slice(&buffer[..bytes_read]);
+                if request.windows(4).any(|window| window == b"\r\n\r\n") {
+                    break;
+                }
+            }
+
+            recorded_requests_handle
+                .lock()
+                .expect("recorded requests lock poisoned")
+                .push(String::from_utf8(request).expect("request should be valid utf-8"));
+            stream.write_all(response.as_bytes()).expect("response should be writable");
+            stream.flush().expect("response should flush");
+        }
+    });
+
+    (format!("http://{address}"), recorded_requests, server)
+}
 
 #[tokio::test]
 async fn get_movie_ratings_and_summaries_returns_correct_tmdb_movie_details() {
@@ -78,6 +142,140 @@ async fn get_movie_ratings_and_summaries_returns_correct_tmdb_movie_details() {
                 }
             ),
         ])
+    );
+}
+
+#[tokio::test]
+async fn get_movie_ratings_and_summaries_accepts_legacy_v3_api_keys() {
+    let server = MockServer::start_async().await;
+    server
+        .mock_async(|when, then| {
+            when.method(GET)
+                .path("/search/movie")
+                .query_param("query", "Garfield")
+                .query_param("api_key", "1234567890abcdef1234567890abcdef");
+            then.status(200).json_body(json!({
+                "results": [{
+                    "vote_average": 6.717,
+                    "vote_count": 184,
+                    "overview": "Garfield jest najbardziej znanym kotem na świecie."
+                }]
+            }));
+        })
+        .await;
+
+    let client = ReqwestTmdbClient::with_base_urls(
+        server.url("/authentication"),
+        server.url("/search/movie"),
+    )
+    .unwrap();
+
+    let details = client
+        .get_movie_ratings_and_summaries(
+            &["Garfield".to_string()],
+            "1234567890abcdef1234567890abcdef",
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        details,
+        HashMap::from([(
+            "Garfield".to_string(),
+            TmdbMovieDetails {
+                rating: "6.717/10\n(głosy: 184)".to_string(),
+                summary: "Garfield jest najbardziej znanym kotem na świecie.".to_string(),
+            }
+        )])
+    );
+}
+
+#[tokio::test]
+async fn get_movie_ratings_and_summaries_retries_retryable_tmdb_responses() {
+    let (base_url, recorded_requests, server) = start_sequenced_http_server(vec![
+        json_response(
+            429,
+            "Too Many Requests",
+            json!({"status_message": "slow down"}),
+            &[("Retry-After", "0")],
+        ),
+        json_response(
+            200,
+            "OK",
+            json!({
+                "results": [{
+                    "vote_average": 6.717,
+                    "vote_count": 184,
+                    "overview": "Garfield jest najbardziej znanym kotem na świecie."
+                }]
+            }),
+            &[],
+        ),
+    ]);
+
+    let client = ReqwestTmdbClient::with_base_urls(
+        format!("{base_url}/authentication"),
+        format!("{base_url}/search/movie"),
+    )
+    .unwrap()
+    .with_retry_policy(RetryPolicy::new(2, Duration::ZERO, Duration::ZERO));
+
+    let details =
+        client.get_movie_ratings_and_summaries(&["Garfield".to_string()], "token").await.unwrap();
+
+    server.join().expect("test server should finish cleanly");
+
+    assert_eq!(
+        details,
+        HashMap::from([(
+            "Garfield".to_string(),
+            TmdbMovieDetails {
+                rating: "6.717/10\n(głosy: 184)".to_string(),
+                summary: "Garfield jest najbardziej znanym kotem na świecie.".to_string(),
+            }
+        )])
+    );
+
+    let requests = recorded_requests.lock().expect("recorded requests lock poisoned");
+    assert_eq!(requests.len(), 2);
+    assert!(requests.iter().all(|request| request.contains("GET /search/movie?query=Garfield")));
+    assert!(
+        requests
+            .iter()
+            .all(|request| request.to_ascii_lowercase().contains("authorization: bearer token"))
+    );
+}
+
+#[tokio::test]
+async fn verify_api_key_retries_retryable_tmdb_responses() {
+    let (base_url, recorded_requests, server) = start_sequenced_http_server(vec![
+        json_response(
+            500,
+            "Internal Server Error",
+            json!({"status_message": "temporary failure"}),
+            &[],
+        ),
+        json_response(200, "OK", json!({"success": true}), &[]),
+    ]);
+
+    let client = ReqwestTmdbClient::with_base_urls(
+        format!("{base_url}/authentication"),
+        format!("{base_url}/search/movie"),
+    )
+    .unwrap()
+    .with_retry_policy(RetryPolicy::new(2, Duration::ZERO, Duration::ZERO));
+
+    assert!(client.verify_api_key("token").await);
+
+    server.join().expect("test server should finish cleanly");
+
+    let requests = recorded_requests.lock().expect("recorded requests lock poisoned");
+    assert_eq!(requests.len(), 2);
+    assert!(requests.iter().all(|request| request.contains("GET /authentication")));
+    assert!(
+        requests
+            .iter()
+            .all(|request| request.to_ascii_lowercase().contains("authorization: bearer token"))
     );
 }
 

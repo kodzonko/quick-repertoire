@@ -19,7 +19,9 @@ fn cinema_venue_input_parser_parses_user_input_correctly() {
 #[test]
 fn date_input_parser_accepts_supported_values() {
     assert_eq!(date_input_parser("2021-12-31").unwrap(), "2021-12-31");
+    assert!(date_input_parser("dziś").is_ok());
     assert!(date_input_parser("today").is_ok());
+    assert!(date_input_parser("tomorrow").is_ok());
     assert!(date_input_parser("jutro").is_ok());
 }
 
@@ -27,7 +29,7 @@ fn date_input_parser_accepts_supported_values() {
 fn date_input_parser_rejects_unsupported_values() {
     assert_eq!(
         date_input_parser("foo").unwrap_err().to_string(),
-        "Data: foo nie jest we wspieranym formacie: YYYY-MM-DD | dzis | jutro | itp..."
+        "Data: foo nie jest we wspieranym formacie: YYYY-MM-DD | dziś | jutro."
     );
 }
 
@@ -55,7 +57,8 @@ fn render_venues_table_renders_table_for_found_venues() {
     );
 
     assert!(rendered_output.contains("Znalezione lokale sieci Cinema City"));
-    assert!(rendered_output.contains("venue_name"));
+    assert!(rendered_output.contains("Nazwa lokalu"));
+    assert!(rendered_output.contains("ID lokalu"));
     assert!(rendered_output.contains("Wroclaw - Wroclavia"));
 }
 

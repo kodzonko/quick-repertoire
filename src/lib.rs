@@ -6,4 +6,5 @@ pub mod domain;
 pub mod error;
 pub mod output;
 pub mod persistence;
+pub mod retry;
 pub mod tmdb;

@@ -9,7 +9,7 @@ use crate::cinema::cinema_city::ChromiumHtmlRenderer;
 use crate::cinema::registry::{RegisteredCinemaChain, Registry};
 use crate::cli::{Cli, Commands, VenueCommands};
 use crate::config::{
-    AppPaths, PromptAdapter, RuntimeWriteAccessProbe, Settings, build_prompt_adapter,
+    AppPaths, BINARY_NAME, PromptAdapter, RuntimeWriteAccessProbe, Settings, build_prompt_adapter,
     build_runtime_write_access_probe, ensure_settings_for_argv_with_write_access_probe,
     load_settings, load_settings_if_available,
     run_interactive_configuration_with_write_access_probe, should_defer_bootstrap_to_command,
@@ -381,7 +381,7 @@ fn show_completion() -> i32 {
     match shell {
         Some(shell) => {
             let mut command = Cli::command();
-            generate(shell, &mut command, "app", &mut std::io::stdout());
+            generate(shell, &mut command, BINARY_NAME, &mut std::io::stdout());
             0
         }
         None => {

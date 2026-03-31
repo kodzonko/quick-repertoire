@@ -13,11 +13,13 @@ use crate::persistence::DatabaseManager;
 
 pub const CONFIG_FILE_NAME: &str = "config.ini";
 pub const DB_FILE_NAME: &str = "db.sqlite";
-pub const DEFAULT_DAY_CHOICES: [&str; 2] = ["today", "tomorrow"];
-pub const LOG_LEVEL_CHOICES: [&str; 6] = ["INFO", "DEBUG", "WARNING", "ERROR", "CRITICAL", "TRACE"];
+pub const BINARY_NAME: &str = "quickrep";
+pub const DEFAULT_DAY_CHOICES: [&str; 2] = ["dziś", "jutro"];
+pub const DEFAULT_PRODUCTION_LOG_LEVEL: &str = "INFO";
+pub const DEFAULT_DEVELOPMENT_LOG_LEVEL: &str = "DEBUG";
 pub const HELP_AND_COMPLETION_FLAGS: [&str; 4] =
     ["-h", "--help", "--install-completion", "--show-completion"];
-pub const DEFAULT_CINEMA_CITY_REPERTOIRE_URL: &str = "https://www.cinema-city.pl/#/buy-tickets-by-cinema?in-cinema={cinema_venue_id}&at={repertoire_date}";
+pub const DEFAULT_CINEMA_CITY_REPERTOIRE_URL: &str = "https://www.cinema-city.pl/kina/{cinema_venue_slug}/{cinema_venue_id}#/buy-tickets-by-cinema?in-cinema={cinema_venue_id}&at={repertoire_date}&view-mode=list";
 pub const DEFAULT_CINEMA_CITY_VENUES_LIST_URL: &str =
     "https://www.cinema-city.pl/#/buy-tickets-by-cinema";
 
@@ -72,15 +74,9 @@ pub fn build_runtime_write_access_probe() -> Box<dyn RuntimeWriteAccessProbe> {
     Box::new(FileSystemRuntimeWriteAccessProbe)
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct DefaultVenues {
     pub cinema_city: Option<String>,
-}
-
-impl Default for DefaultVenues {
-    fn default() -> Self {
-        Self { cinema_city: Some("Wroclaw - Wroclavia".to_string()) }
-    }
 }
 
 impl DefaultVenues {
@@ -109,61 +105,29 @@ impl Default for UserPreferences {
     fn default() -> Self {
         Self {
             default_chain: CinemaChainId::CinemaCity,
-            default_day: "today".to_string(),
+            default_day: DEFAULT_DAY_CHOICES[0].to_string(),
             tmdb_access_token: None,
             default_venues: DefaultVenues::default(),
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CinemaChainSettings {
-    pub repertoire_url: String,
-    pub venues_list_url: String,
-}
-
-impl Default for CinemaChainSettings {
-    fn default() -> Self {
-        Self {
-            repertoire_url: DEFAULT_CINEMA_CITY_REPERTOIRE_URL.to_string(),
-            venues_list_url: DEFAULT_CINEMA_CITY_VENUES_LIST_URL.to_string(),
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct CinemaChainsSettings {
-    pub cinema_city: CinemaChainSettings,
-}
-
-impl CinemaChainsSettings {
-    pub fn get(&self, chain_id: CinemaChainId) -> &CinemaChainSettings {
-        match chain_id {
-            CinemaChainId::CinemaCity => &self.cinema_city,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Settings {
     pub user_preferences: UserPreferences,
-    pub cinema_chains: CinemaChainsSettings,
-    pub loguru_level: String,
-}
-
-impl Default for Settings {
-    fn default() -> Self {
-        Self {
-            user_preferences: UserPreferences::default(),
-            cinema_chains: CinemaChainsSettings::default(),
-            loguru_level: "INFO".to_string(),
-        }
-    }
 }
 
 impl Settings {
     pub fn get_default_venue(&self, chain_id: CinemaChainId) -> Option<&str> {
         self.user_preferences.default_venues.get(chain_id)
+    }
+}
+
+pub fn default_log_level() -> &'static str {
+    if cfg!(debug_assertions) {
+        DEFAULT_DEVELOPMENT_LOG_LEVEL
+    } else {
+        DEFAULT_PRODUCTION_LOG_LEVEL
     }
 }
 
@@ -278,27 +242,19 @@ pub fn load_settings(paths: &AppPaths) -> AppResult<Settings> {
         }
     })?;
 
-    let sections = parse_ini(&content).map_err(|_| {
-        AppError::configuration(
-            "Nie udało się wczytać config.ini. Uruchom `app configure`, aby odtworzyć konfigurację.",
-        )
-    })?;
+    let sections =
+        parse_ini(&content).map_err(|_| AppError::configuration(configure_recovery_message()))?;
 
     Ok(Settings {
-        loguru_level: get_required(&sections, "app", "loguru_level")
-            .unwrap_or("INFO")
-            .to_string(),
         user_preferences: UserPreferences {
             default_chain: CinemaChainId::from_value(
-                get_required(&sections, "user_preferences", "default_chain").map_err(|_| {
-                    AppError::configuration(
-                        "Nie udało się wczytać config.ini. Uruchom `app configure`, aby odtworzyć konfigurację.",
-                    )
-                })?,
+                get_required(&sections, "user_preferences", "default_chain")
+                    .map_err(|_| AppError::configuration(configure_recovery_message()))?,
             )?,
-            default_day: get_required(&sections, "user_preferences", "default_day")
-                .unwrap_or("today")
-                .to_string(),
+            default_day: canonicalize_default_day(
+                get_required(&sections, "user_preferences", "default_day")
+                    .unwrap_or(DEFAULT_DAY_CHOICES[0]),
+            ),
             tmdb_access_token: normalize_optional(
                 get_optional(&sections, "user_preferences", "tmdb_access_token")
                     .unwrap_or_default()
@@ -312,25 +268,13 @@ pub fn load_settings(paths: &AppPaths) -> AppResult<Settings> {
                 ),
             },
         },
-        cinema_chains: CinemaChainsSettings {
-            cinema_city: CinemaChainSettings {
-                repertoire_url: get_required(
-                    &sections,
-                    "cinema_chains.cinema_city",
-                    "repertoire_url",
-                )
-                .unwrap_or(DEFAULT_CINEMA_CITY_REPERTOIRE_URL)
-                .to_string(),
-                venues_list_url: get_required(
-                    &sections,
-                    "cinema_chains.cinema_city",
-                    "venues_list_url",
-                )
-                .unwrap_or(DEFAULT_CINEMA_CITY_VENUES_LIST_URL)
-                .to_string(),
-            },
-        },
     })
+}
+
+fn configure_recovery_message() -> String {
+    format!(
+        "Nie udało się wczytać config.ini. Uruchom `{BINARY_NAME} configure`, aby odtworzyć konfigurację."
+    )
 }
 
 pub fn write_settings(settings: &Settings, paths: &AppPaths) -> AppResult<()> {
@@ -340,27 +284,18 @@ pub fn write_settings(settings: &Settings, paths: &AppPaths) -> AppResult<()> {
     }
 
     let config_body = format!(
-        "[app]\n\
-loguru_level = {}\n\
-\n\
-[user_preferences]\n\
+        "[user_preferences]\n\
 default_chain = {}\n\
 default_day = {}\n\
 tmdb_access_token = {}\n\
 \n\
 [default_venues]\n\
 cinema_city = {}\n\
-\n\
-[cinema_chains.cinema_city]\n\
-repertoire_url = {}\n\
-venues_list_url = {}\n",
-        settings.loguru_level,
+\n",
         settings.user_preferences.default_chain.as_str(),
         settings.user_preferences.default_day,
         settings.user_preferences.tmdb_access_token.clone().unwrap_or_default(),
         settings.user_preferences.default_venues.cinema_city.clone().unwrap_or_default(),
-        settings.cinema_chains.cinema_city.repertoire_url,
-        settings.cinema_chains.cinema_city.venues_list_url,
     );
 
     let temp_path = config_path.with_extension("tmp");
@@ -397,22 +332,10 @@ pub async fn run_interactive_configuration_with_write_access_probe(
 ) -> AppResult<Settings> {
     verify_runtime_write_access(paths, write_access_probe)?;
 
-    let base_settings = existing_settings.unwrap_or_default();
-    let selected_log_level = prompt.select(
-        "Wybierz domyślny poziom logowania:",
-        &LOG_LEVEL_CHOICES
-            .iter()
-            .map(|choice| SelectionChoice {
-                title: (*choice).to_string(),
-                value: (*choice).to_string(),
-            })
-            .collect::<Vec<_>>(),
-        Some(base_settings.loguru_level.as_str()),
-    )?;
-
+    let mut base_settings = existing_settings.unwrap_or_default();
+    base_settings.user_preferences.default_day =
+        canonicalize_default_day(&base_settings.user_preferences.default_day);
     let mut working_settings = base_settings.clone();
-    working_settings.loguru_level = selected_log_level;
-
     let venues_by_chain = fetch_all_registered_venues(&working_settings, registry).await?;
 
     let chain_choices = registry
@@ -439,26 +362,30 @@ pub async fn run_interactive_configuration_with_write_access_probe(
             .collect::<Vec<_>>(),
         Some(base_settings.user_preferences.default_day.as_str()),
     )?;
+    let available_venues = venues_by_chain
+        .get(&selected_default_chain)
+        .ok_or_else(|| AppError::configuration("Brak lokali dla wybranej sieci."))?;
+    let venue_choices = available_venues
+        .iter()
+        .map(|venue| SelectionChoice {
+            title: venue.venue_name.clone(),
+            value: venue.venue_name.clone(),
+        })
+        .collect::<Vec<_>>();
     let selected_default_venue = prompt.select(
         "Wybierz domyślny lokal:",
-        &venues_by_chain
-            .get(&selected_default_chain)
-            .ok_or_else(|| AppError::configuration("Brak lokali dla wybranej sieci."))?
-            .iter()
-            .map(|venue| SelectionChoice {
-                title: venue.venue_name.clone(),
-                value: venue.venue_name.clone(),
-            })
-            .collect::<Vec<_>>(),
-        base_settings.get_default_venue(selected_default_chain),
+        &venue_choices,
+        base_settings
+            .get_default_venue(selected_default_chain)
+            .or_else(|| available_venues.first().map(|venue| venue.venue_name.as_str())),
     )?;
     let selected_tmdb_access_token = prompt.text(
-        "Podaj token API TMDB (pozostaw puste, aby wyłączyć TMDB):",
+        "Podaj dane TMDB (API Read Access Token lub Klucz API; pozostaw puste, aby wyłączyć TMDB):",
         base_settings.user_preferences.tmdb_access_token.as_deref().unwrap_or(""),
     )?;
 
     working_settings.user_preferences.default_chain = selected_default_chain;
-    working_settings.user_preferences.default_day = selected_default_day;
+    working_settings.user_preferences.default_day = canonicalize_default_day(&selected_default_day);
     working_settings.user_preferences.tmdb_access_token =
         normalize_optional(&selected_tmdb_access_token);
     working_settings
@@ -634,6 +561,17 @@ fn get_optional(
 fn normalize_optional(value: &str) -> Option<String> {
     let trimmed = value.trim();
     if trimmed.is_empty() { None } else { Some(trimmed.to_string()) }
+}
+
+fn canonicalize_default_day(day: &str) -> String {
+    let trimmed = day.trim();
+    let normalized = trimmed.to_lowercase();
+    match normalized.as_str() {
+        "dziś" | "dzis" | "dzisiaj" | "today" => DEFAULT_DAY_CHOICES[0].to_string(),
+        "jutro" | "tomorrow" => DEFAULT_DAY_CHOICES[1].to_string(),
+        _ if trimmed.is_empty() => DEFAULT_DAY_CHOICES[0].to_string(),
+        _ => trimmed.to_string(),
+    }
 }
 
 fn map_prompt_error(error: dialoguer::Error) -> AppError {

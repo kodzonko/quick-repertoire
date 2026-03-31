@@ -10,9 +10,8 @@ use quick_repertoire::app::AppDependencies;
 use quick_repertoire::cinema::cinema_city::HtmlRenderer;
 use quick_repertoire::cinema::registry::{CinemaChainClient, RegisteredCinemaChain, Registry};
 use quick_repertoire::config::{
-    AppPaths, CinemaChainSettings, CinemaChainsSettings, DefaultVenues,
-    FileSystemRuntimeWriteAccessProbe, PromptAdapter, RuntimeWriteAccessProbe, SelectionChoice,
-    Settings, UserPreferences,
+    AppPaths, DefaultVenues, FileSystemRuntimeWriteAccessProbe, PromptAdapter,
+    RuntimeWriteAccessProbe, SelectionChoice, Settings, UserPreferences,
 };
 use quick_repertoire::domain::{CinemaChainId, CinemaVenue, Repertoire, TmdbMovieDetails};
 use quick_repertoire::error::{AppError, AppResult};
@@ -22,19 +21,10 @@ pub fn settings() -> Settings {
     Settings {
         user_preferences: UserPreferences {
             default_chain: CinemaChainId::CinemaCity,
-            default_day: "today".to_string(),
+            default_day: "dziś".to_string(),
             tmdb_access_token: Some("1234".to_string()),
-            default_venues: DefaultVenues {
-                cinema_city: Some("Wroclaw - Wroclavia".to_string()),
-            },
+            default_venues: DefaultVenues { cinema_city: Some("Wroclaw - Wroclavia".to_string()) },
         },
-        cinema_chains: CinemaChainsSettings {
-            cinema_city: CinemaChainSettings {
-                repertoire_url: "https://www.cinema-city.pl/#/buy-tickets-by-cinema?in-cinema={cinema_venue_id}&at={repertoire_date}".to_string(),
-                venues_list_url: "https://www.cinema-city.pl/#/buy-tickets-by-cinema".to_string(),
-            },
-        },
-        loguru_level: "TRACE".to_string(),
     }
 }
 
@@ -84,6 +74,53 @@ impl PromptAdapter for FakePrompt {
             .expect("prompt texts lock poisoned")
             .pop_front()
             .ok_or(AppError::ConfigurationAborted)
+    }
+}
+
+#[derive(Clone)]
+pub struct AcceptDefaultsPrompt {
+    selections: Arc<Mutex<VecDeque<String>>>,
+    texts: Arc<Mutex<VecDeque<String>>>,
+}
+
+impl AcceptDefaultsPrompt {
+    pub fn new(selections: Vec<String>, texts: Vec<String>) -> Self {
+        Self {
+            selections: Arc::new(Mutex::new(VecDeque::from(selections))),
+            texts: Arc::new(Mutex::new(VecDeque::from(texts))),
+        }
+    }
+}
+
+impl PromptAdapter for AcceptDefaultsPrompt {
+    fn select(
+        &self,
+        _message: &str,
+        choices: &[SelectionChoice],
+        default: Option<&str>,
+    ) -> AppResult<String> {
+        if let Some(selection) =
+            self.selections.lock().expect("prompt selections lock poisoned").pop_front()
+        {
+            return Ok(selection);
+        }
+
+        if let Some(choice) =
+            default.and_then(|default| choices.iter().find(|choice| choice.value == default))
+        {
+            return Ok(choice.value.clone());
+        }
+
+        choices.first().map(|choice| choice.value.clone()).ok_or(AppError::ConfigurationAborted)
+    }
+
+    fn text(&self, _message: &str, default: &str) -> AppResult<String> {
+        Ok(self
+            .texts
+            .lock()
+            .expect("prompt texts lock poisoned")
+            .pop_front()
+            .unwrap_or_else(|| default.to_string()))
     }
 }
 
@@ -148,7 +185,22 @@ pub fn dependencies(
     cinema_client: FakeCinemaClient,
     tmdb_service: FakeTmdbService,
 ) -> AppDependencies {
-    dependencies_with_write_access_probe(
+    dependencies_with_prompt_adapter_and_write_access_probe(
+        runtime_dir,
+        prompt,
+        cinema_client,
+        tmdb_service,
+        Box::new(FileSystemRuntimeWriteAccessProbe),
+    )
+}
+
+pub fn dependencies_with_prompt_adapter<P: PromptAdapter + 'static>(
+    runtime_dir: &Path,
+    prompt: P,
+    cinema_client: FakeCinemaClient,
+    tmdb_service: FakeTmdbService,
+) -> AppDependencies {
+    dependencies_with_prompt_adapter_and_write_access_probe(
         runtime_dir,
         prompt,
         cinema_client,
@@ -160,6 +212,22 @@ pub fn dependencies(
 pub fn dependencies_with_write_access_probe(
     runtime_dir: &Path,
     prompt: FakePrompt,
+    cinema_client: FakeCinemaClient,
+    tmdb_service: FakeTmdbService,
+    runtime_write_access_probe: Box<dyn RuntimeWriteAccessProbe>,
+) -> AppDependencies {
+    dependencies_with_prompt_adapter_and_write_access_probe(
+        runtime_dir,
+        prompt,
+        cinema_client,
+        tmdb_service,
+        runtime_write_access_probe,
+    )
+}
+
+fn dependencies_with_prompt_adapter_and_write_access_probe<P: PromptAdapter + 'static>(
+    runtime_dir: &Path,
+    prompt: P,
     cinema_client: FakeCinemaClient,
     tmdb_service: FakeTmdbService,
     runtime_write_access_probe: Box<dyn RuntimeWriteAccessProbe>,

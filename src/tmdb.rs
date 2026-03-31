@@ -1,14 +1,23 @@
 use std::collections::{HashMap, HashSet};
+use std::time::Duration;
 
 use async_trait::async_trait;
-use chrono::{Datelike, Local};
+use chrono::{Datelike, Local, Utc};
+use reqwest::header::{HeaderMap, RETRY_AFTER};
 use reqwest::{Client, StatusCode};
 use serde_json::Value;
 
 use crate::domain::TmdbMovieDetails;
 use crate::error::{AppError, AppResult};
+use crate::retry::{RetryDirective, RetryPolicy, retry_with_backoff};
 
 const REQUEST_TIMEOUT_SECONDS: u64 = 30;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TmdbAuthentication {
+    ApiKey,
+    BearerToken,
+}
 
 #[async_trait]
 pub trait TmdbService: Send + Sync {
@@ -24,6 +33,7 @@ pub struct ReqwestTmdbClient {
     client: Client,
     auth_url: String,
     search_url: String,
+    retry_policy: RetryPolicy,
 }
 
 impl ReqwestTmdbClient {
@@ -36,6 +46,7 @@ impl ReqwestTmdbClient {
             client,
             auth_url: "https://api.themoviedb.org/3/authentication".to_string(),
             search_url: "https://api.themoviedb.org/3/search/movie".to_string(),
+            retry_policy: RetryPolicy::network_requests(),
         })
     }
 
@@ -49,22 +60,42 @@ impl ReqwestTmdbClient {
         Ok(client)
     }
 
+    pub fn with_retry_policy(mut self, retry_policy: RetryPolicy) -> Self {
+        self.retry_policy = retry_policy;
+        self
+    }
+
     async fn fetch_movie_details(&self, movie_name: &str, access_token: &str) -> AppResult<Value> {
-        let response = self
-            .client
-            .get(&self.search_url)
-            .query(&self.make_search_params(movie_name))
-            .headers(self.make_headers(access_token)?)
-            .send()
-            .await
-            .map_err(|error| AppError::Http(error.to_string()))?;
-        if response.status().is_client_error() || response.status().is_server_error() {
-            return Err(AppError::Http(format!(
-                "TMDB request failed with status {}.",
-                response.status()
-            )));
-        }
-        response.json::<Value>().await.map_err(|error| AppError::Http(error.to_string()))
+        retry_with_backoff(self.retry_policy, |_| async {
+            let response = self
+                .authorize_request(self.client.get(&self.search_url), access_token)
+                .map_err(RetryDirective::fail)?
+                .query(&self.make_search_params(movie_name))
+                .send()
+                .await
+                .map_err(classify_tmdb_transport_error)?;
+            let retry_after = retry_after_delay(response.headers());
+            let status = response.status();
+
+            if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
+                return Err(RetryDirective::fail(tmdb_status_error(status)));
+            }
+
+            if is_retryable_tmdb_status(status) {
+                let error = tmdb_status_error(status);
+                return Err(match retry_after {
+                    Some(delay) => RetryDirective::retry_after(error, delay),
+                    None => RetryDirective::retry(error),
+                });
+            }
+
+            if status.is_client_error() || status.is_server_error() {
+                return Err(RetryDirective::fail(tmdb_status_error(status)));
+            }
+
+            response.json::<Value>().await.map_err(classify_tmdb_response_error)
+        })
+        .await
     }
 
     async fn fetch_all_movie_details(
@@ -103,22 +134,50 @@ impl ReqwestTmdbClient {
     }
 
     pub async fn verify_api_key(&self, access_token: &str) -> bool {
-        match self
-            .client
-            .get(&self.auth_url)
-            .headers(match self.make_headers(access_token) {
-                Ok(headers) => headers,
-                Err(_) => return false,
-            })
-            .send()
-            .await
-        {
-            Ok(response) => response.status() == StatusCode::OK,
-            Err(_) => false,
+        retry_with_backoff(self.retry_policy, |_| async {
+            let request = self
+                .authorize_request(self.client.get(&self.auth_url), access_token)
+                .unwrap_or_else(|_| self.client.get(&self.auth_url));
+            let response = request.send().await.map_err(classify_tmdb_transport_error)?;
+            let retry_after = retry_after_delay(response.headers());
+            let status = response.status();
+
+            if status == StatusCode::OK {
+                return Ok(true);
+            }
+
+            if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
+                return Ok(false);
+            }
+
+            if is_retryable_tmdb_status(status) {
+                let error = tmdb_status_error(status);
+                return Err(match retry_after {
+                    Some(delay) => RetryDirective::retry_after(error, delay),
+                    None => RetryDirective::retry(error),
+                });
+            }
+
+            Ok(false)
+        })
+        .await
+        .unwrap_or(false)
+    }
+
+    fn authorize_request(
+        &self,
+        request: reqwest::RequestBuilder,
+        access_token: &str,
+    ) -> AppResult<reqwest::RequestBuilder> {
+        match self.authentication_mode(access_token) {
+            TmdbAuthentication::ApiKey => Ok(request.query(&[("api_key", access_token)])),
+            TmdbAuthentication::BearerToken => {
+                Ok(request.headers(self.make_bearer_headers(access_token)?))
+            }
         }
     }
 
-    fn make_headers(&self, access_token: &str) -> AppResult<reqwest::header::HeaderMap> {
+    fn make_bearer_headers(&self, access_token: &str) -> AppResult<reqwest::header::HeaderMap> {
         let mut headers = reqwest::header::HeaderMap::new();
         let bearer = reqwest::header::HeaderValue::from_str(&format!("Bearer {access_token}"))
             .map_err(|error| AppError::Http(error.to_string()))?;
@@ -128,6 +187,14 @@ impl ReqwestTmdbClient {
         );
         headers.insert(reqwest::header::AUTHORIZATION, bearer);
         Ok(headers)
+    }
+
+    fn authentication_mode(&self, access_token: &str) -> TmdbAuthentication {
+        if looks_like_tmdb_v3_api_key(access_token) {
+            TmdbAuthentication::ApiKey
+        } else {
+            TmdbAuthentication::BearerToken
+        }
     }
 
     fn make_search_params(&self, movie_name: &str) -> [(&str, String); 5] {
@@ -140,6 +207,52 @@ impl ReqwestTmdbClient {
             ("page", "1".to_string()),
         ]
     }
+}
+
+fn looks_like_tmdb_v3_api_key(access_token: &str) -> bool {
+    access_token.len() == 32 && access_token.chars().all(|character| character.is_ascii_hexdigit())
+}
+
+fn is_retryable_tmdb_status(status: StatusCode) -> bool {
+    status == StatusCode::REQUEST_TIMEOUT
+        || status == StatusCode::TOO_MANY_REQUESTS
+        || status.is_server_error()
+}
+
+fn tmdb_status_error(status: StatusCode) -> AppError {
+    AppError::Http(format!("TMDB request failed with status {status}."))
+}
+
+fn classify_tmdb_transport_error(error: reqwest::Error) -> RetryDirective<AppError> {
+    let app_error = AppError::Http(error.to_string());
+    if error.is_timeout() || error.is_connect() || error.is_request() || error.is_body() {
+        RetryDirective::retry(app_error)
+    } else {
+        RetryDirective::fail(app_error)
+    }
+}
+
+fn classify_tmdb_response_error(error: reqwest::Error) -> RetryDirective<AppError> {
+    let app_error = AppError::Http(error.to_string());
+    if error.is_timeout() || error.is_body() {
+        RetryDirective::retry(app_error)
+    } else {
+        RetryDirective::fail(app_error)
+    }
+}
+
+fn retry_after_delay(headers: &HeaderMap) -> Option<Duration> {
+    let raw_value = headers.get(RETRY_AFTER)?.to_str().ok()?;
+
+    raw_value.parse::<u64>().ok().map(Duration::from_secs).or_else(|| {
+        chrono::DateTime::parse_from_rfc2822(raw_value).ok().map(|retry_after| {
+            retry_after
+                .with_timezone(&Utc)
+                .signed_duration_since(Utc::now())
+                .to_std()
+                .unwrap_or(Duration::ZERO)
+        })
+    })
 }
 
 #[async_trait]

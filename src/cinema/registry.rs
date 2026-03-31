@@ -4,7 +4,9 @@ use std::sync::Arc;
 use async_trait::async_trait;
 
 use crate::cinema::cinema_city::{CinemaCity, HtmlRenderer};
-use crate::config::Settings;
+use crate::config::{
+    DEFAULT_CINEMA_CITY_REPERTOIRE_URL, DEFAULT_CINEMA_CITY_VENUES_LIST_URL, Settings,
+};
 use crate::domain::{CinemaChainId, CinemaVenue, Repertoire};
 use crate::error::{AppError, AppResult};
 
@@ -32,11 +34,10 @@ pub struct Registry {
 impl Registry {
     pub fn new(renderer: Arc<dyn HtmlRenderer>) -> Self {
         let cinema_city_renderer = renderer.clone();
-        let cinema_city_factory = Arc::new(move |settings: &Settings| {
-            let cinema_city_settings = settings.cinema_chains.get(CinemaChainId::CinemaCity);
+        let cinema_city_factory = Arc::new(move |_settings: &Settings| {
             Box::new(CinemaCity::new(
-                cinema_city_settings.repertoire_url.clone(),
-                cinema_city_settings.venues_list_url.clone(),
+                DEFAULT_CINEMA_CITY_REPERTOIRE_URL.to_string(),
+                DEFAULT_CINEMA_CITY_VENUES_LIST_URL.to_string(),
                 cinema_city_renderer.clone(),
             )) as Box<dyn CinemaChainClient>
         });

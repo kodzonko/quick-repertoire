@@ -8,6 +8,8 @@ use regex::Regex;
 use crate::domain::{CinemaVenue, Repertoire, RepertoireCliTableMetadata, TmdbMovieDetails};
 use crate::error::{AppError, AppResult};
 
+const MISSING_DATA_LABEL: &str = "Brak danych";
+
 static NON_WORD_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\W").expect("non-word regex must compile"));
 static WHITESPACE_RE: LazyLock<Regex> =
@@ -59,14 +61,16 @@ pub fn cinema_venue_input_parser(cinema_venue: &str) -> String {
 }
 
 pub fn date_input_parser(date: &str) -> AppResult<String> {
-    match date {
+    let trimmed = date.trim();
+    let normalized = trimmed.to_lowercase();
+    match normalized.as_str() {
         "dziś" | "dzis" | "dzisiaj" | "today" => Ok(Local::now().date_naive().to_string()),
         "jutro" | "tomorrow" => Ok((Local::now().date_naive() + Duration::days(1)).to_string()),
-        _ => NaiveDate::parse_from_str(date, "%Y-%m-%d")
+        _ => NaiveDate::parse_from_str(trimmed, "%Y-%m-%d")
             .map(|parsed| parsed.to_string())
             .map_err(|_| {
                 AppError::Message(format!(
-                    "Data: {date} nie jest we wspieranym formacie: YYYY-MM-DD | dzis | jutro | itp..."
+                    "Data: {trimmed} nie jest we wspieranym formacie: YYYY-MM-DD | dziś | jutro."
                 ))
             }),
     }
@@ -81,7 +85,7 @@ pub fn render_venues_table(venues: &[CinemaVenue], chain_display_name: &str) -> 
     table
         .load_preset(UTF8_FULL)
         .set_content_arrangement(ContentArrangement::Dynamic)
-        .set_header(vec!["venue_name", "venue_id"]);
+        .set_header(vec!["Nazwa lokalu", "ID lokalu"]);
 
     for venue in venues {
         table.add_row(vec![Cell::new(&venue.venue_name), Cell::new(&venue.venue_id)]);
@@ -137,7 +141,7 @@ pub fn render_repertoire_table(
         if show_ratings {
             let tmdb_details = ratings.get(&movie.title).cloned().unwrap_or(TmdbMovieDetails {
                 rating: "0.0/10".to_string(),
-                summary: "Brak opisu filmu.".to_string(),
+                summary: MISSING_DATA_LABEL.to_string(),
             });
             row.push(Cell::new(tmdb_details.rating));
             row.push(Cell::new(tmdb_details.summary));

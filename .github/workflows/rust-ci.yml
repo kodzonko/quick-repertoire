@@ -58,21 +58,50 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner:
-          - ubuntu-24.04
-          - windows-latest
-          - macos-15
+        include:
+          - runner: ubuntu-24.04
+            coverage: true
+          - runner: windows-latest
+            coverage: false
+          - runner: macos-15
+            coverage: false
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
         with:
           ref: ${{ github.ref }}
-      - name: Install Rust toolchain
+      - name: Install Rust toolchain (nightly for coverage)
+        if: matrix.coverage
+        uses: dtolnay/rust-toolchain@nightly
+      - name: Install Rust toolchain (stable)
+        if: ${{ !matrix.coverage }}
         uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-llvm-cov
+        if: matrix.coverage
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
       - name: Install Chromium
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y chromium-browser || sudo apt-get install -y chromium
+      - name: Run test suite with coverage
+        if: matrix.coverage
+        shell: bash
+        run: |
+          set -o pipefail
+          output_file="$(mktemp)"
+
+          cargo llvm-cov --locked --branch --all-targets --all-features | tee "$output_file"
+
+          {
+            echo "## Coverage"
+            echo
+            echo '```text'
+            cat "$output_file"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Run test suite
+        if: ${{ !matrix.coverage }}
         run: cargo test --locked --all-targets --all-features
