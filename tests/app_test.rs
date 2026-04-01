@@ -7,7 +7,9 @@ use std::io;
 use assert_cmd::Command;
 use quick_repertoire::app::run_with_args;
 use quick_repertoire::config::write_settings;
-use quick_repertoire::domain::{CinemaVenue, MoviePlayDetails, MoviePlayTime, Repertoire};
+use quick_repertoire::domain::{
+    CinemaVenue, MovieLookupMetadata, MoviePlayDetails, MoviePlayTime, Repertoire,
+};
 use quick_repertoire::error::AppError;
 use quick_repertoire::output::BufferTerminal;
 use quick_repertoire::persistence::DatabaseManager;
@@ -81,6 +83,7 @@ async fn repertoire_command_uses_default_chain_and_default_venue_when_name_not_p
                         MoviePlayTime { value: "12:30".to_string(), url: None },
                     ],
                 }],
+                lookup_metadata: MovieLookupMetadata::default(),
             }],
             Vec::new(),
         ),
@@ -131,6 +134,7 @@ async fn repertoire_command_warns_when_tmdb_is_disabled() {
                     play_language: "NAP: PL".to_string(),
                     play_times: vec![MoviePlayTime { value: "10:00".to_string(), url: None }],
                 }],
+                lookup_metadata: MovieLookupMetadata::default(),
             }],
             Vec::new(),
         ),
@@ -258,6 +262,7 @@ async fn repertoire_command_warns_when_tmdb_lookup_fails() {
                     play_language: "NAP: PL".to_string(),
                     play_times: vec![MoviePlayTime { value: "10:00".to_string(), url: None }],
                 }],
+                lookup_metadata: MovieLookupMetadata::default(),
             }],
             Vec::new(),
         ),
@@ -316,6 +321,7 @@ async fn repertoire_command_bootstraps_configuration_before_running() {
                         MoviePlayTime { value: "12:30".to_string(), url: None },
                     ],
                 }],
+                lookup_metadata: MovieLookupMetadata::default(),
             }],
             vec![
                 CinemaVenue {

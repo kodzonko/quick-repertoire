@@ -62,6 +62,27 @@ pub struct MoviePlayDetails {
     pub play_times: Vec<MoviePlayTime>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct MovieLookupMetadata {
+    pub cinema_city_film_id: Option<String>,
+    pub movie_page_url: Option<String>,
+    pub alternate_titles: Vec<String>,
+    pub runtime_minutes: Option<u16>,
+    pub original_language_code: Option<String>,
+    pub genre_tags: Vec<String>,
+    pub production_year: Option<i32>,
+    pub polish_premiere_date: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct MoviePageFallbackDetails {
+    pub original_title: Option<String>,
+    pub country: Option<String>,
+    pub cast: Vec<String>,
+    pub directors: Vec<String>,
+    pub synopsis: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Repertoire {
     pub title: String,
@@ -69,6 +90,30 @@ pub struct Repertoire {
     pub play_length: String,
     pub original_language: String,
     pub play_details: Vec<MoviePlayDetails>,
+    pub lookup_metadata: MovieLookupMetadata,
+}
+
+impl Repertoire {
+    pub fn tmdb_lookup_key(&self) -> &str {
+        self.lookup_metadata.cinema_city_film_id.as_deref().unwrap_or(&self.title)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TmdbLookupMovie {
+    pub lookup_key: String,
+    pub title: String,
+    pub lookup_metadata: MovieLookupMetadata,
+}
+
+impl From<&Repertoire> for TmdbLookupMovie {
+    fn from(value: &Repertoire) -> Self {
+        Self {
+            lookup_key: value.tmdb_lookup_key().to_string(),
+            title: value.title.clone(),
+            lookup_metadata: value.lookup_metadata.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

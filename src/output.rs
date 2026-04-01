@@ -160,10 +160,11 @@ fn render_repertoire_table_with_width(
             ),
         ];
         if show_ratings {
-            let tmdb_details = ratings.get(&movie.title).cloned().unwrap_or(TmdbMovieDetails {
-                rating: "0.0/10".to_string(),
-                summary: MISSING_DATA_LABEL.to_string(),
-            });
+            let tmdb_details =
+                ratings.get(movie.tmdb_lookup_key()).cloned().unwrap_or(TmdbMovieDetails {
+                    rating: "0.0/10".to_string(),
+                    summary: MISSING_DATA_LABEL.to_string(),
+                });
             row.push(Cell::new(tmdb_details.rating));
             row.push(Cell::new(tmdb_details.summary));
         }
@@ -287,7 +288,7 @@ mod tests {
     use super::*;
     use std::collections::HashMap;
 
-    use crate::domain::{MoviePlayDetails, RepertoireCliTableMetadata};
+    use crate::domain::{MovieLookupMetadata, MoviePlayDetails, RepertoireCliTableMetadata};
 
     #[test]
     fn render_play_time_wraps_http_links_with_osc8_sequences() {
@@ -335,6 +336,7 @@ mod tests {
                     )),
                 }],
             }],
+            lookup_metadata: MovieLookupMetadata::default(),
         }];
 
         let rendered =

@@ -15,7 +15,9 @@ use crate::config::{
     run_interactive_configuration_with_write_access_probe, should_defer_bootstrap_to_command,
     should_skip_bootstrap_for_argv,
 };
-use crate::domain::{CinemaChainId, CinemaVenue, RepertoireCliTableMetadata, TmdbMovieDetails};
+use crate::domain::{
+    CinemaChainId, CinemaVenue, RepertoireCliTableMetadata, TmdbLookupMovie, TmdbMovieDetails,
+};
 use crate::error::{AppError, AppResult};
 use crate::logging::init_logging;
 use crate::output::{
@@ -266,10 +268,9 @@ async fn handle_repertoire(
     )?;
     let cinema_client = (registered_chain.client_factory)(context.settings);
     let fetched_repertoire = cinema_client.fetch_repertoire(&date_parsed, &venue).await?;
-    let movie_titles =
-        fetched_repertoire.iter().map(|repertoire| repertoire.title.clone()).collect::<Vec<_>>();
+    let lookup_movies = fetched_repertoire.iter().map(TmdbLookupMovie::from).collect::<Vec<_>>();
     let ratings = load_tmdb_ratings(
-        &movie_titles,
+        &lookup_movies,
         context.settings.user_preferences.tmdb_access_token.as_deref(),
         tmdb_client,
         terminal,
@@ -338,12 +339,12 @@ async fn handle_venues_search(
 }
 
 async fn load_tmdb_ratings(
-    movie_titles: &[String],
+    lookup_movies: &[TmdbLookupMovie],
     access_token: Option<&str>,
     tmdb_client: &dyn TmdbService,
     terminal: &mut dyn Terminal,
 ) -> HashMap<String, TmdbMovieDetails> {
-    if movie_titles.is_empty() {
+    if lookup_movies.is_empty() {
         return HashMap::new();
     }
     let Some(access_token) = access_token else {
@@ -353,7 +354,7 @@ async fn load_tmdb_ratings(
         return HashMap::new();
     };
 
-    match tmdb_client.get_movie_ratings_and_summaries(movie_titles, access_token).await {
+    match tmdb_client.get_movie_ratings_and_summaries(lookup_movies, access_token).await {
         Ok(ratings) => ratings,
         Err(_) => {
             terminal.write_line(

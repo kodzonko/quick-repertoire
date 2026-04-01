@@ -8,8 +8,9 @@ use std::time::Duration;
 use async_trait::async_trait;
 use httpmock::Method::GET;
 use httpmock::MockServer;
-use quick_repertoire::cinema::cinema_city::CinemaCity;
-use quick_repertoire::cinema::cinema_city::HtmlRenderer;
+use quick_repertoire::cinema::cinema_city::{
+    CinemaCity, HtmlRenderer, parse_movie_page_fallback_details,
+};
 use quick_repertoire::cinema::registry::CinemaChainClient;
 use quick_repertoire::domain::{CinemaVenue, MoviePlayTime};
 use quick_repertoire::error::{AppError, AppResult};
@@ -103,6 +104,56 @@ fn rendered_repertoire_html_with_current_language_markup() -> String {
     .to_string()
 }
 
+fn rendered_repertoire_html_with_movie_link_fragment() -> String {
+    r#"
+    <h2 class="mr-sm">Repertuar Cinema City Wroclaw - Wroclavia</h2>
+    <div class="row qb-movie">
+      <a class="qb-movie-link" href="https://www.cinema-city.pl/filmy/projekt-hail-mary/7449s2r#/buy-tickets-by-film?in-cinema=1097&at=2026-04-01&for-movie=7449s2r&view-mode=list">
+        <h3 class="qb-movie-name">Projekt Hail Mary</h3>
+      </a>
+      <div class="qb-movie-info-wrapper">
+        <span>| Dramat, Sci-Fi, Thriller |</span>
+        <span>156 min</span>
+        <span aria-label="original-lang">EN</span>
+      </div>
+      <div class="qb-movie-info-column">
+        <ul class="qb-screening-attributes">
+          <li><span aria-label="Screening type">IMAX</span></li>
+          <li><span aria-label="subAbbr">FILM Z NAPISAMI</span></li>
+          <li><span aria-label="subbed-lang">PL</span></li>
+        </ul>
+        <a class="btn btn-primary btn-lg" ng-click="buy()">18:10</a>
+      </div>
+    </div>
+    "#
+    .to_string()
+}
+
+fn rendered_repertoire_html_with_translated_movie_link() -> String {
+    r#"
+    <h2 class="mr-sm">Repertuar Cinema City Wroclaw - Wroclavia</h2>
+    <div class="row qb-movie">
+      <a class="qb-movie-link" href="https://www.cinema-city.pl/filmy/ostatnia-wieczerza/8072s2r#/buy-tickets-by-film?in-cinema=1097&at=2026-04-01&for-movie=8072s2r&view-mode=list">
+        <h3 class="qb-movie-name">Ostatnia wieczerza</h3>
+      </a>
+      <div class="qb-movie-info-wrapper">
+        <span>| Dramat |</span>
+        <span>94 min</span>
+        <span aria-label="original-lang">EN</span>
+      </div>
+      <div class="qb-movie-info-column">
+        <ul class="qb-screening-attributes">
+          <li><span aria-label="Screening type">2D</span></li>
+          <li><span aria-label="subAbbr">FILM Z NAPISAMI</span></li>
+          <li><span aria-label="subbed-lang">PL</span></li>
+        </ul>
+        <a class="btn btn-primary btn-lg" ng-click="buy()">17:30</a>
+      </div>
+    </div>
+    "#
+    .to_string()
+}
+
 #[derive(Default)]
 struct RecordingHtmlRenderer {
     urls: Mutex<VecDeque<String>>,
@@ -182,6 +233,12 @@ async fn fetch_repertoire_parses_inline_html_fixture_and_skips_presales() {
     assert_eq!(repertoire[1].original_language, "EN");
     assert_eq!(repertoire[1].play_details[0].format, "IMAX 3D");
     assert_eq!(repertoire[1].play_details[0].play_language, "BEZ NAP");
+    assert_eq!(repertoire[1].lookup_metadata.runtime_minutes, Some(134));
+    assert_eq!(repertoire[1].lookup_metadata.original_language_code.as_deref(), Some("EN"));
+    assert_eq!(
+        repertoire[1].lookup_metadata.genre_tags,
+        vec!["fantasy".to_string(), "adventure".to_string()]
+    );
     assert_eq!(
         repertoire[1].play_details[0].play_times,
         vec![MoviePlayTime { value: "20:15".to_string(), url: None }]
@@ -255,12 +312,52 @@ async fn fetch_repertoire_parses_current_language_markup_from_live_schedule_page
 }
 
 #[tokio::test]
+async fn fetch_repertoire_keeps_booking_links_and_canonicalizes_lookup_movie_urls() {
+    let cinema = CinemaCity::new(
+        "https://www.cinema-city.pl/kina/{cinema_venue_slug}/{cinema_venue_id}#/buy-tickets-by-cinema?in-cinema={cinema_venue_id}&at={repertoire_date}&view-mode=list".to_string(),
+        "https://www.cinema-city.pl/#/buy-tickets-by-cinema".to_string(),
+        Arc::new(FakeHtmlRenderer {
+            html: rendered_repertoire_html_with_movie_link_fragment(),
+        }),
+    )
+    .with_quickbook_api_base_url("");
+    let venue_data = CinemaVenue {
+        chain_id: "cinema-city".to_string(),
+        venue_id: "1097".to_string(),
+        venue_name: "Wroclaw - Wroclavia".to_string(),
+    };
+
+    let repertoire = cinema.fetch_repertoire("2026-04-01", &venue_data).await.unwrap();
+
+    assert_eq!(repertoire.len(), 1);
+    assert_eq!(repertoire[0].lookup_metadata.cinema_city_film_id.as_deref(), Some("7449s2r"));
+    assert_eq!(
+        repertoire[0].lookup_metadata.movie_page_url.as_deref(),
+        Some("https://www.cinema-city.pl/filmy/projekt-hail-mary/7449s2r")
+    );
+    assert_eq!(
+        repertoire[0].play_details[0].play_times,
+        vec![MoviePlayTime {
+            value: "18:10".to_string(),
+            url: Some(
+                "https://www.cinema-city.pl/filmy/projekt-hail-mary/7449s2r#/buy-tickets-by-film?in-cinema=1097&at=2026-04-01&for-movie=7449s2r&view-mode=list"
+                    .to_string(),
+            ),
+        }]
+    );
+}
+
+#[tokio::test]
 async fn fetch_repertoire_adds_movie_page_links_for_bookable_showtimes() {
     let server = MockServer::start_async().await;
     let film_events_mock = server
         .mock_async(|when, then| {
             when.method(GET)
-                .path("/pl/data-api-service/v1/quickbook/10103/film-events/in-cinema/1097/at-date/2026-03-31");
+                .path("/pl/data-api-service/v1/quickbook/10103/film-events/in-cinema/1097/at-date/2026-03-31")
+                .query_param("attr", "")
+                .query_param("lang", "pl_PL")
+                .header("x-requested-with", "XMLHttpRequest")
+                .header("accept-language", "pl-PL,pl;q=0.9,en-US;q=0.8,en;q=0.7");
             then.status(200).header("content-type", "application/json").body(
                 r#"{
                   "body": {
@@ -268,7 +365,11 @@ async fn fetch_repertoire_adds_movie_page_links_for_bookable_showtimes() {
                       {
                         "id": "7945s2r",
                         "name": "Oni cię zabiją",
-                        "link": "https://www.cinema-city.pl/filmy/oni-cie-zabija/7945s2r"
+                        "link": "https://www.cinema-city.pl/filmy/oni-cie-zabija/7945s2r",
+                        "length": 94,
+                        "releaseYear": "2026",
+                        "releaseDate": "2026-03-27",
+                        "attributeIds": ["original-lang-en", "category-horror"]
                       }
                     ],
                     "events": [
@@ -311,6 +412,16 @@ async fn fetch_repertoire_adds_movie_page_links_for_bookable_showtimes() {
             url: Some("https://www.cinema-city.pl/filmy/oni-cie-zabija/7945s2r".to_string()),
         }]
     );
+    assert_eq!(repertoire[0].lookup_metadata.cinema_city_film_id.as_deref(), Some("7945s2r"));
+    assert_eq!(
+        repertoire[0].lookup_metadata.movie_page_url.as_deref(),
+        Some("https://www.cinema-city.pl/filmy/oni-cie-zabija/7945s2r")
+    );
+    assert_eq!(repertoire[0].lookup_metadata.runtime_minutes, Some(94));
+    assert_eq!(repertoire[0].lookup_metadata.original_language_code.as_deref(), Some("EN"));
+    assert_eq!(repertoire[0].lookup_metadata.production_year, Some(2026));
+    assert_eq!(repertoire[0].lookup_metadata.polish_premiere_date.as_deref(), Some("2026-03-27"));
+    assert_eq!(repertoire[0].lookup_metadata.genre_tags, vec!["horror".to_string()]);
 }
 
 #[tokio::test]
@@ -336,6 +447,92 @@ async fn fetch_repertoire_retries_transient_browser_failures() {
 
     assert_eq!(repertoire.len(), 2);
     assert_eq!(renderer.call_count(), 2);
+}
+
+#[tokio::test]
+async fn fetch_repertoire_merges_alternate_titles_from_secondary_quickbook_language() {
+    let server = MockServer::start_async().await;
+    let primary_mock = server
+        .mock_async(|when, then| {
+            when.method(GET)
+                .path("/pl/data-api-service/v1/quickbook/10103/film-events/in-cinema/1097/at-date/2026-04-01")
+                .query_param("attr", "")
+                .query_param("lang", "pl_PL");
+            then.status(200).header("content-type", "application/json").body(
+                r#"{
+                  "body": {
+                    "films": [
+                      {
+                        "id": "8072s2r",
+                        "name": "Ostatnia wieczerza",
+                        "link": "https://www.cinema-city.pl/filmy/ostatnia-wieczerza/8072s2r",
+                        "length": 94,
+                        "releaseYear": "2025",
+                        "releaseDate": "2026-03-20T00:00:00",
+                        "attributeIds": ["original-lang-en", "drama"]
+                      }
+                    ],
+                    "events": [
+                      {
+                        "filmId": "8072s2r",
+                        "eventDateTime": "2026-04-01T17:30:00",
+                        "bookingLink": "https://tickets.cinema-city.pl/api/order/123?lang=pl",
+                        "soldOut": false,
+                        "compositeBookingLink": {
+                          "blockOnlineSales": false
+                        }
+                      }
+                    ]
+                  }
+                }"#,
+            );
+        })
+        .await;
+    let alternate_mock = server
+        .mock_async(|when, then| {
+            when.method(GET)
+                .path("/pl/data-api-service/v1/quickbook/10103/film-events/in-cinema/1097/at-date/2026-04-01")
+                .query_param("attr", "")
+                .query_param("lang", "en_GB");
+            then.status(200).header("content-type", "application/json").body(
+                r#"{
+                  "body": {
+                    "films": [
+                      {
+                        "id": "8072s2r",
+                        "name": "The Last Supper",
+                        "link": "https://www.cinema-city.pl/filmy/ostatnia-wieczerza/8072s2r",
+                        "length": 94,
+                        "releaseYear": "2025",
+                        "releaseDate": "2026-03-20T00:00:00",
+                        "attributeIds": ["original-lang-en", "drama"]
+                      }
+                    ],
+                    "events": []
+                  }
+                }"#,
+            );
+        })
+        .await;
+    let cinema = CinemaCity::new(
+        "https://www.cinema-city.pl/kina/{cinema_venue_slug}/{cinema_venue_id}#/buy-tickets-by-cinema?in-cinema={cinema_venue_id}&at={repertoire_date}&view-mode=list".to_string(),
+        "https://www.cinema-city.pl/#/buy-tickets-by-cinema".to_string(),
+        Arc::new(FakeHtmlRenderer {
+            html: rendered_repertoire_html_with_translated_movie_link(),
+        }),
+    )
+    .with_quickbook_api_base_url(server.url("/pl/data-api-service"));
+    let venue_data = CinemaVenue {
+        chain_id: "cinema-city".to_string(),
+        venue_id: "1097".to_string(),
+        venue_name: "Wroclaw - Wroclavia".to_string(),
+    };
+
+    let repertoire = cinema.fetch_repertoire("2026-04-01", &venue_data).await.unwrap();
+
+    primary_mock.assert_async().await;
+    alternate_mock.assert_async().await;
+    assert_eq!(repertoire[0].lookup_metadata.alternate_titles, vec!["The Last Supper".to_string()]);
 }
 
 #[tokio::test]
@@ -467,4 +664,31 @@ async fn fetch_venues_retries_transient_browser_failures() {
     assert_eq!(venues.len(), 1);
     assert_eq!(venues[0].venue_name, "Lodz - Manufaktura");
     assert_eq!(renderer.call_count(), 2);
+}
+
+#[test]
+fn parse_movie_page_fallback_details_extracts_embedded_film_details() {
+    let html = r#"
+    <html>
+      <body>
+        <script>
+          var filmDetails = {
+            "originalName": "The Amateur",
+            "releaseCountry": "USA",
+            "cast": "Rami Malek, Rachel Brosnahan",
+            "directors": "James Hawes",
+            "synopsis": "A CIA cryptographer pursues revenge."
+          };
+        </script>
+      </body>
+    </html>
+    "#;
+
+    let details = parse_movie_page_fallback_details(html).unwrap();
+
+    assert_eq!(details.original_title.as_deref(), Some("The Amateur"));
+    assert_eq!(details.country.as_deref(), Some("USA"));
+    assert_eq!(details.cast, vec!["Rami Malek".to_string(), "Rachel Brosnahan".to_string()]);
+    assert_eq!(details.directors, vec!["James Hawes".to_string()]);
+    assert_eq!(details.synopsis.as_deref(), Some("A CIA cryptographer pursues revenge."));
 }

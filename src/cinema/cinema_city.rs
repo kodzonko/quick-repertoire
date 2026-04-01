@@ -14,7 +14,10 @@ use serde::Deserialize;
 use tokio::time::{Instant, sleep};
 
 use crate::cinema::registry::CinemaChainClient;
-use crate::domain::{CinemaChainId, CinemaVenue, MoviePlayDetails, MoviePlayTime, Repertoire};
+use crate::domain::{
+    CinemaChainId, CinemaVenue, MovieLookupMetadata, MoviePageFallbackDetails, MoviePlayDetails,
+    MoviePlayTime, Repertoire,
+};
 use crate::error::{AppError, AppResult};
 use crate::logging::preview_for_log;
 use crate::retry::{RetryDirective, RetryPolicy, retry_with_backoff};
@@ -30,6 +33,10 @@ const DEFAULT_CINEMA_CITY_TENANT_ID: &str = "10103";
 const DEFAULT_CINEMA_CITY_QUICKBOOK_API_BASE_URL: &str =
     "https://www.cinema-city.pl/pl/data-api-service";
 const QUICKBOOK_LANGUAGE: &str = "pl_PL";
+const QUICKBOOK_ALTERNATE_TITLE_LANGUAGE: &str = "en_GB";
+const CINEMA_CITY_ACCEPT_LANGUAGE: &str = "pl-PL,pl;q=0.9,en-US;q=0.8,en;q=0.7";
+const CINEMA_CITY_BROWSER_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
+     (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36";
 const MAX_LOG_BODY_PREVIEW_CHARS: usize = 256;
 
 static PLAY_LENGTH_RE: LazyLock<Regex> =
@@ -261,23 +268,208 @@ impl CinemaCity {
 
     fn parse_play_details(
         movie: &ElementRef<'_>,
-        movie_page_url: Option<&str>,
+        booking_url: Option<&str>,
     ) -> Vec<MoviePlayDetails> {
         movie
             .select(selector("div.qb-movie-info-column"))
             .map(|play_detail| MoviePlayDetails {
                 format: Self::parse_play_format(&play_detail),
                 play_language: Self::parse_play_language(&play_detail),
-                play_times: Self::parse_play_times(&play_detail, movie_page_url),
+                play_times: Self::parse_play_times(&play_detail, booking_url),
             })
             .collect()
     }
 
-    fn parse_movie_page_url(movie: &ElementRef<'_>) -> Option<String> {
+    fn parse_movie_link_url(movie: &ElementRef<'_>) -> Option<String> {
         movie
             .select(selector("a.qb-movie-link[href]"))
             .find_map(|link| link.value().attr("href"))
             .and_then(Self::canonicalize_cinema_city_url)
+    }
+
+    fn extract_canonical_movie_page_url(url: &str) -> Option<String> {
+        let canonical_url = Self::canonicalize_cinema_city_url(url)?;
+        let without_fragment = canonical_url.split('#').next().unwrap_or(&canonical_url);
+        let without_query = without_fragment.split('?').next().unwrap_or(without_fragment);
+        let normalized = without_query.trim_end_matches('/');
+        if normalized.is_empty() { None } else { Some(normalized.to_string()) }
+    }
+
+    fn build_lookup_metadata(
+        movie_page_url: Option<&str>,
+        genres: &str,
+        play_length: &str,
+        original_language: &str,
+    ) -> MovieLookupMetadata {
+        let movie_page_url = movie_page_url.map(str::to_string);
+        MovieLookupMetadata {
+            cinema_city_film_id: movie_page_url
+                .as_deref()
+                .and_then(Self::extract_movie_id_from_url),
+            movie_page_url,
+            alternate_titles: Vec::new(),
+            runtime_minutes: Self::parse_play_length_minutes(play_length),
+            original_language_code: Self::normalize_language_code(original_language),
+            genre_tags: Self::normalize_genre_tags(genres),
+            production_year: None,
+            polish_premiere_date: None,
+        }
+    }
+
+    fn extract_movie_id_from_url(url: &str) -> Option<String> {
+        if let Some(movie_id) = extract_query_param(url, "for-movie") {
+            return Some(movie_id);
+        }
+
+        url.trim_end_matches('/')
+            .rsplit('/')
+            .next()
+            .filter(|value| !value.trim().is_empty())
+            .map(str::to_string)
+    }
+
+    fn parse_play_length_minutes(play_length: &str) -> Option<u16> {
+        play_length.split_whitespace().next().and_then(|value| value.parse::<u16>().ok())
+    }
+
+    fn normalize_language_code(language: &str) -> Option<String> {
+        let normalized = Self::normalize_lookup_text(language);
+        let code =
+            normalized.split_whitespace().find(|value| value.len() == 2 || value.len() == 3)?;
+        Some(code.to_ascii_uppercase())
+    }
+
+    fn normalize_genre_tags(genres: &str) -> Vec<String> {
+        let mut tags = Vec::new();
+        for raw_tag in genres.split([',', '|', '/']) {
+            let tag = Self::normalize_lookup_text(raw_tag);
+            if !tag.is_empty() && !tags.contains(&tag) {
+                tags.push(tag);
+            }
+        }
+        tags
+    }
+
+    fn normalize_lookup_text(value: &str) -> String {
+        let mut normalized = String::new();
+        let mut previous_was_separator = false;
+
+        for character in value.chars().map(fold_polish_character_to_ascii) {
+            let lowered = character.to_ascii_lowercase();
+            if lowered.is_ascii_alphanumeric() {
+                normalized.push(lowered);
+                previous_was_separator = false;
+            } else if !previous_was_separator {
+                normalized.push(' ');
+                previous_was_separator = true;
+            }
+        }
+
+        normalized.trim().to_string()
+    }
+
+    fn is_non_genre_attribute(attribute_id: &str) -> bool {
+        [
+            "original lang",
+            "original language",
+            "subbed lang",
+            "dubbed lang",
+            "first subbed lang",
+            "first dubbed lang",
+            "screening type",
+            "screen",
+            "dub",
+            "sub",
+            "no subs",
+            "no subtitles",
+            "2d",
+            "3d",
+            "4dx",
+            "imax",
+            "screenx",
+            "barco",
+            "laser",
+            "vip",
+            "kids",
+            "family",
+            "ticket",
+            "sales",
+            "age",
+        ]
+        .into_iter()
+        .any(|prefix| attribute_id.starts_with(prefix))
+    }
+
+    fn extract_original_language_code_from_attribute_ids(
+        attribute_ids: &[String],
+    ) -> Option<String> {
+        attribute_ids.iter().find_map(|attribute_id| {
+            let normalized = Self::normalize_lookup_text(attribute_id);
+            normalized
+                .strip_prefix("original lang ")
+                .or_else(|| normalized.strip_prefix("original language "))
+                .map(|value| value.to_ascii_uppercase())
+        })
+    }
+
+    fn extract_genre_tags_from_attribute_ids(attribute_ids: &[String]) -> Vec<String> {
+        let mut tags = Vec::new();
+        for attribute_id in attribute_ids {
+            let normalized = Self::normalize_lookup_text(attribute_id);
+            if normalized.is_empty() || Self::is_non_genre_attribute(&normalized) {
+                continue;
+            }
+            let tag = normalized
+                .strip_prefix("category ")
+                .or_else(|| normalized.strip_prefix("categories "))
+                .or_else(|| normalized.strip_prefix("genre "))
+                .unwrap_or(&normalized)
+                .trim()
+                .to_string();
+            if !tag.is_empty() && !tags.contains(&tag) {
+                tags.push(tag);
+            }
+        }
+        tags
+    }
+
+    fn merge_lookup_metadata(current: &mut MovieLookupMetadata, update: &MovieLookupMetadata) {
+        if update.cinema_city_film_id.is_some() {
+            current.cinema_city_film_id = update.cinema_city_film_id.clone();
+        }
+        if update.movie_page_url.is_some() {
+            current.movie_page_url = update.movie_page_url.clone();
+        }
+        Self::merge_alternate_titles(&mut current.alternate_titles, &update.alternate_titles);
+        if update.runtime_minutes.is_some() {
+            current.runtime_minutes = update.runtime_minutes;
+        }
+        if update.original_language_code.is_some() {
+            current.original_language_code = update.original_language_code.clone();
+        }
+        if !update.genre_tags.is_empty() {
+            current.genre_tags = update.genre_tags.clone();
+        }
+        if update.production_year.is_some() {
+            current.production_year = update.production_year;
+        }
+        if update.polish_premiere_date.is_some() {
+            current.polish_premiere_date = update.polish_premiere_date.clone();
+        }
+    }
+
+    fn merge_alternate_titles(current: &mut Vec<String>, update: &[String]) {
+        for title in update {
+            let normalized_update = Self::normalize_lookup_text(title);
+            if normalized_update.is_empty()
+                || current
+                    .iter()
+                    .any(|existing| Self::normalize_lookup_text(existing) == normalized_update)
+            {
+                continue;
+            }
+            current.push(title.clone());
+        }
     }
 
     fn play_time_has_booking_hint(play_time: &ElementRef<'_>) -> bool {
@@ -395,9 +587,10 @@ impl CinemaCity {
         tenant_id: &str,
         venue: &CinemaVenue,
         date: &str,
+        language: &str,
     ) -> String {
         format!(
-            "{}/v1/quickbook/{tenant_id}/film-events/in-cinema/{venue_id}/at-date/{date}?attr=&lang={QUICKBOOK_LANGUAGE}",
+            "{}/v1/quickbook/{tenant_id}/film-events/in-cinema/{venue_id}/at-date/{date}?attr=&lang={language}",
             self.quickbook_api_base_url.trim_end_matches('/'),
             venue_id = venue.venue_id,
         )
@@ -435,12 +628,12 @@ impl CinemaCity {
         None
     }
 
-    async fn fetch_bookable_movie_page_links(
+    async fn fetch_quickbook_movie_enrichment(
         &self,
         rendered_html: &str,
         date: &str,
         venue: &CinemaVenue,
-    ) -> AppResult<HashMap<String, BookableMovieShowtimes>> {
+    ) -> AppResult<HashMap<String, QuickbookMovieEnrichment>> {
         if self.quickbook_api_base_url.trim().is_empty() {
             debug!(
                 "Cinema City quickbook enrichment skipped because no API base URL is configured venue_id={} date={date}",
@@ -456,70 +649,42 @@ impl CinemaCity {
                 );
                 DEFAULT_CINEMA_CITY_TENANT_ID.to_string()
             });
-        let quickbook_url = self.build_quickbook_film_events_url(&tenant_id, venue, date);
-        debug!(
-            "Cinema City quickbook request url={quickbook_url} venue_id={} date={date} tenant_id={tenant_id}",
-            venue.venue_id,
-        );
-        let response = self
-            .http_client
-            .get(&quickbook_url)
-            .send()
+        let repertoire_url = self.build_repertoire_url(venue, date)?;
+        let payload = self
+            .fetch_quickbook_film_events_payload(
+                &tenant_id,
+                venue,
+                date,
+                QUICKBOOK_LANGUAGE,
+                &repertoire_url,
+            )
+            .await?;
+        let alternate_titles_by_id = match self
+            .fetch_quickbook_alternate_titles(
+                &tenant_id,
+                venue,
+                date,
+                &repertoire_url,
+                &payload.body.films,
+            )
             .await
-            .map_err(|error| {
+        {
+            Ok(alternate_titles) => alternate_titles,
+            Err(error) => {
                 debug!(
-                    "Cinema City quickbook request transport failed url={quickbook_url} venue_id={} date={date} error={error}",
+                    "Cinema City quickbook alternate-title enrichment skipped venue_id={} date={date} error={error}",
                     venue.venue_id,
                 );
-                AppError::Http(format!(
-                    "Nie udało się pobrać danych o rezerwacjach z API Cinema City: {error}"
-                ))
-            })?;
-        let status = response.status();
-        debug!(
-            "Cinema City quickbook response url={quickbook_url} venue_id={} date={date} status={status}",
-            venue.venue_id,
-        );
-        if status.is_client_error() || status.is_server_error() {
-            let body_preview = response_body_preview(response).await;
-            debug!(
-                "Cinema City quickbook request failed url={quickbook_url} venue_id={} date={date} status={status} body_preview={body_preview}",
-                venue.venue_id,
-            );
-            return Err(AppError::Http(format!(
-                "API Cinema City zwróciło błąd podczas pobierania danych o rezerwacjach: status {status}"
-            )));
-        }
-        let body = response.text().await.map_err(|error| {
-            debug!(
-                "Cinema City quickbook response read failed url={quickbook_url} venue_id={} date={date} error={error}",
-                venue.venue_id,
-            );
-            AppError::Http(format!(
-                "Nie udało się odczytać danych o rezerwacjach z API Cinema City: {error}"
-            ))
-        })?;
-        debug!(
-            "Cinema City quickbook response body received url={quickbook_url} venue_id={} date={date} bytes={}",
-            venue.venue_id,
-            body.len(),
-        );
-        let payload = serde_json::from_str::<CinemaCityFilmEventsResponse>(&body).map_err(|error| {
-            debug!(
-                "Cinema City quickbook JSON parse failed url={quickbook_url} venue_id={} date={date} error={error} body_preview={}",
-                venue.venue_id,
-                preview_for_log(&body, MAX_LOG_BODY_PREVIEW_CHARS),
-            );
-            AppError::Http(format!(
-                "Nie udało się odczytać danych o rezerwacjach z API Cinema City: {error}"
-            ))
-        })?;
+                HashMap::new()
+            }
+        };
 
         let films_count = payload.body.films.len();
         let events_count = payload.body.events.len();
         debug!(
-            "Cinema City quickbook payload parsed url={quickbook_url} venue_id={} date={date} films={films_count} events={events_count}",
+            "Cinema City quickbook payload parsed venue_id={} date={date} films={films_count} events={events_count} alternate_title_entries={}",
             venue.venue_id,
+            alternate_titles_by_id.len(),
         );
 
         let films_by_id = payload
@@ -527,20 +692,52 @@ impl CinemaCity {
             .films
             .into_iter()
             .map(|film| {
+                let movie_page_url =
+                    film.link.as_deref().and_then(Self::canonicalize_cinema_city_url);
+                let production_year =
+                    film.release_year.as_deref().and_then(|value| value.parse::<i32>().ok());
+                let polish_premiere_date =
+                    film.release_date.filter(|value| !value.trim().is_empty());
+                let original_language_code =
+                    Self::extract_original_language_code_from_attribute_ids(&film.attribute_ids);
+                let genre_tags = Self::extract_genre_tags_from_attribute_ids(&film.attribute_ids);
+                let film_id = film.id;
+                let alternate_titles = alternate_titles_by_id
+                    .get(&film_id)
+                    .cloned()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .filter(|title| {
+                        Self::normalize_lookup_text(title)
+                            != Self::normalize_lookup_text(&film.name)
+                    })
+                    .collect::<Vec<_>>();
                 (
-                    film.id,
+                    film_id.clone(),
                     BookableMovieMetadata {
                         title: film.name,
-                        movie_page_url: film
-                            .link
-                            .as_deref()
-                            .and_then(Self::canonicalize_cinema_city_url),
+                        lookup_metadata: MovieLookupMetadata {
+                            cinema_city_film_id: Some(film_id),
+                            movie_page_url,
+                            alternate_titles,
+                            runtime_minutes: film.length,
+                            original_language_code,
+                            genre_tags,
+                            production_year,
+                            polish_premiere_date,
+                        },
                     },
                 )
             })
             .collect::<HashMap<_, _>>();
 
-        let mut bookable_showtimes = HashMap::<String, BookableMovieShowtimes>::new();
+        let mut quickbook_movies = HashMap::<String, QuickbookMovieEnrichment>::new();
+        for movie in films_by_id.values() {
+            let entry =
+                quickbook_movies.entry(Self::normalize_lookup_text(&movie.title)).or_default();
+            Self::merge_lookup_metadata(&mut entry.lookup_metadata, &movie.lookup_metadata);
+        }
+
         for event in payload.body.events {
             if event.sold_out
                 || event.booking_link.as_deref().is_none_or(|value| value.trim().is_empty())
@@ -570,47 +767,158 @@ impl CinemaCity {
                 continue;
             };
 
-            let entry = bookable_showtimes.entry(movie.title.clone()).or_insert_with(|| {
-                BookableMovieShowtimes {
-                    movie_page_url: movie.movie_page_url.clone(),
-                    showtimes: HashSet::new(),
-                }
-            });
-            if entry.movie_page_url.is_none() {
-                entry.movie_page_url = movie.movie_page_url.clone();
-            }
+            let entry =
+                quickbook_movies.entry(Self::normalize_lookup_text(&movie.title)).or_default();
+            Self::merge_lookup_metadata(&mut entry.lookup_metadata, &movie.lookup_metadata);
             entry.showtimes.insert(showtime_value);
         }
 
         debug!(
             "Cinema City quickbook enrichment built entries={} venue_id={} date={date}",
-            bookable_showtimes.len(),
+            quickbook_movies.len(),
             venue.venue_id,
         );
-        Ok(bookable_showtimes)
+        Ok(quickbook_movies)
     }
 
-    fn apply_bookable_movie_page_links(
+    async fn fetch_quickbook_film_events_payload(
+        &self,
+        tenant_id: &str,
+        venue: &CinemaVenue,
+        date: &str,
+        language: &str,
+        repertoire_url: &str,
+    ) -> AppResult<CinemaCityFilmEventsResponse> {
+        let quickbook_url = self.build_quickbook_film_events_url(tenant_id, venue, date, language);
+        debug!(
+            "Cinema City quickbook request url={quickbook_url} venue_id={} date={date} tenant_id={tenant_id} language={language}",
+            venue.venue_id
+        );
+        let response = self
+            .http_client
+            .get(&quickbook_url)
+            .header(reqwest::header::USER_AGENT, CINEMA_CITY_BROWSER_USER_AGENT)
+            .header(reqwest::header::ACCEPT, "application/json, text/plain, */*")
+            .header(reqwest::header::ACCEPT_LANGUAGE, CINEMA_CITY_ACCEPT_LANGUAGE)
+            .header(reqwest::header::REFERER, repertoire_url)
+            .header("X-Requested-With", "XMLHttpRequest")
+            .send()
+            .await
+            .map_err(|error| {
+                debug!(
+                    "Cinema City quickbook request transport failed url={quickbook_url} venue_id={} date={date} language={language} error={error}",
+                    venue.venue_id
+                );
+                AppError::Http(format!(
+                    "Nie udało się pobrać danych o rezerwacjach z API Cinema City: {error}"
+                ))
+            })?;
+        let status = response.status();
+        debug!(
+            "Cinema City quickbook response url={quickbook_url} venue_id={} date={date} language={language} status={status}",
+            venue.venue_id
+        );
+        if status.is_client_error() || status.is_server_error() {
+            let body_preview = response_body_preview(response).await;
+            debug!(
+                "Cinema City quickbook request failed url={quickbook_url} venue_id={} date={date} language={language} status={status} body_preview={body_preview}",
+                venue.venue_id
+            );
+            return Err(AppError::Http(format!(
+                "API Cinema City zwróciło błąd podczas pobierania danych o rezerwacjach: status {status}"
+            )));
+        }
+        let body = response.text().await.map_err(|error| {
+            debug!(
+                "Cinema City quickbook response read failed url={quickbook_url} venue_id={} date={date} language={language} error={error}",
+                venue.venue_id
+            );
+            AppError::Http(format!(
+                "Nie udało się odczytać danych o rezerwacjach z API Cinema City: {error}"
+            ))
+        })?;
+        debug!(
+            "Cinema City quickbook response body received url={quickbook_url} venue_id={} date={date} language={language} bytes={}",
+            venue.venue_id,
+            body.len(),
+        );
+        serde_json::from_str::<CinemaCityFilmEventsResponse>(&body).map_err(|error| {
+            debug!(
+                "Cinema City quickbook JSON parse failed url={quickbook_url} venue_id={} date={date} language={language} error={error} body_preview={}",
+                venue.venue_id,
+                preview_for_log(&body, MAX_LOG_BODY_PREVIEW_CHARS),
+            );
+            AppError::Http(format!(
+                "Nie udało się odczytać danych o rezerwacjach z API Cinema City: {error}"
+            ))
+        })
+    }
+
+    async fn fetch_quickbook_alternate_titles(
+        &self,
+        tenant_id: &str,
+        venue: &CinemaVenue,
+        date: &str,
+        repertoire_url: &str,
+        base_films: &[CinemaCityFilmEventFilm],
+    ) -> AppResult<HashMap<String, Vec<String>>> {
+        let payload = self
+            .fetch_quickbook_film_events_payload(
+                tenant_id,
+                venue,
+                date,
+                QUICKBOOK_ALTERNATE_TITLE_LANGUAGE,
+                repertoire_url,
+            )
+            .await?;
+        let base_titles_by_id = base_films
+            .iter()
+            .map(|film| (film.id.as_str(), Self::normalize_lookup_text(&film.name)))
+            .collect::<HashMap<_, _>>();
+        let mut alternate_titles_by_id = HashMap::<String, Vec<String>>::new();
+        for film in payload.body.films {
+            let normalized_title = Self::normalize_lookup_text(&film.name);
+            if normalized_title.is_empty() {
+                continue;
+            }
+            if base_titles_by_id
+                .get(film.id.as_str())
+                .is_some_and(|base_title| base_title == &normalized_title)
+            {
+                continue;
+            }
+            let entry = alternate_titles_by_id.entry(film.id).or_default();
+            if entry.iter().any(|title| Self::normalize_lookup_text(title) == normalized_title) {
+                continue;
+            }
+            entry.push(film.name);
+        }
+        Ok(alternate_titles_by_id)
+    }
+
+    fn apply_quickbook_movie_enrichment(
         repertoire: &mut [Repertoire],
-        bookable_showtimes: &HashMap<String, BookableMovieShowtimes>,
-        fallback_movie_page_urls: &HashMap<String, String>,
+        quickbook_movies: &HashMap<String, QuickbookMovieEnrichment>,
     ) {
         for movie in repertoire {
-            let Some(bookable_movie) = bookable_showtimes.get(&movie.title) else {
+            let Some(quickbook_movie) =
+                quickbook_movies.get(&Self::normalize_lookup_text(&movie.title))
+            else {
                 continue;
             };
-            let Some(movie_page_url) = bookable_movie
-                .movie_page_url
-                .clone()
-                .or_else(|| fallback_movie_page_urls.get(&movie.title).cloned())
-            else {
+
+            Self::merge_lookup_metadata(
+                &mut movie.lookup_metadata,
+                &quickbook_movie.lookup_metadata,
+            );
+            let Some(movie_page_url) = movie.lookup_metadata.movie_page_url.clone() else {
                 continue;
             };
 
             for play_detail in &mut movie.play_details {
                 for play_time in &mut play_detail.play_times {
-                    play_time.url = if bookable_movie.showtimes.contains(&play_time.value) {
-                        Some(movie_page_url.clone())
+                    play_time.url = if quickbook_movie.showtimes.contains(&play_time.value) {
+                        play_time.url.clone().or_else(|| Some(movie_page_url.clone()))
                     } else {
                         None
                     };
@@ -644,49 +952,49 @@ impl CinemaChainClient for CinemaCity {
             venue.venue_id, venue.venue_name,
         );
         let rendered_html = self.render_with_retry(&url, REPERTOIRE_PAGE_READY_SELECTOR).await?;
-        let (mut repertoire, fallback_movie_page_urls) = {
+        let mut repertoire = {
             let html = Html::parse_document(&rendered_html);
-            let mut fallback_movie_page_urls = HashMap::new();
-            let repertoire = html
-                .select(selector(REPERTOIRE_SELECTOR))
+            html.select(selector(REPERTOIRE_SELECTOR))
                 .filter(|movie| !Self::is_presale(movie))
                 .map(|movie| {
                     let title = Self::parse_title(&movie);
-                    let movie_page_url = Self::parse_movie_page_url(&movie);
-                    if let Some(movie_page_url) = movie_page_url.clone() {
-                        fallback_movie_page_urls.insert(title.clone(), movie_page_url);
-                    }
+                    let genres = Self::parse_genres(&movie);
+                    let play_length = Self::parse_play_length(&movie);
+                    let original_language = Self::parse_original_language(&movie);
+                    let booking_url = Self::parse_movie_link_url(&movie);
+                    let movie_page_url =
+                        booking_url.as_deref().and_then(Self::extract_canonical_movie_page_url);
                     Repertoire {
                         title,
-                        genres: Self::parse_genres(&movie),
-                        play_length: Self::parse_play_length(&movie),
-                        original_language: Self::parse_original_language(&movie),
-                        play_details: Self::parse_play_details(&movie, movie_page_url.as_deref()),
+                        genres: genres.clone(),
+                        play_length: play_length.clone(),
+                        original_language: original_language.clone(),
+                        play_details: Self::parse_play_details(&movie, booking_url.as_deref()),
+                        lookup_metadata: Self::build_lookup_metadata(
+                            movie_page_url.as_deref(),
+                            &genres,
+                            &play_length,
+                            &original_language,
+                        ),
                     }
                 })
-                .collect::<Vec<_>>();
-            (repertoire, fallback_movie_page_urls)
+                .collect::<Vec<_>>()
         };
         debug!(
-            "Cinema City repertoire parsed url={url} venue_id={} date={date} movies={} fallback_movie_urls={} html_bytes={}",
+            "Cinema City repertoire parsed url={url} venue_id={} date={date} movies={} html_bytes={}",
             venue.venue_id,
             repertoire.len(),
-            fallback_movie_page_urls.len(),
             rendered_html.len(),
         );
 
-        match self.fetch_bookable_movie_page_links(&rendered_html, date, venue).await {
-            Ok(bookable_showtimes) => {
+        match self.fetch_quickbook_movie_enrichment(&rendered_html, date, venue).await {
+            Ok(quickbook_movies) => {
                 debug!(
-                    "Cinema City repertoire enrichment applying bookable entries={} venue_id={} date={date}",
-                    bookable_showtimes.len(),
+                    "Cinema City repertoire enrichment applying quickbook entries={} venue_id={} date={date}",
+                    quickbook_movies.len(),
                     venue.venue_id,
                 );
-                Self::apply_bookable_movie_page_links(
-                    &mut repertoire,
-                    &bookable_showtimes,
-                    &fallback_movie_page_urls,
-                );
+                Self::apply_quickbook_movie_enrichment(&mut repertoire, &quickbook_movies);
             }
             Err(error) => {
                 debug!(
@@ -793,6 +1101,13 @@ struct CinemaCityFilmEventFilm {
     id: String,
     name: String,
     link: Option<String>,
+    length: Option<u16>,
+    #[serde(rename = "releaseYear")]
+    release_year: Option<String>,
+    #[serde(rename = "releaseDate")]
+    release_date: Option<String>,
+    #[serde(rename = "attributeIds", default)]
+    attribute_ids: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -815,16 +1130,63 @@ struct CinemaCityCompositeBookingLink {
     block_online_sales: bool,
 }
 
+#[derive(Debug, Deserialize)]
+struct CinemaCityMoviePageDetails {
+    #[serde(rename = "originalName")]
+    original_name: Option<String>,
+    #[serde(rename = "releaseCountry")]
+    release_country: Option<String>,
+    cast: Option<String>,
+    directors: Option<String>,
+    synopsis: Option<String>,
+}
+
 #[derive(Debug, Clone)]
 struct BookableMovieMetadata {
     title: String,
-    movie_page_url: Option<String>,
+    lookup_metadata: MovieLookupMetadata,
 }
 
 #[derive(Debug, Clone, Default)]
-struct BookableMovieShowtimes {
-    movie_page_url: Option<String>,
+struct QuickbookMovieEnrichment {
+    lookup_metadata: MovieLookupMetadata,
     showtimes: HashSet<String>,
+}
+
+pub fn parse_movie_page_fallback_details(
+    rendered_html: &str,
+) -> AppResult<MoviePageFallbackDetails> {
+    let Some(film_details_json) = extract_json_object_assignment(rendered_html, "filmDetails")
+    else {
+        debug!(
+            "Cinema City movie page did not include a filmDetails assignment; html_preview={}",
+            preview_for_log(rendered_html, MAX_LOG_BODY_PREVIEW_CHARS),
+        );
+        return Err(AppError::BrowserUnavailable(
+            "Nie udało się odczytać szczegółów filmu Cinema City z aktualnego formatu strony."
+                .to_string(),
+        ));
+    };
+
+    let details = serde_json::from_str::<CinemaCityMoviePageDetails>(film_details_json).map_err(
+        |error| {
+            debug!(
+                "Cinema City movie page filmDetails JSON parse failed error={error} payload_preview={}",
+                preview_for_log(film_details_json, MAX_LOG_BODY_PREVIEW_CHARS),
+            );
+            AppError::BrowserUnavailable(format!(
+                "Nie udało się odczytać szczegółów filmu Cinema City z aktualnego formatu strony: {error}"
+            ))
+        },
+    )?;
+
+    Ok(MoviePageFallbackDetails {
+        original_title: normalize_optional_text(details.original_name),
+        country: normalize_optional_text(details.release_country),
+        cast: split_people_list(details.cast.as_deref()),
+        directors: split_people_list(details.directors.as_deref()),
+        synopsis: normalize_optional_text(details.synopsis),
+    })
 }
 
 fn selector(value: &str) -> &'static Selector {
@@ -832,13 +1194,26 @@ fn selector(value: &str) -> &'static Selector {
 }
 
 fn extract_json_array_assignment<'a>(html: &'a str, variable_name: &str) -> Option<&'a str> {
-    let start = html.find(&format!("{variable_name} = ["))?;
-    let array_start = start + html[start..].find('[')?;
+    extract_json_assignment(html, variable_name, '[', ']')
+}
+
+fn extract_json_object_assignment<'a>(html: &'a str, variable_name: &str) -> Option<&'a str> {
+    extract_json_assignment(html, variable_name, '{', '}')
+}
+
+fn extract_json_assignment<'a>(
+    html: &'a str,
+    variable_name: &str,
+    open_char: char,
+    close_char: char,
+) -> Option<&'a str> {
+    let start = html.find(&format!("{variable_name} = {open_char}"))?;
+    let json_start = start + html[start..].find(open_char)?;
     let mut depth = 0;
     let mut inside_string = false;
     let mut escaped = false;
 
-    for (offset, character) in html[array_start..].char_indices() {
+    for (offset, character) in html[json_start..].char_indices() {
         if inside_string {
             match character {
                 '\\' if !escaped => escaped = true,
@@ -850,12 +1225,12 @@ fn extract_json_array_assignment<'a>(html: &'a str, variable_name: &str) -> Opti
 
         match character {
             '"' => inside_string = true,
-            '[' => depth += 1,
-            ']' => {
+            character if character == open_char => depth += 1,
+            character if character == close_char => {
                 depth -= 1;
                 if depth == 0 {
-                    let array_end = array_start + offset + character.len_utf8();
-                    return Some(&html[array_start..array_end]);
+                    let json_end = json_start + offset + character.len_utf8();
+                    return Some(&html[json_start..json_end]);
                 }
             }
             _ => {}
@@ -863,6 +1238,28 @@ fn extract_json_array_assignment<'a>(html: &'a str, variable_name: &str) -> Opti
     }
 
     None
+}
+
+fn normalize_optional_text(value: Option<String>) -> Option<String> {
+    value.map(|value| value.trim().to_string()).filter(|value| !value.is_empty())
+}
+
+fn split_people_list(value: Option<&str>) -> Vec<String> {
+    value
+        .unwrap_or_default()
+        .split([',', ';'])
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+fn extract_query_param(url: &str, parameter_name: &str) -> Option<String> {
+    url.split(['?', '#', '&'])
+        .filter_map(|segment| segment.split_once('='))
+        .find(|(name, _)| *name == parameter_name)
+        .map(|(_, value)| value.to_string())
+        .filter(|value| !value.trim().is_empty())
 }
 
 fn first_text(element: &ElementRef<'_>, selector_value: &str) -> Option<String> {

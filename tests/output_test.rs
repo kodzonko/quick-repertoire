@@ -3,8 +3,8 @@ mod support;
 use std::collections::HashMap;
 
 use quick_repertoire::domain::{
-    CinemaVenue, MoviePlayDetails, MoviePlayTime, Repertoire, RepertoireCliTableMetadata,
-    TmdbMovieDetails,
+    CinemaVenue, MovieLookupMetadata, MoviePlayDetails, MoviePlayTime, Repertoire,
+    RepertoireCliTableMetadata, TmdbMovieDetails,
 };
 use quick_repertoire::output::{
     cinema_venue_input_parser, date_input_parser, render_repertoire_table, render_venues_table,
@@ -100,6 +100,7 @@ fn render_repertoire_table_renders_ratings_when_available() {
                 MoviePlayTime { value: "12:30".to_string(), url: None },
             ],
         }],
+        lookup_metadata: MovieLookupMetadata::default(),
     }];
     let ratings = HashMap::from([(
         "Test Movie".to_string(),

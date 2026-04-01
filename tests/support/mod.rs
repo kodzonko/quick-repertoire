@@ -13,7 +13,9 @@ use quick_repertoire::config::{
     AppPaths, DefaultVenues, FileSystemRuntimeWriteAccessProbe, PromptAdapter,
     RuntimeWriteAccessProbe, SelectionChoice, Settings, UserPreferences,
 };
-use quick_repertoire::domain::{CinemaChainId, CinemaVenue, Repertoire, TmdbMovieDetails};
+use quick_repertoire::domain::{
+    CinemaChainId, CinemaVenue, Repertoire, TmdbLookupMovie, TmdbMovieDetails,
+};
 use quick_repertoire::error::{AppError, AppResult};
 use quick_repertoire::tmdb::TmdbService;
 
@@ -169,7 +171,7 @@ pub struct FakeTmdbService {
 impl TmdbService for FakeTmdbService {
     async fn get_movie_ratings_and_summaries(
         &self,
-        _movie_names: &[String],
+        _movies: &[TmdbLookupMovie],
         _access_token: &str,
     ) -> AppResult<HashMap<String, TmdbMovieDetails>> {
         match &self.error {
