@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use chrono::{Datelike, NaiveDate, Utc};
+use futures::{StreamExt, stream};
 use log::debug;
 use regex::Regex;
 use reqwest::header::{HeaderMap, RETRY_AFTER};
@@ -23,6 +24,7 @@ const MAX_LOG_BODY_PREVIEW_CHARS: usize = 256;
 const TMDB_LANGUAGE: &str = "pl-PL";
 const TMDB_REGION: &str = "PL";
 const TMDB_APPEND_TO_RESPONSE: &str = "credits";
+const MAX_CONCURRENT_MOVIE_LOOKUPS: usize = 4;
 const MAX_DETAILED_CANDIDATES: usize = 3;
 const PRELIMINARY_WEAK_SCORE: i32 = 120;
 const PRELIMINARY_MIN_GAP: i32 = 12;
@@ -681,30 +683,45 @@ impl TmdbService for ReqwestTmdbClient {
         movies: &[TmdbLookupMovie],
         access_token: &str,
     ) -> AppResult<HashMap<String, TmdbMovieDetails>> {
-        let mut output = HashMap::new();
         let mut seen = HashSet::new();
+        let unique_movies = movies
+            .iter()
+            .filter(|movie| seen.insert(movie.lookup_key.clone()))
+            .cloned()
+            .collect::<Vec<_>>();
+        debug!(
+            "TMDB batch lookup starting requested_movies={} unique_movies={} concurrency_limit={MAX_CONCURRENT_MOVIE_LOOKUPS}",
+            movies.len(),
+            unique_movies.len(),
+        );
+
+        let lookup_results = stream::iter(unique_movies.into_iter().map(|movie| async move {
+            let mut movie_page_cache = HashMap::<String, Option<MoviePageFallbackDetails>>::new();
+            let mut details_cache = HashMap::<u64, TmdbMovieDetailsResponse>::new();
+            let result = self
+                .resolve_movie(&movie, access_token, &mut movie_page_cache, &mut details_cache)
+                .await;
+            (movie.lookup_key.clone(), movie.title.clone(), result)
+        }))
+        .buffer_unordered(MAX_CONCURRENT_MOVIE_LOOKUPS)
+        .collect::<Vec<_>>()
+        .await;
+
+        let mut output = HashMap::new();
         let mut last_non_auth_error = None;
+        let mut authorization_error = None;
         let mut successful_lookups = 0_usize;
-        let mut movie_page_cache = HashMap::<String, Option<MoviePageFallbackDetails>>::new();
-        let mut details_cache = HashMap::<u64, TmdbMovieDetailsResponse>::new();
 
-        for movie in movies {
-            if !seen.insert(movie.lookup_key.clone()) {
-                continue;
-            }
-
-            match self
-                .resolve_movie(movie, access_token, &mut movie_page_cache, &mut details_cache)
-                .await
-            {
+        for (lookup_key, title, result) in lookup_results {
+            match result {
                 Ok(Some(details)) => {
                     successful_lookups += 1;
-                    output.insert(movie.lookup_key.clone(), details);
+                    output.insert(lookup_key, details);
                 }
                 Ok(None) => {
                     successful_lookups += 1;
                     output.insert(
-                        movie.lookup_key.clone(),
+                        lookup_key,
                         TmdbMovieDetails { rating: String::new(), summary: String::new() },
                     );
                 }
@@ -712,20 +729,24 @@ impl TmdbService for ReqwestTmdbClient {
                     if message.contains(&StatusCode::UNAUTHORIZED.to_string())
                         || message.contains(&StatusCode::FORBIDDEN.to_string()) =>
                 {
-                    return Err(AppError::Http(message));
+                    authorization_error.get_or_insert(AppError::Http(message));
                 }
                 Err(error) => {
                     debug!(
                         "TMDB movie lookup failed lookup_key={:?} title={:?}; leaving blank details: {error}",
-                        movie.lookup_key, movie.title,
+                        lookup_key, title,
                     );
                     last_non_auth_error = Some(error.clone());
                     output.insert(
-                        movie.lookup_key.clone(),
+                        lookup_key,
                         TmdbMovieDetails { rating: String::new(), summary: String::new() },
                     );
                 }
             }
+        }
+
+        if let Some(error) = authorization_error {
+            return Err(error);
         }
 
         if successful_lookups == 0 {

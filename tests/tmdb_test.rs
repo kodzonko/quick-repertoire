@@ -3,7 +3,7 @@ use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use httpmock::Method::GET;
 use httpmock::MockServer;
@@ -1053,4 +1053,130 @@ async fn get_movie_ratings_and_summaries_reports_invalid_tmdb_json() {
         AppError::Http(message)
             if message.contains("invalid JSON") && message.contains("Garfield")
     ));
+}
+
+#[tokio::test]
+async fn get_movie_ratings_and_summaries_processes_movies_concurrently() {
+    let server = MockServer::start_async().await;
+    let request_delay = Duration::from_millis(300);
+
+    let parallel_one_search_mock = server
+        .mock_async(|when, then| {
+            when.method(GET).path("/search/movie").query_param("query", "Parallel One");
+            then.status(200).delay(request_delay).json_body(json!({
+                "results": [tmdb_search_result(
+                    101,
+                    "Parallel One",
+                    "Parallel One",
+                    "2026-04-11",
+                    "en",
+                    7.1,
+                    111,
+                    "First parallel movie."
+                )]
+            }));
+        })
+        .await;
+    let parallel_two_search_mock = server
+        .mock_async(|when, then| {
+            when.method(GET).path("/search/movie").query_param("query", "Parallel Two");
+            then.status(200).delay(request_delay).json_body(json!({
+                "results": [tmdb_search_result(
+                    102,
+                    "Parallel Two",
+                    "Parallel Two",
+                    "2026-04-12",
+                    "en",
+                    7.2,
+                    222,
+                    "Second parallel movie."
+                )]
+            }));
+        })
+        .await;
+    let parallel_one_details_mock = server
+        .mock_async(|when, then| {
+            when.method(GET).path("/movie/101");
+            then.status(200).delay(request_delay).json_body(tmdb_movie_details(
+                101,
+                "Parallel One",
+                "Parallel One",
+                "2026-04-11",
+                "en",
+                101,
+                7.1,
+                111,
+                "First parallel movie.",
+                &["Drama"],
+                &[("US", "United States")],
+                &["Director One"],
+                &["Actor One"],
+            ));
+        })
+        .await;
+    let parallel_two_details_mock = server
+        .mock_async(|when, then| {
+            when.method(GET).path("/movie/102");
+            then.status(200).delay(request_delay).json_body(tmdb_movie_details(
+                102,
+                "Parallel Two",
+                "Parallel Two",
+                "2026-04-12",
+                "en",
+                102,
+                7.2,
+                222,
+                "Second parallel movie.",
+                &["Thriller"],
+                &[("GB", "United Kingdom")],
+                &["Director Two"],
+                &["Actor Two"],
+            ));
+        })
+        .await;
+
+    let client = ReqwestTmdbClient::with_base_urls(
+        server.url("/authentication"),
+        server.url("/search/movie"),
+    )
+    .unwrap();
+
+    let started_at = Instant::now();
+    let details = client
+        .get_movie_ratings_and_summaries(
+            &[lookup_movie("Parallel One"), lookup_movie("Parallel Two")],
+            "token",
+        )
+        .await
+        .unwrap();
+    let elapsed = started_at.elapsed();
+
+    parallel_one_search_mock.assert_async().await;
+    parallel_two_search_mock.assert_async().await;
+    parallel_one_details_mock.assert_async().await;
+    parallel_two_details_mock.assert_async().await;
+
+    assert_eq!(
+        details,
+        HashMap::from([
+            (
+                "Parallel One".to_string(),
+                TmdbMovieDetails {
+                    rating: "7.1/10\n(głosy: 111)".to_string(),
+                    summary: "First parallel movie.".to_string(),
+                }
+            ),
+            (
+                "Parallel Two".to_string(),
+                TmdbMovieDetails {
+                    rating: "7.2/10\n(głosy: 222)".to_string(),
+                    summary: "Second parallel movie.".to_string(),
+                }
+            ),
+        ])
+    );
+    assert!(
+        elapsed < Duration::from_millis(950),
+        "TMDB lookups should overlap, but took {elapsed:?}",
+    );
 }

@@ -650,26 +650,26 @@ impl CinemaCity {
                 DEFAULT_CINEMA_CITY_TENANT_ID.to_string()
             });
         let repertoire_url = self.build_repertoire_url(venue, date)?;
-        let payload = self
-            .fetch_quickbook_film_events_payload(
-                &tenant_id,
-                venue,
-                date,
-                QUICKBOOK_LANGUAGE,
-                &repertoire_url,
-            )
-            .await?;
-        let alternate_titles_by_id = match self
-            .fetch_quickbook_alternate_titles(
-                &tenant_id,
-                venue,
-                date,
-                &repertoire_url,
-                &payload.body.films,
-            )
-            .await
-        {
-            Ok(alternate_titles) => alternate_titles,
+        let primary_payload = self.fetch_quickbook_film_events_payload(
+            &tenant_id,
+            venue,
+            date,
+            QUICKBOOK_LANGUAGE,
+            &repertoire_url,
+        );
+        let alternate_payload = self.fetch_quickbook_film_events_payload(
+            &tenant_id,
+            venue,
+            date,
+            QUICKBOOK_ALTERNATE_TITLE_LANGUAGE,
+            &repertoire_url,
+        );
+        let (payload, alternate_payload) = tokio::join!(primary_payload, alternate_payload);
+        let payload = payload?;
+        let alternate_titles_by_id = match alternate_payload {
+            Ok(alternate_payload) => {
+                Self::extract_quickbook_alternate_titles(&payload.body.films, alternate_payload)
+            }
             Err(error) => {
                 debug!(
                     "Cinema City quickbook alternate-title enrichment skipped venue_id={} date={date} error={error}",
@@ -854,23 +854,10 @@ impl CinemaCity {
         })
     }
 
-    async fn fetch_quickbook_alternate_titles(
-        &self,
-        tenant_id: &str,
-        venue: &CinemaVenue,
-        date: &str,
-        repertoire_url: &str,
+    fn extract_quickbook_alternate_titles(
         base_films: &[CinemaCityFilmEventFilm],
-    ) -> AppResult<HashMap<String, Vec<String>>> {
-        let payload = self
-            .fetch_quickbook_film_events_payload(
-                tenant_id,
-                venue,
-                date,
-                QUICKBOOK_ALTERNATE_TITLE_LANGUAGE,
-                repertoire_url,
-            )
-            .await?;
+        payload: CinemaCityFilmEventsResponse,
+    ) -> HashMap<String, Vec<String>> {
         let base_titles_by_id = base_films
             .iter()
             .map(|film| (film.id.as_str(), Self::normalize_lookup_text(&film.name)))
@@ -893,7 +880,7 @@ impl CinemaCity {
             }
             entry.push(film.name);
         }
-        Ok(alternate_titles_by_id)
+        alternate_titles_by_id
     }
 
     fn apply_quickbook_movie_enrichment(
