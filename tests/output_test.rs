@@ -20,6 +20,9 @@ fn cinema_venue_input_parser_parses_user_input_correctly() {
 #[test]
 fn date_input_parser_accepts_supported_values() {
     assert_eq!(date_input_parser("2021-12-31").unwrap(), "2021-12-31");
+    assert_eq!(date_input_parser("2021.12.31").unwrap(), "2021-12-31");
+    assert_eq!(date_input_parser("31.12.2021").unwrap(), "2021-12-31");
+    assert_eq!(date_input_parser("31-12-2021").unwrap(), "2021-12-31");
     assert!(date_input_parser("dziś").is_ok());
     assert!(date_input_parser("today").is_ok());
     assert!(date_input_parser("tomorrow").is_ok());
@@ -27,10 +30,15 @@ fn date_input_parser_accepts_supported_values() {
 }
 
 #[test]
+fn date_input_parser_interprets_hyphenated_numeric_dates_as_day_first() {
+    assert_eq!(date_input_parser("01-04-2026").unwrap(), "2026-04-01");
+}
+
+#[test]
 fn date_input_parser_rejects_unsupported_values() {
     assert_eq!(
         date_input_parser("foo").unwrap_err().to_string(),
-        "Data: foo nie jest we wspieranym formacie: YYYY-MM-DD | dziś | jutro."
+        "Data: foo nie jest we wspieranym formacie: YYYY-MM-DD | YYYY.MM.DD | DD.MM.YYYY | DD-MM-YYYY | dziś | jutro."
     );
 }
 

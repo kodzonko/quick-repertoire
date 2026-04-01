@@ -80,11 +80,13 @@ pub fn date_input_parser(date: &str) -> AppResult<String> {
     match normalized.as_str() {
         "dziś" | "dzis" | "dzisiaj" | "today" => Ok(Local::now().date_naive().to_string()),
         "jutro" | "tomorrow" => Ok((Local::now().date_naive() + Duration::days(1)).to_string()),
-        _ => NaiveDate::parse_from_str(trimmed, "%Y-%m-%d")
+        _ => ["%Y-%m-%d", "%Y.%m.%d", "%d.%m.%Y", "%d-%m-%Y"]
+            .into_iter()
+            .find_map(|format| NaiveDate::parse_from_str(trimmed, format).ok())
             .map(|parsed| parsed.to_string())
-            .map_err(|_| {
+            .ok_or_else(|| {
                 AppError::Message(format!(
-                    "Data: {trimmed} nie jest we wspieranym formacie: YYYY-MM-DD | dziś | jutro."
+                    "Data: {trimmed} nie jest we wspieranym formacie: YYYY-MM-DD | YYYY.MM.DD | DD.MM.YYYY | DD-MM-YYYY | dziś | jutro."
                 ))
             }),
     }

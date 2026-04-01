@@ -287,6 +287,12 @@ impl CinemaCity {
             .and_then(Self::canonicalize_cinema_city_url)
     }
 
+    fn booking_url_matches_requested_date(booking_url: Option<&str>, requested_date: &str) -> bool {
+        booking_url
+            .and_then(|url| extract_query_param(url, "at"))
+            .is_none_or(|rendered_date| rendered_date == requested_date)
+    }
+
     fn extract_canonical_movie_page_url(url: &str) -> Option<String> {
         let canonical_url = Self::canonicalize_cinema_city_url(url)?;
         let without_fragment = canonical_url.split('#').next().unwrap_or(&canonical_url);
@@ -943,15 +949,22 @@ impl CinemaChainClient for CinemaCity {
             let html = Html::parse_document(&rendered_html);
             html.select(selector(REPERTOIRE_SELECTOR))
                 .filter(|movie| !Self::is_presale(movie))
-                .map(|movie| {
+                .filter_map(|movie| {
                     let title = Self::parse_title(&movie);
                     let genres = Self::parse_genres(&movie);
                     let play_length = Self::parse_play_length(&movie);
                     let original_language = Self::parse_original_language(&movie);
                     let booking_url = Self::parse_movie_link_url(&movie);
+                    if !Self::booking_url_matches_requested_date(booking_url.as_deref(), date) {
+                        debug!(
+                            "Cinema City repertoire row skipped because rendered booking url date does not match requested date venue_id={} requested_date={} booking_url={:?} title={:?}",
+                            venue.venue_id, date, booking_url, title,
+                        );
+                        return None;
+                    }
                     let movie_page_url =
                         booking_url.as_deref().and_then(Self::extract_canonical_movie_page_url);
-                    Repertoire {
+                    Some(Repertoire {
                         title,
                         genres: genres.clone(),
                         play_length: play_length.clone(),
@@ -963,7 +976,7 @@ impl CinemaChainClient for CinemaCity {
                             &play_length,
                             &original_language,
                         ),
-                    }
+                    })
                 })
                 .collect::<Vec<_>>()
         };
