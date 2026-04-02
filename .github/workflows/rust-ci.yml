@@ -70,11 +70,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ github.ref }}
-      - name: Install Rust toolchain (nightly for coverage)
-        if: matrix.coverage
-        uses: dtolnay/rust-toolchain@nightly
       - name: Install Rust toolchain (stable)
-        if: ${{ !matrix.coverage }}
         uses: dtolnay/rust-toolchain@stable
       - name: Install cargo-llvm-cov
         if: matrix.coverage
