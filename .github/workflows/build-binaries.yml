@@ -19,7 +19,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  BINARY_NAME: app
+  BINARY_NAME: quickrep
   CARGO_TERM_COLOR: always
 
 jobs:
@@ -131,22 +131,22 @@ jobs:
             artifact_name: app-windows-x86_64-msvc
             asset_name: app-windows-x86_64-msvc.zip
             target: x86_64-pc-windows-msvc
-            binary_path: target/x86_64-pc-windows-msvc/release/app.exe
+            binary_path: target/x86_64-pc-windows-msvc/release/quickrep.exe
           - runner: windows-latest
             artifact_name: app-windows-i686-msvc
             asset_name: app-windows-i686-msvc.zip
             target: i686-pc-windows-msvc
-            binary_path: target/i686-pc-windows-msvc/release/app.exe
+            binary_path: target/i686-pc-windows-msvc/release/quickrep.exe
           - runner: macos-15-intel
             artifact_name: app-macos-15-x86_64
             asset_name: app-macos-15-x86_64.tar.gz
             target: x86_64-apple-darwin
-            binary_path: target/x86_64-apple-darwin/release/app
+            binary_path: target/x86_64-apple-darwin/release/quickrep
           - runner: macos-15
             artifact_name: app-macos-15-arm64
             asset_name: app-macos-15-arm64.tar.gz
             target: aarch64-apple-darwin
-            binary_path: target/aarch64-apple-darwin/release/app
+            binary_path: target/aarch64-apple-darwin/release/quickrep
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
