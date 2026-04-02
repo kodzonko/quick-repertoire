@@ -66,4 +66,30 @@ fn rust_ci_workflow_uses_stable_toolchain() {
         !workflow.contains("uses: dtolnay/rust-toolchain@nightly"),
         "rust-ci.yml should not install the nightly Rust toolchain"
     );
+    assert!(
+        !workflow.contains("cargo llvm-cov --locked --branch"),
+        "rust-ci.yml should not request branch coverage when running on stable"
+    );
+}
+
+#[test]
+fn release_workflow_publishes_without_git_checkout_context() {
+    let workflow = fs::read_to_string(".github/workflows/build-binaries.yml").unwrap();
+
+    assert!(
+        workflow.contains(r#"gh release view "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}""#),
+        "build-binaries.yml should scope `gh release view` to GITHUB_REPOSITORY"
+    );
+    assert!(
+        workflow.contains(
+            r#"gh release upload "${RELEASE_TAG}" "${assets[@]}" --repo "${GITHUB_REPOSITORY}" --clobber"#
+        ),
+        "build-binaries.yml should scope `gh release upload` to GITHUB_REPOSITORY"
+    );
+    assert!(
+        workflow.contains(
+            r#"gh release create "${RELEASE_TAG}" "${assets[@]}" --repo "${GITHUB_REPOSITORY}" --target "${RELEASE_TARGET}" --generate-notes"#
+        ),
+        "build-binaries.yml should scope `gh release create` to GITHUB_REPOSITORY"
+    );
 }

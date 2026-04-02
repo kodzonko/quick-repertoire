@@ -89,7 +89,7 @@ jobs:
           set -o pipefail
           output_file="$(mktemp)"
 
-          cargo llvm-cov --locked --branch --all-targets --all-features | tee "$output_file"
+          cargo llvm-cov --locked --all-targets --all-features | tee "$output_file"
 
           {
             echo "## Coverage"
