@@ -1,0 +1,33 @@
+{
+  "name": "Łódź Helios",
+  "id": 7,
+  "sourceId": "46055d88-5f34-44a0-9584-b041caa71e26",
+  "header": "Helios",
+  "slug": "kino-helios",
+  "isDream": true,
+  "isImax": false,
+  "adsPrefix": "/75224259/AGORA-IN/Helios/Lodz/SUKCESJA",
+  "location": {
+    "province": "łódzkie",
+    "city": "Łódź",
+    "street": "Al. Politechniki 1",
+    "latitude": 51.749311,
+    "longitude": 19.448353
+  },
+  "mainPhoto": {
+    "filePath": "kino/kino-helios/kino-helios-312.jpg",
+    "url": "https://img.helios.pl/pliki/kino/kino-helios/kino-helios-312.jpg",
+    "meta": {
+      "name": "kino-helios-312.jpg",
+      "size": 195860,
+      "width": 960,
+      "height": 653,
+      "extension": "jpg",
+      "mime_type": "image/jpeg"
+    },
+    "alt": null
+  },
+  "city": "Łódź",
+  "slugCity": "lodz",
+  "isSingle": true
+}

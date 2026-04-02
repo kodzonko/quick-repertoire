@@ -5,13 +5,21 @@ use crate::error::{AppError, AppResult};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CinemaChainId {
     CinemaCity,
+    Helios,
 }
 
 impl CinemaChainId {
+    pub const ALL: [Self; 2] = [Self::CinemaCity, Self::Helios];
+
+    pub fn all() -> &'static [Self] {
+        &Self::ALL
+    }
+
     pub fn from_value(value: &str) -> AppResult<Self> {
         let normalized = value.trim().to_ascii_lowercase();
         match normalized.as_str() {
             "cinema-city" => Ok(Self::CinemaCity),
+            "helios" => Ok(Self::Helios),
             _ => Err(AppError::UnsupportedCinemaChain {
                 invalid_chain: value.to_string(),
                 supported_chains: Self::supported_values().join(", "),
@@ -22,17 +30,19 @@ impl CinemaChainId {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::CinemaCity => "cinema-city",
+            Self::Helios => "helios",
         }
     }
 
     pub fn section_name(self) -> &'static str {
         match self {
             Self::CinemaCity => "cinema_city",
+            Self::Helios => "helios",
         }
     }
 
     pub fn supported_values() -> Vec<&'static str> {
-        vec![Self::CinemaCity.as_str()]
+        Self::all().iter().map(|chain_id| chain_id.as_str()).collect()
     }
 }
 
@@ -64,7 +74,7 @@ pub struct MoviePlayDetails {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct MovieLookupMetadata {
-    pub cinema_city_film_id: Option<String>,
+    pub chain_movie_id: Option<String>,
     pub movie_page_url: Option<String>,
     pub alternate_titles: Vec<String>,
     pub runtime_minutes: Option<u16>,
@@ -95,7 +105,7 @@ pub struct Repertoire {
 
 impl Repertoire {
     pub fn tmdb_lookup_key(&self) -> &str {
-        self.lookup_metadata.cinema_city_film_id.as_deref().unwrap_or(&self.title)
+        self.lookup_metadata.chain_movie_id.as_deref().unwrap_or(&self.title)
     }
 }
 

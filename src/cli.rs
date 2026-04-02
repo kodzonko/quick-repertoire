@@ -87,7 +87,7 @@ pub enum VenueCommands {
         chain: Option<String>,
     },
     #[command(
-        about = "Pobiera aktualną listę lokali wybranej sieci",
+        about = "Pobiera aktualną listę lokali wybranej sieci lub wszystkich obsługiwanych sieci",
         long_about = None,
         help_template = POLISH_HELP_TEMPLATE
     )]

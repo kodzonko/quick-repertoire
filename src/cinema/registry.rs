@@ -3,7 +3,9 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use crate::cinema::cinema_city::{CinemaCity, HtmlRenderer};
+use crate::cinema::browser::HtmlRenderer;
+use crate::cinema::cinema_city::CinemaCity;
+use crate::cinema::helios::{DEFAULT_HELIOS_BASE_URL, DEFAULT_HELIOS_VENUES_URL, Helios};
 use crate::config::{
     DEFAULT_CINEMA_CITY_REPERTOIRE_URL, DEFAULT_CINEMA_CITY_VENUES_LIST_URL, Settings,
 };
@@ -41,12 +43,27 @@ impl Registry {
                 cinema_city_renderer.clone(),
             )) as Box<dyn CinemaChainClient>
         });
+        let helios_renderer = renderer.clone();
+        let helios_factory = Arc::new(move |_settings: &Settings| {
+            Box::new(Helios::new(
+                DEFAULT_HELIOS_BASE_URL,
+                DEFAULT_HELIOS_VENUES_URL,
+                helios_renderer.clone(),
+            )) as Box<dyn CinemaChainClient>
+        });
 
-        Self::from_chains(vec![RegisteredCinemaChain {
-            chain_id: CinemaChainId::CinemaCity,
-            display_name: "Cinema City".to_string(),
-            client_factory: cinema_city_factory,
-        }])
+        Self::from_chains(vec![
+            RegisteredCinemaChain {
+                chain_id: CinemaChainId::CinemaCity,
+                display_name: "Cinema City".to_string(),
+                client_factory: cinema_city_factory,
+            },
+            RegisteredCinemaChain {
+                chain_id: CinemaChainId::Helios,
+                display_name: "Helios".to_string(),
+                client_factory: helios_factory,
+            },
+        ])
     }
 
     pub fn from_chains(chains: Vec<RegisteredCinemaChain>) -> Self {

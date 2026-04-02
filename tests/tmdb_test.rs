@@ -18,7 +18,7 @@ fn lookup_movie(title: &str) -> TmdbLookupMovie {
 }
 
 fn lookup_movie_with_metadata(title: &str, metadata: MovieLookupMetadata) -> TmdbLookupMovie {
-    let lookup_key = metadata.cinema_city_film_id.clone().unwrap_or_else(|| title.to_string());
+    let lookup_key = metadata.chain_movie_id.clone().unwrap_or_else(|| title.to_string());
     TmdbLookupMovie { lookup_key, title: title.to_string(), lookup_metadata: metadata }
 }
 

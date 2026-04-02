@@ -4,12 +4,12 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use dialoguer::{Input, Select, theme::ColorfulTheme};
-use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 
 use crate::cinema::registry::Registry;
 use crate::domain::{CinemaChainId, CinemaVenue};
 use crate::error::{AppError, AppResult};
 use crate::persistence::DatabaseManager;
+use crate::venue_refresh::fetch_registered_venues;
 
 pub const CONFIG_FILE_NAME: &str = "config.ini";
 pub const DB_FILE_NAME: &str = "db.sqlite";
@@ -76,19 +76,22 @@ pub fn build_runtime_write_access_probe() -> Box<dyn RuntimeWriteAccessProbe> {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct DefaultVenues {
-    pub cinema_city: Option<String>,
+    venues_by_chain: HashMap<String, String>,
 }
 
 impl DefaultVenues {
     pub fn get(&self, chain_id: CinemaChainId) -> Option<&str> {
-        match chain_id {
-            CinemaChainId::CinemaCity => self.cinema_city.as_deref(),
-        }
+        self.venues_by_chain.get(chain_id.section_name()).map(String::as_str)
     }
 
     pub fn set(&mut self, chain_id: CinemaChainId, value: Option<String>) {
-        match chain_id {
-            CinemaChainId::CinemaCity => self.cinema_city = value,
+        match value {
+            Some(value) if !value.trim().is_empty() => {
+                self.venues_by_chain.insert(chain_id.section_name().to_string(), value);
+            }
+            _ => {
+                self.venues_by_chain.remove(chain_id.section_name());
+            }
         }
     }
 }
@@ -245,6 +248,18 @@ pub fn load_settings(paths: &AppPaths) -> AppResult<Settings> {
     let sections =
         parse_ini(&content).map_err(|_| AppError::configuration(configure_recovery_message()))?;
 
+    let mut default_venues = DefaultVenues::default();
+    for chain_id in CinemaChainId::all() {
+        default_venues.set(
+            *chain_id,
+            normalize_optional(
+                get_optional(&sections, "default_venues", chain_id.section_name())
+                    .unwrap_or_default()
+                    .as_str(),
+            ),
+        );
+    }
+
     Ok(Settings {
         user_preferences: UserPreferences {
             default_chain: CinemaChainId::from_value(
@@ -260,13 +275,7 @@ pub fn load_settings(paths: &AppPaths) -> AppResult<Settings> {
                     .unwrap_or_default()
                     .as_str(),
             ),
-            default_venues: DefaultVenues {
-                cinema_city: normalize_optional(
-                    get_optional(&sections, "default_venues", "cinema_city")
-                        .unwrap_or_default()
-                        .as_str(),
-                ),
-            },
+            default_venues,
         },
     })
 }
@@ -283,6 +292,17 @@ pub fn write_settings(settings: &Settings, paths: &AppPaths) -> AppResult<()> {
         fs::create_dir_all(parent).map_err(|error| AppError::configuration(error.to_string()))?;
     }
 
+    let default_venues_body = CinemaChainId::all()
+        .iter()
+        .map(|chain_id| {
+            format!(
+                "{} = {}\n",
+                chain_id.section_name(),
+                settings.user_preferences.default_venues.get(*chain_id).unwrap_or(""),
+            )
+        })
+        .collect::<String>();
+
     let config_body = format!(
         "[user_preferences]\n\
 default_chain = {}\n\
@@ -290,12 +310,12 @@ default_day = {}\n\
 tmdb_access_token = {}\n\
 \n\
 [default_venues]\n\
-cinema_city = {}\n\
+{}\
 \n",
         settings.user_preferences.default_chain.as_str(),
         settings.user_preferences.default_day,
         settings.user_preferences.tmdb_access_token.clone().unwrap_or_default(),
-        settings.user_preferences.default_venues.cinema_city.clone().unwrap_or_default(),
+        default_venues_body,
     );
 
     let temp_path = config_path.with_extension("tmp");
@@ -336,7 +356,8 @@ pub async fn run_interactive_configuration_with_write_access_probe(
     base_settings.user_preferences.default_day =
         canonicalize_default_day(&base_settings.user_preferences.default_day);
     let mut working_settings = base_settings.clone();
-    let venues_by_chain = fetch_all_registered_venues(&working_settings, registry).await?;
+    let venues_by_chain =
+        fetch_registered_venues(&working_settings, registry.get_registered_chains()).await?;
 
     let chain_choices = registry
         .get_registered_chains()
@@ -396,61 +417,6 @@ pub async fn run_interactive_configuration_with_write_access_probe(
     persist_venues(paths, &venues_by_chain)?;
     write_settings(&working_settings, paths)?;
     Ok(working_settings)
-}
-
-async fn fetch_all_registered_venues(
-    settings: &Settings,
-    registry: &Registry,
-) -> AppResult<HashMap<CinemaChainId, Vec<CinemaVenue>>> {
-    let chains = registry.get_registered_chains();
-    if chains.is_empty() {
-        return Err(AppError::configuration("Brak zarejestrowanych sieci kin do skonfigurowania."));
-    }
-
-    let progress_style = ProgressStyle::with_template("{spinner:.green} {msg}")
-        .map_err(|error| AppError::configuration(error.to_string()))?;
-    let multi_progress = MultiProgress::new();
-    let mut venues_by_chain = HashMap::new();
-    let mut failed_chains = Vec::new();
-
-    for chain in chains {
-        let progress_bar = multi_progress.add(ProgressBar::new_spinner());
-        progress_bar.set_style(progress_style.clone());
-        progress_bar.set_message(format!("{}: pobieranie", chain.display_name));
-
-        let client = (chain.client_factory)(settings);
-        match client.fetch_venues().await {
-            Ok(mut venues) if !venues.is_empty() => {
-                venues.sort_by(|left, right| {
-                    left.venue_name.to_lowercase().cmp(&right.venue_name.to_lowercase())
-                });
-                progress_bar.finish_with_message(format!(
-                    "{}: {} lokali",
-                    chain.display_name,
-                    venues.len()
-                ));
-                venues_by_chain.insert(chain.chain_id, venues);
-            }
-            Ok(_) => {
-                progress_bar.finish_with_message(format!("{}: brak lokali", chain.display_name));
-                failed_chains.push(chain.display_name.clone());
-            }
-            Err(_) => {
-                progress_bar.finish_with_message(format!("{}: błąd", chain.display_name));
-                failed_chains.push(chain.display_name.clone());
-            }
-        }
-    }
-
-    if !failed_chains.is_empty() {
-        failed_chains.sort();
-        return Err(AppError::configuration(format!(
-            "Nie udało się pobrać list lokali dla wszystkich sieci. Niepowodzenie: {}.",
-            failed_chains.join(", ")
-        )));
-    }
-
-    Ok(venues_by_chain)
 }
 
 fn persist_venues(

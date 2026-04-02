@@ -11,7 +11,7 @@ use reqwest::header::{HeaderMap, RETRY_AFTER};
 use reqwest::{Client, StatusCode};
 use serde::Deserialize;
 
-use crate::cinema::cinema_city::parse_movie_page_fallback_details;
+use crate::cinema::common::parse_movie_page_fallback_details;
 use crate::domain::{
     MovieLookupMetadata, MoviePageFallbackDetails, TmdbLookupMovie, TmdbMovieDetails,
 };
@@ -402,13 +402,13 @@ impl ReqwestTmdbClient {
         .await
     }
 
-    async fn fetch_cinema_city_movie_page_details(
+    async fn fetch_movie_page_fallback_details(
         &self,
         movie_page_url: &str,
     ) -> AppResult<MoviePageFallbackDetails> {
         retry_with_backoff(self.retry_policy, |attempt| async move {
             debug!(
-                "Cinema City movie page fallback request attempt={attempt} url={movie_page_url}",
+                "Movie page fallback request attempt={attempt} url={movie_page_url}",
             );
             let response = self
                 .client
@@ -423,7 +423,7 @@ impl ReqwestTmdbClient {
                 .await
                 .map_err(|error| {
                     let app_error = AppError::Http(format!(
-                        "Nie udało się pobrać strony filmu Cinema City `{movie_page_url}`: {error}"
+                        "Nie udało się pobrać strony filmu `{movie_page_url}`: {error}"
                     ));
                     if error.is_timeout() || error.is_connect() || error.is_request() {
                         RetryDirective::retry(app_error)
@@ -434,16 +434,16 @@ impl ReqwestTmdbClient {
             let status = response.status();
             if status.is_client_error() || status.is_server_error() {
                 debug!(
-                    "Cinema City movie page fallback request failed attempt={attempt} url={movie_page_url} status={status} body_preview={}",
+                    "Movie page fallback request failed attempt={attempt} url={movie_page_url} status={status} body_preview={}",
                     response_body_preview(response).await,
                 );
                 return Err(RetryDirective::fail(AppError::Http(format!(
-                    "Cinema City movie page request failed with status {status}."
+                    "Żądanie strony filmu zakończyło się błędem: status {status}."
                 ))));
             }
             let body = response.text().await.map_err(|error| {
                 let app_error = AppError::Http(format!(
-                    "Nie udało się odczytać strony filmu Cinema City `{movie_page_url}`: {error}"
+                    "Nie udało się odczytać strony filmu `{movie_page_url}`: {error}"
                 ));
                 if error.is_timeout() || error.is_body() {
                     RetryDirective::retry(app_error)
@@ -556,12 +556,16 @@ impl ReqwestTmdbClient {
         if let Some(cached) = movie_page_cache.get(movie_page_url) {
             return cached.clone();
         }
+        if !movie_page_url.contains("cinema-city.pl") {
+            movie_page_cache.insert(movie_page_url.to_string(), None);
+            return None;
+        }
 
-        let details = match self.fetch_cinema_city_movie_page_details(movie_page_url).await {
+        let details = match self.fetch_movie_page_fallback_details(movie_page_url).await {
             Ok(details) => Some(details),
             Err(error) => {
                 debug!(
-                    "Cinema City movie page fallback lookup failed lookup_key={:?} movie_page_url={movie_page_url} error={error}",
+                    "Movie page fallback lookup failed lookup_key={:?} movie_page_url={movie_page_url} error={error}",
                     movie.lookup_key,
                 );
                 None

@@ -5,7 +5,7 @@ use std::sync::Arc;
 use clap::{CommandFactory, Parser};
 use clap_complete::{Shell, generate};
 
-use crate::cinema::cinema_city::ChromiumHtmlRenderer;
+use crate::cinema::browser::ChromiumHtmlRenderer;
 use crate::cinema::registry::{RegisteredCinemaChain, Registry};
 use crate::cli::{Cli, Commands, VenueCommands};
 use crate::config::{
@@ -26,6 +26,7 @@ use crate::output::{
 };
 use crate::persistence::DatabaseManager;
 use crate::tmdb::{ReqwestTmdbClient, TmdbService};
+use crate::venue_refresh::fetch_registered_venues;
 
 pub struct AppDependencies {
     pub paths: AppPaths,
@@ -307,16 +308,35 @@ async fn handle_venues_update(
     chain: Option<String>,
     terminal: &mut dyn Terminal,
 ) -> AppResult<()> {
-    let registered_chain = resolve_chain(chain, settings, registry)?;
-    terminal.write_line(&format!(
-        "Aktualizowanie lokali dla sieci: {}...",
-        registered_chain.display_name
-    ));
-    let cinema_client = (registered_chain.client_factory)(settings);
-    let venues = cinema_client.fetch_venues().await?;
+    let chains_to_update = match chain {
+        Some(chain) => vec![registry.get_registered_chain(CinemaChainId::from_value(&chain)?)?],
+        None => registry.get_registered_chains(),
+    };
+
+    if chains_to_update.len() == 1 {
+        terminal.write_line(&format!(
+            "Aktualizowanie lokali dla sieci: {}...",
+            chains_to_update[0].display_name
+        ));
+    } else {
+        terminal.write_line("Aktualizowanie lokali dla wszystkich obsługiwanych sieci...");
+    }
+
+    let venues_by_chain = fetch_registered_venues(settings, chains_to_update.clone()).await?;
     let db_manager = build_database_manager(paths)?;
-    db_manager.replace_venues(registered_chain.chain_id.as_str(), &venues)?;
-    terminal.write_line("Lokale zaktualizowane w lokalnej bazie danych.");
+    let payload = venues_by_chain
+        .iter()
+        .map(|(chain_id, venues)| (chain_id.as_str().to_string(), venues.clone()))
+        .collect::<HashMap<_, _>>();
+    db_manager.replace_venues_batch(&payload)?;
+
+    if chains_to_update.len() == 1 {
+        terminal.write_line("Lokale zaktualizowane w lokalnej bazie danych.");
+    } else {
+        terminal.write_line(
+            "Lokale wszystkich obsługiwanych sieci zostały zaktualizowane w lokalnej bazie danych.",
+        );
+    }
     Ok(())
 }
 

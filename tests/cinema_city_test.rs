@@ -8,9 +8,9 @@ use std::time::{Duration, Instant};
 use async_trait::async_trait;
 use httpmock::Method::GET;
 use httpmock::MockServer;
-use quick_repertoire::cinema::cinema_city::{
-    CinemaCity, HtmlRenderer, parse_movie_page_fallback_details,
-};
+use quick_repertoire::cinema::browser::HtmlRenderer;
+use quick_repertoire::cinema::cinema_city::CinemaCity;
+use quick_repertoire::cinema::common::parse_movie_page_fallback_details;
 use quick_repertoire::cinema::registry::CinemaChainClient;
 use quick_repertoire::domain::{CinemaVenue, MoviePlayTime};
 use quick_repertoire::error::{AppError, AppResult};
@@ -376,7 +376,7 @@ async fn fetch_repertoire_keeps_booking_links_and_canonicalizes_lookup_movie_url
     let repertoire = cinema.fetch_repertoire("2026-04-01", &venue_data).await.unwrap();
 
     assert_eq!(repertoire.len(), 1);
-    assert_eq!(repertoire[0].lookup_metadata.cinema_city_film_id.as_deref(), Some("7449s2r"));
+    assert_eq!(repertoire[0].lookup_metadata.chain_movie_id.as_deref(), Some("7449s2r"));
     assert_eq!(
         repertoire[0].lookup_metadata.movie_page_url.as_deref(),
         Some("https://www.cinema-city.pl/filmy/projekt-hail-mary/7449s2r")
@@ -458,7 +458,7 @@ async fn fetch_repertoire_adds_movie_page_links_for_bookable_showtimes() {
             url: Some("https://www.cinema-city.pl/filmy/oni-cie-zabija/7945s2r".to_string()),
         }]
     );
-    assert_eq!(repertoire[0].lookup_metadata.cinema_city_film_id.as_deref(), Some("7945s2r"));
+    assert_eq!(repertoire[0].lookup_metadata.chain_movie_id.as_deref(), Some("7945s2r"));
     assert_eq!(
         repertoire[0].lookup_metadata.movie_page_url.as_deref(),
         Some("https://www.cinema-city.pl/filmy/oni-cie-zabija/7945s2r")
