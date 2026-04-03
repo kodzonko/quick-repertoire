@@ -19,7 +19,7 @@ use crate::domain::{
     CinemaChainId, CinemaVenue, MovieLookupMetadata, MoviePlayDetails, MoviePlayTime, Repertoire,
 };
 use crate::error::{AppError, AppResult};
-use crate::logging::preview_for_log;
+use crate::logging::{preview_for_log, response_body_preview};
 use crate::retry::RetryPolicy;
 
 const REPERTOIRE_PAGE_READY_SELECTOR: &str = "h2.mr-sm";
@@ -750,7 +750,7 @@ impl CinemaCity {
             venue.venue_id
         );
         if status.is_client_error() || status.is_server_error() {
-            let body_preview = response_body_preview(response).await;
+            let body_preview = response_body_preview(response, MAX_LOG_BODY_PREVIEW_CHARS).await;
             debug!(
                 "Cinema City quickbook request failed url={quickbook_url} venue_id={} date={date} language={language} status={status} body_preview={body_preview}",
                 venue.venue_id
@@ -1059,12 +1059,4 @@ struct BookableMovieMetadata {
 struct QuickbookMovieEnrichment {
     lookup_metadata: MovieLookupMetadata,
     showtimes: HashSet<String>,
-}
-
-async fn response_body_preview(response: reqwest::Response) -> String {
-    match response.text().await {
-        Ok(body) if body.trim().is_empty() => "<empty>".to_string(),
-        Ok(body) => preview_for_log(&body, MAX_LOG_BODY_PREVIEW_CHARS),
-        Err(error) => format!("<unavailable: {error}>"),
-    }
 }

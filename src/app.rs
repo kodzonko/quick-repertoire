@@ -21,7 +21,7 @@ use crate::domain::{
 use crate::error::{AppError, AppResult};
 use crate::logging::init_logging;
 use crate::output::{
-    StdoutTerminal, Terminal, cinema_venue_input_parser, date_input_parser,
+    StdoutTerminal, Terminal, cinema_venue_input_parser, date_input_parser, render_chains_table,
     render_repertoire_table, render_venues_table,
 };
 use crate::persistence::DatabaseManager;
@@ -142,6 +142,16 @@ pub async fn run_with_args(
         };
     }
 
+    if matches!(command, Commands::Chains) {
+        return match handle_chains_list(&dependencies.registry, terminal) {
+            Ok(()) => 0,
+            Err(error) => {
+                terminal.write_line(&error.to_string());
+                1
+            }
+        };
+    }
+
     let settings = match settings {
         Some(settings) => settings,
         None => match load_settings(&dependencies.paths) {
@@ -155,6 +165,7 @@ pub async fn run_with_args(
 
     let result = match command {
         Commands::Configure => unreachable!(),
+        Commands::Chains => unreachable!(),
         Commands::Repertoire { chain, venue_name, date } => {
             handle_repertoire(
                 CommandContext { settings: &settings, paths: &dependencies.paths },
@@ -211,6 +222,16 @@ pub async fn run_with_args(
     }
 }
 
+fn handle_chains_list(registry: &Registry, terminal: &mut dyn Terminal) -> AppResult<()> {
+    let chains = registry
+        .get_registered_chains()
+        .into_iter()
+        .map(|chain| (chain.display_name, chain.chain_id.as_str().to_string()))
+        .collect::<Vec<_>>();
+    terminal.write_line(&render_chains_table(&chains));
+    Ok(())
+}
+
 pub fn resolve_single_venue(found_venues: &[CinemaVenue]) -> AppResult<CinemaVenue> {
     match found_venues {
         [] => Err(AppError::VenueNotFound),
@@ -248,6 +269,24 @@ fn build_database_manager(paths: &AppPaths) -> AppResult<DatabaseManager> {
     DatabaseManager::new(paths.db_file())
 }
 
+async fn rehydrate_venues_database_if_missing(
+    settings: &Settings,
+    paths: &AppPaths,
+    registry: &Registry,
+) -> AppResult<()> {
+    if paths.db_file().exists() {
+        return Ok(());
+    }
+
+    let venues_by_chain =
+        fetch_registered_venues(settings, registry.get_registered_chains()).await?;
+    let payload = venues_by_chain
+        .into_iter()
+        .map(|(chain_id, venues)| (chain_id.as_str().to_string(), venues))
+        .collect::<HashMap<_, _>>();
+    build_database_manager(paths)?.replace_venues_batch(&payload)
+}
+
 async fn handle_repertoire(
     context: CommandContext<'_>,
     registry: &Registry,
@@ -260,6 +299,7 @@ async fn handle_repertoire(
     let registered_chain = resolve_chain(chain, context.settings, registry)?;
     let resolved_venue_name = resolve_venue_name(venue_name, &registered_chain, context.settings)?;
     let venue_name_parsed = cinema_venue_input_parser(&resolved_venue_name);
+    rehydrate_venues_database_if_missing(context.settings, context.paths, registry).await?;
     let db_manager = build_database_manager(context.paths)?;
     let found_venues =
         db_manager.find_venues_by_name(registered_chain.chain_id.as_str(), &venue_name_parsed)?;
@@ -295,6 +335,7 @@ async fn handle_venues_list(
     terminal: &mut dyn Terminal,
 ) -> AppResult<()> {
     let registered_chain = resolve_chain(chain, settings, registry)?;
+    rehydrate_venues_database_if_missing(settings, paths, registry).await?;
     let db_manager = build_database_manager(paths)?;
     let venues = db_manager.get_all_venues(registered_chain.chain_id.as_str())?;
     terminal.write_line(&render_venues_table(&venues, &registered_chain.display_name));
@@ -349,6 +390,7 @@ async fn handle_venues_search(
     terminal: &mut dyn Terminal,
 ) -> AppResult<()> {
     let registered_chain = resolve_chain(chain, settings, registry)?;
+    rehydrate_venues_database_if_missing(settings, paths, registry).await?;
     let db_manager = build_database_manager(paths)?;
     let venues = db_manager.find_venues_by_name(
         registered_chain.chain_id.as_str(),

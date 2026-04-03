@@ -33,6 +33,7 @@ fn binary_help_lists_top_level_commands() {
         .stdout(predicates::str::contains("Użycie"))
         .stdout(predicates::str::contains("Polecenia"))
         .stdout(predicates::str::contains("Opcje"))
+        .stdout(predicates::str::contains("chains"))
         .stdout(predicates::str::contains("configure"))
         .stdout(predicates::str::contains("repertoire"))
         .stdout(predicates::str::contains("venues"));
@@ -64,6 +65,50 @@ async fn repertoire_command_exits_for_unsupported_chain() {
 
     assert_eq!(exit_code, 1);
     assert!(terminal.into_string().contains("Nieobsługiwana sieć kin"));
+}
+
+#[tokio::test]
+async fn chains_command_lists_supported_chains_without_configuration() {
+    let temp_dir = tempdir().unwrap();
+    let dependencies = dependencies_with_chains(
+        temp_dir.path(),
+        FakePrompt::new(Vec::new(), Vec::new()),
+        vec![
+            registered_chain(
+                CinemaChainId::CinemaCity,
+                "Cinema City",
+                FakeCinemaClient::new(Vec::new(), Vec::new()),
+            ),
+            registered_chain(
+                CinemaChainId::Helios,
+                "Helios",
+                FakeCinemaClient::new(Vec::new(), Vec::new()),
+            ),
+            registered_chain(
+                CinemaChainId::Multikino,
+                "Multikino",
+                FakeCinemaClient::new(Vec::new(), Vec::new()),
+            ),
+        ],
+        FakeTmdbService { result: Default::default(), error: None },
+    );
+    let mut terminal = BufferTerminal::default();
+
+    let exit_code = run_with_args(
+        vec!["quickrep".to_string(), "chains".to_string()],
+        &dependencies,
+        &mut terminal,
+    )
+    .await;
+
+    let output = terminal.into_string();
+    assert_eq!(exit_code, 0);
+    assert!(output.contains("Obsługiwane sieci kin"));
+    assert!(output.contains("Cinema City"));
+    assert!(output.contains("cinema-city"));
+    assert!(output.contains("Helios"));
+    assert!(output.contains("Multikino"));
+    assert!(!dependencies.paths.config_file().exists());
 }
 
 #[tokio::test]
@@ -245,6 +290,84 @@ async fn repertoire_command_supports_helios_chain() {
     assert!(output.contains("Repertuar dla Helios"));
     assert!(output.contains("Łódź - Helios"));
     assert!(output.contains("Helios Movie"));
+}
+
+#[tokio::test]
+async fn repertoire_command_supports_multikino_chain() {
+    let temp_dir = tempdir().unwrap();
+    let dependencies = dependencies_with_chains(
+        temp_dir.path(),
+        FakePrompt::new(Vec::new(), Vec::new()),
+        vec![
+            registered_chain(
+                CinemaChainId::CinemaCity,
+                "Cinema City",
+                FakeCinemaClient::new(Vec::new(), Vec::new()),
+            ),
+            registered_chain(
+                CinemaChainId::Multikino,
+                "Multikino",
+                FakeCinemaClient::new(
+                    vec![Repertoire {
+                        title: "Multikino Movie".to_string(),
+                        genres: "science fiction".to_string(),
+                        play_length: "157 min".to_string(),
+                        original_language: "Brak danych".to_string(),
+                        play_details: vec![MoviePlayDetails {
+                            format: "2D".to_string(),
+                            play_language: "NAPISY".to_string(),
+                            play_times: vec![MoviePlayTime {
+                                value: "19:30".to_string(),
+                                url: Some(
+                                    "https://www.multikino.pl/rezerwacja-biletow/podsumowanie/0034/HO00002328/64812"
+                                        .to_string(),
+                                ),
+                            }],
+                        }],
+                        lookup_metadata: MovieLookupMetadata::default(),
+                    }],
+                    Vec::new(),
+                ),
+            ),
+        ],
+        FakeTmdbService { result: Default::default(), error: None },
+    );
+    let mut configured_settings = settings();
+    configured_settings
+        .user_preferences
+        .default_venues
+        .set(CinemaChainId::Multikino, Some("Warszawa Złote Tarasy".to_string()));
+    write_settings(&configured_settings, &dependencies.paths).unwrap();
+    DatabaseManager::new(dependencies.paths.db_file())
+        .unwrap()
+        .replace_venues(
+            "multikino",
+            &[CinemaVenue {
+                chain_id: "multikino".to_string(),
+                venue_name: "Warszawa Złote Tarasy".to_string(),
+                venue_id: "0034".to_string(),
+            }],
+        )
+        .unwrap();
+    let mut terminal = BufferTerminal::default();
+
+    let exit_code = run_with_args(
+        vec![
+            "quickrep".to_string(),
+            "repertoire".to_string(),
+            "--chain".to_string(),
+            "multikino".to_string(),
+        ],
+        &dependencies,
+        &mut terminal,
+    )
+    .await;
+
+    let output = terminal.into_string();
+    assert_eq!(exit_code, 0);
+    assert!(output.contains("Repertuar dla Multikino"));
+    assert!(output.contains("Warszawa Złote Tarasy"));
+    assert!(output.contains("Multikino Movie"));
 }
 
 #[tokio::test]
@@ -563,6 +686,108 @@ async fn repertoire_command_bootstraps_configuration_before_running() {
     assert!(output.contains("Wroclaw - Wroclavia"));
     assert!(output.contains("Test Movie"));
     assert!(fs::read_to_string(dependencies.paths.config_file()).unwrap().contains("tmdb-token"));
+}
+
+#[tokio::test]
+async fn repertoire_command_rehydrates_missing_database_before_running() {
+    let temp_dir = tempdir().unwrap();
+    let dependencies = dependencies_with_chains(
+        temp_dir.path(),
+        FakePrompt::new(Vec::new(), Vec::new()),
+        vec![
+            registered_chain(
+                CinemaChainId::CinemaCity,
+                "Cinema City",
+                FakeCinemaClient::new(
+                    vec![Repertoire {
+                        title: "Test Movie".to_string(),
+                        genres: "Thriller".to_string(),
+                        play_length: "120 min".to_string(),
+                        original_language: "EN".to_string(),
+                        play_details: vec![MoviePlayDetails {
+                            format: "2D".to_string(),
+                            play_language: "NAP: PL".to_string(),
+                            play_times: vec![
+                                MoviePlayTime { value: "10:00".to_string(), url: None },
+                                MoviePlayTime { value: "12:30".to_string(), url: None },
+                            ],
+                        }],
+                        lookup_metadata: MovieLookupMetadata::default(),
+                    }],
+                    vec![
+                        CinemaVenue {
+                            chain_id: "cinema-city".to_string(),
+                            venue_name: "Warszawa - Janki".to_string(),
+                            venue_id: "2".to_string(),
+                        },
+                        CinemaVenue {
+                            chain_id: "cinema-city".to_string(),
+                            venue_name: "Wroclaw - Wroclavia".to_string(),
+                            venue_id: "3".to_string(),
+                        },
+                    ],
+                ),
+            ),
+            registered_chain(
+                CinemaChainId::Helios,
+                "Helios",
+                FakeCinemaClient::new(
+                    Vec::new(),
+                    vec![CinemaVenue {
+                        chain_id: "helios".to_string(),
+                        venue_name: "Łódź - Helios".to_string(),
+                        venue_id: "lodz/kino-helios".to_string(),
+                    }],
+                ),
+            ),
+        ],
+        FakeTmdbService { result: Default::default(), error: None },
+    );
+    let mut configured_settings = settings();
+    configured_settings
+        .user_preferences
+        .default_venues
+        .set(CinemaChainId::Helios, Some("Łódź - Helios".to_string()));
+    write_settings(&configured_settings, &dependencies.paths).unwrap();
+    assert!(!dependencies.paths.db_file().exists());
+    let mut terminal = BufferTerminal::default();
+
+    let exit_code = run_with_args(
+        vec!["quickrep".to_string(), "repertoire".to_string()],
+        &dependencies,
+        &mut terminal,
+    )
+    .await;
+
+    let output = terminal.into_string();
+    assert_eq!(exit_code, 0);
+    assert!(output.contains("Repertuar dla Cinema City"));
+    assert!(output.contains("Wroclaw - Wroclavia"));
+    assert!(output.contains("Test Movie"));
+    assert!(dependencies.paths.db_file().exists());
+    assert_eq!(
+        DatabaseManager::new(dependencies.paths.db_file())
+            .unwrap()
+            .get_all_venues("cinema-city")
+            .unwrap()
+            .into_iter()
+            .map(|venue| (venue.venue_name, venue.venue_id))
+            .collect::<Vec<_>>(),
+        vec![
+            ("Warszawa - Janki".to_string(), "2".to_string()),
+            ("Wroclaw - Wroclavia".to_string(), "3".to_string()),
+        ]
+    );
+    assert_eq!(
+        DatabaseManager::new(dependencies.paths.db_file())
+            .unwrap()
+            .get_all_venues("helios")
+            .unwrap()
+            .into_iter()
+            .map(|venue| (venue.venue_name, venue.venue_id))
+            .collect::<Vec<_>>(),
+        vec![("Łódź - Helios".to_string(), "lodz/kino-helios".to_string())]
+    );
 }
 
 #[tokio::test]

@@ -46,6 +46,12 @@ pub enum Commands {
     )]
     Configure,
     #[command(
+        about = "Wyświetla obsługiwane sieci kin",
+        long_about = None,
+        help_template = POLISH_HELP_TEMPLATE
+    )]
+    Chains,
+    #[command(
         about = "Wyświetla repertuar dla wybranego lokalu",
         long_about = None,
         help_template = POLISH_HELP_TEMPLATE,

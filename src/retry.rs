@@ -1,7 +1,9 @@
 use std::future::Future;
 use std::time::Duration;
 
+use chrono::Utc;
 use log::debug;
+use reqwest::header::{HeaderMap, RETRY_AFTER};
 use tokio::time::sleep;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -49,6 +51,34 @@ impl<E> RetryDirective<E> {
     pub fn retry_after(error: E, delay: Duration) -> Self {
         Self::RetryAfter { error, delay }
     }
+}
+
+pub fn retry_after_delay(headers: &HeaderMap) -> Option<Duration> {
+    let raw_value = headers.get(RETRY_AFTER)?;
+    let raw_value = match raw_value.to_str() {
+        Ok(raw_value) => raw_value,
+        Err(error) => {
+            debug!("Response included an invalid Retry-After header: {error}");
+            return None;
+        }
+    };
+
+    if let Ok(delay_seconds) = raw_value.parse::<u64>() {
+        return Some(Duration::from_secs(delay_seconds));
+    }
+
+    if let Ok(retry_after) = chrono::DateTime::parse_from_rfc2822(raw_value) {
+        return Some(
+            retry_after
+                .with_timezone(&Utc)
+                .signed_duration_since(Utc::now())
+                .to_std()
+                .unwrap_or(Duration::ZERO),
+        );
+    }
+
+    debug!("Response included an unparseable Retry-After header value={raw_value:?}");
+    None
 }
 
 pub async fn retry_with_backoff<T, E, O, Fut>(policy: RetryPolicy, mut operation: O) -> Result<T, E>
@@ -105,6 +135,22 @@ mod tests {
         assert_eq!(policy.delay_for_retry(2), Duration::from_millis(200));
         assert_eq!(policy.delay_for_retry(3), Duration::from_millis(250));
         assert_eq!(policy.delay_for_retry(4), Duration::from_millis(250));
+    }
+
+    #[test]
+    fn retry_after_delay_parses_delay_seconds() {
+        let mut headers = HeaderMap::new();
+        headers.insert(RETRY_AFTER, "12".parse().unwrap());
+
+        assert_eq!(retry_after_delay(&headers), Some(Duration::from_secs(12)));
+    }
+
+    #[test]
+    fn retry_after_delay_ignores_invalid_values() {
+        let mut headers = HeaderMap::new();
+        headers.insert(RETRY_AFTER, "not-a-delay".parse().unwrap());
+
+        assert_eq!(retry_after_delay(&headers), None);
     }
 
     #[tokio::test]

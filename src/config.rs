@@ -196,7 +196,7 @@ pub fn should_skip_bootstrap_for_argv(argv: &[String]) -> bool {
 pub fn should_defer_bootstrap_to_command(argv: &[String]) -> bool {
     argv.iter()
         .find(|argument| !argument.starts_with('-'))
-        .is_some_and(|argument| argument == "configure")
+        .is_some_and(|argument| argument == "configure" || argument == "chains")
 }
 
 pub async fn ensure_settings_for_argv(

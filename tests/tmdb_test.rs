@@ -903,7 +903,7 @@ async fn get_movie_ratings_and_summaries_accepts_legacy_v3_api_keys() {
         HashMap::from([(
             "Garfield".to_string(),
             TmdbMovieDetails {
-                rating: "6.717/10\n(głosy: 184)".to_string(),
+                rating: "6.7/10\n(głosy: 184)".to_string(),
                 summary: "Garfield jest najbardziej znanym kotem na świecie.".to_string(),
             }
         )])
@@ -980,7 +980,7 @@ async fn get_movie_ratings_and_summaries_retries_retryable_tmdb_responses() {
         HashMap::from([(
             "Garfield".to_string(),
             TmdbMovieDetails {
-                rating: "6.717/10\n(głosy: 184)".to_string(),
+                rating: "6.7/10\n(głosy: 184)".to_string(),
                 summary: "Garfield jest najbardziej znanym kotem na świecie.".to_string(),
             }
         )])

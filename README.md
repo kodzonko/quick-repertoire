@@ -1,7 +1,7 @@
 # Quick repertoire
 
 Terminalowy scraper repertuarów kin napisany w Rust. Aktualnie obsługuje
-Cinema City i Helios, zapisuje konfigurację w `config.ini` obok binarki,
+Cinema City, Helios i Multikino, zapisuje konfigurację w `config.ini` obok binarki,
 cache'uje lokale w SQLite i wzbogaca repertuar o oceny oraz opisy z TMDB.
 
 ## Wymagania
@@ -58,6 +58,7 @@ Aby uruchomić kreator ponownie:
 ./target/release/quickrep repertoire bemowo 2024-12-06
 ./target/release/quickrep repertoire --chain cinema-city
 ./target/release/quickrep repertoire --chain helios
+./target/release/quickrep repertoire --chain multikino
 ./target/release/quickrep venues list
 ./target/release/quickrep venues update
 ./target/release/quickrep venues search manufaktura

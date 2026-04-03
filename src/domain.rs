@@ -6,10 +6,11 @@ use crate::error::{AppError, AppResult};
 pub enum CinemaChainId {
     CinemaCity,
     Helios,
+    Multikino,
 }
 
 impl CinemaChainId {
-    pub const ALL: [Self; 2] = [Self::CinemaCity, Self::Helios];
+    pub const ALL: [Self; 3] = [Self::CinemaCity, Self::Helios, Self::Multikino];
 
     pub fn all() -> &'static [Self] {
         &Self::ALL
@@ -20,6 +21,7 @@ impl CinemaChainId {
         match normalized.as_str() {
             "cinema-city" => Ok(Self::CinemaCity),
             "helios" => Ok(Self::Helios),
+            "multikino" => Ok(Self::Multikino),
             _ => Err(AppError::UnsupportedCinemaChain {
                 invalid_chain: value.to_string(),
                 supported_chains: Self::supported_values().join(", "),
@@ -31,6 +33,7 @@ impl CinemaChainId {
         match self {
             Self::CinemaCity => "cinema-city",
             Self::Helios => "helios",
+            Self::Multikino => "multikino",
         }
     }
 
@@ -38,6 +41,7 @@ impl CinemaChainId {
         match self {
             Self::CinemaCity => "cinema_city",
             Self::Helios => "helios",
+            Self::Multikino => "multikino",
         }
     }
 

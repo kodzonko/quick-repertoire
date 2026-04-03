@@ -110,6 +110,24 @@ pub fn render_venues_table(venues: &[CinemaVenue], chain_display_name: &str) -> 
     format!("Znalezione lokale sieci {chain_display_name}\n{table}")
 }
 
+pub fn render_chains_table(chains: &[(String, String)]) -> String {
+    if chains.is_empty() {
+        return "Brak obsługiwanych sieci kin.".to_string();
+    }
+
+    let mut table = Table::new();
+    table
+        .load_preset(UTF8_FULL)
+        .set_content_arrangement(ContentArrangement::Dynamic)
+        .set_header(vec!["Nazwa sieci", "ID sieci"]);
+
+    for (display_name, chain_id) in chains {
+        table.add_row(vec![Cell::new(display_name), Cell::new(chain_id)]);
+    }
+
+    format!("Obsługiwane sieci kin\n{table}")
+}
+
 pub fn render_repertoire_table(
     repertoire: &[Repertoire],
     table_metadata: &RepertoireCliTableMetadata,

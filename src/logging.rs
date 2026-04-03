@@ -44,6 +44,14 @@ pub fn redact_secret(secret: &str) -> String {
     format!("{prefix}***{suffix} (len={total_chars})")
 }
 
+pub async fn response_body_preview(response: reqwest::Response, max_chars: usize) -> String {
+    match response.text().await {
+        Ok(body) if body.trim().is_empty() => "<empty>".to_string(),
+        Ok(body) => preview_for_log(&body, max_chars),
+        Err(error) => format!("<unavailable: {error}>"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

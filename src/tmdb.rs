@@ -1,13 +1,11 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
-use std::time::Duration;
 
 use async_trait::async_trait;
-use chrono::{Datelike, NaiveDate, Utc};
+use chrono::{Datelike, NaiveDate};
 use futures::{StreamExt, stream};
 use log::debug;
 use regex::Regex;
-use reqwest::header::{HeaderMap, RETRY_AFTER};
 use reqwest::{Client, StatusCode};
 use serde::Deserialize;
 
@@ -16,8 +14,8 @@ use crate::domain::{
     MovieLookupMetadata, MoviePageFallbackDetails, TmdbLookupMovie, TmdbMovieDetails,
 };
 use crate::error::{AppError, AppResult};
-use crate::logging::{preview_for_log, redact_secret};
-use crate::retry::{RetryDirective, RetryPolicy, retry_with_backoff};
+use crate::logging::{preview_for_log, redact_secret, response_body_preview};
+use crate::retry::{RetryDirective, RetryPolicy, retry_after_delay, retry_with_backoff};
 
 const REQUEST_TIMEOUT_SECONDS: u64 = 30;
 const MAX_LOG_BODY_PREVIEW_CHARS: usize = 256;
@@ -149,7 +147,7 @@ impl ReqwestTmdbClient {
                     debug!(
                         "TMDB authentication rejected credentials attempt={attempt} url={} body_preview={}",
                         self.auth_url,
-                        response_body_preview(response).await,
+                        response_body_preview(response, MAX_LOG_BODY_PREVIEW_CHARS).await,
                     );
                     return Ok(false);
                 }
@@ -159,7 +157,7 @@ impl ReqwestTmdbClient {
                     debug!(
                         "TMDB authentication received retryable status attempt={attempt} url={} status={status} body_preview={}",
                         self.auth_url,
-                        response_body_preview(response).await,
+                        response_body_preview(response, MAX_LOG_BODY_PREVIEW_CHARS).await,
                     );
                     return Err(match retry_after {
                         Some(delay) => RetryDirective::retry_after(error, delay),
@@ -170,7 +168,7 @@ impl ReqwestTmdbClient {
                 debug!(
                     "TMDB authentication returned unexpected non-success status attempt={attempt} url={} status={status} body_preview={}",
                     self.auth_url,
-                    response_body_preview(response).await,
+                    response_body_preview(response, MAX_LOG_BODY_PREVIEW_CHARS).await,
                 );
                 Ok(false)
             }
@@ -231,7 +229,7 @@ impl ReqwestTmdbClient {
                         "TMDB movie search authorization failed attempt={attempt} query={:?} url={} body_preview={}",
                         search_request.query,
                         self.search_url,
-                        response_body_preview(response).await,
+                        response_body_preview(response, MAX_LOG_BODY_PREVIEW_CHARS).await,
                     );
                     return Err(RetryDirective::fail(tmdb_status_error(status)));
                 }
@@ -242,7 +240,7 @@ impl ReqwestTmdbClient {
                         "TMDB movie search received retryable status attempt={attempt} query={:?} url={} status={status} body_preview={}",
                         search_request.query,
                         self.search_url,
-                        response_body_preview(response).await,
+                        response_body_preview(response, MAX_LOG_BODY_PREVIEW_CHARS).await,
                     );
                     return Err(match retry_after {
                         Some(delay) => RetryDirective::retry_after(error, delay),
@@ -255,7 +253,7 @@ impl ReqwestTmdbClient {
                         "TMDB movie search failed with non-retryable status attempt={attempt} query={:?} url={} status={status} body_preview={}",
                         search_request.query,
                         self.search_url,
-                        response_body_preview(response).await,
+                        response_body_preview(response, MAX_LOG_BODY_PREVIEW_CHARS).await,
                     );
                     return Err(RetryDirective::fail(tmdb_status_error(status)));
                 }
@@ -342,7 +340,7 @@ impl ReqwestTmdbClient {
                         "TMDB movie details authorization failed attempt={attempt} movie_id={} url={} body_preview={}",
                         movie_id,
                         details_url,
-                        response_body_preview(response).await,
+                        response_body_preview(response, MAX_LOG_BODY_PREVIEW_CHARS).await,
                     );
                     return Err(RetryDirective::fail(tmdb_status_error(status)));
                 }
@@ -353,7 +351,7 @@ impl ReqwestTmdbClient {
                         "TMDB movie details received retryable status attempt={attempt} movie_id={} url={} status={status} body_preview={}",
                         movie_id,
                         details_url,
-                        response_body_preview(response).await,
+                        response_body_preview(response, MAX_LOG_BODY_PREVIEW_CHARS).await,
                     );
                     return Err(match retry_after {
                         Some(delay) => RetryDirective::retry_after(error, delay),
@@ -366,7 +364,7 @@ impl ReqwestTmdbClient {
                         "TMDB movie details failed with non-retryable status attempt={attempt} movie_id={} url={} status={status} body_preview={}",
                         movie_id,
                         details_url,
-                        response_body_preview(response).await,
+                        response_body_preview(response, MAX_LOG_BODY_PREVIEW_CHARS).await,
                     );
                     return Err(RetryDirective::fail(tmdb_status_error(status)));
                 }
@@ -435,7 +433,7 @@ impl ReqwestTmdbClient {
             if status.is_client_error() || status.is_server_error() {
                 debug!(
                     "Movie page fallback request failed attempt={attempt} url={movie_page_url} status={status} body_preview={}",
-                    response_body_preview(response).await,
+                    response_body_preview(response, MAX_LOG_BODY_PREVIEW_CHARS).await,
                 );
                 return Err(RetryDirective::fail(AppError::Http(format!(
                     "Żądanie strony filmu zakończyło się błędem: status {status}."
@@ -923,34 +921,6 @@ fn classify_tmdb_response_read_error(
         error.is_body(),
     );
     if retryable { RetryDirective::retry(app_error) } else { RetryDirective::fail(app_error) }
-}
-
-fn retry_after_delay(headers: &HeaderMap) -> Option<Duration> {
-    let raw_value = headers.get(RETRY_AFTER)?;
-    let raw_value = match raw_value.to_str() {
-        Ok(raw_value) => raw_value,
-        Err(error) => {
-            debug!("TMDB response included an invalid Retry-After header: {error}");
-            return None;
-        }
-    };
-
-    if let Ok(delay_seconds) = raw_value.parse::<u64>() {
-        return Some(Duration::from_secs(delay_seconds));
-    }
-
-    if let Ok(retry_after) = chrono::DateTime::parse_from_rfc2822(raw_value) {
-        return Some(
-            retry_after
-                .with_timezone(&Utc)
-                .signed_duration_since(Utc::now())
-                .to_std()
-                .unwrap_or(Duration::ZERO),
-        );
-    }
-
-    debug!("TMDB response included an unparseable Retry-After header value={raw_value:?}");
-    None
 }
 
 fn rank_search_candidates(
@@ -1488,7 +1458,7 @@ fn render_details_from_detailed(movie: &TmdbMovieDetailsResponse) -> TmdbMovieDe
 fn render_rating(vote_average: Option<f64>, vote_count: Option<u32>) -> String {
     match (vote_average, vote_count) {
         (Some(vote_average), Some(vote_count)) => {
-            format!("{vote_average}/10\n(głosy: {vote_count})")
+            format!("{vote_average:.1}/10\n(głosy: {vote_count})")
         }
         _ => String::new(),
     }
@@ -1598,10 +1568,12 @@ fn has_runtime_conflict(expected_runtime: Option<u16>, candidate_runtime: Option
     expected_runtime.abs_diff(candidate_runtime) > MAX_ACCEPTABLE_RUNTIME_CONFLICT_MINUTES
 }
 
-async fn response_body_preview(response: reqwest::Response) -> String {
-    match response.text().await {
-        Ok(body) if body.trim().is_empty() => "<empty>".to_string(),
-        Ok(body) => preview_for_log(&body, MAX_LOG_BODY_PREVIEW_CHARS),
-        Err(error) => format!("<unavailable: {error}>"),
+#[cfg(test)]
+mod tests {
+    use super::render_rating;
+
+    #[test]
+    fn render_rating_rounds_to_one_decimal_place() {
+        assert_eq!(render_rating(Some(6.717), Some(184)), "6.7/10\n(głosy: 184)");
     }
 }

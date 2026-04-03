@@ -7,7 +7,8 @@ use quick_repertoire::domain::{
     RepertoireCliTableMetadata, TmdbMovieDetails,
 };
 use quick_repertoire::output::{
-    cinema_venue_input_parser, date_input_parser, render_repertoire_table, render_venues_table,
+    cinema_venue_input_parser, date_input_parser, render_chains_table, render_repertoire_table,
+    render_venues_table,
 };
 
 #[test]
@@ -69,6 +70,21 @@ fn render_venues_table_renders_table_for_found_venues() {
     assert!(rendered_output.contains("Nazwa lokalu"));
     assert!(rendered_output.contains("ID lokalu"));
     assert!(rendered_output.contains("Wroclaw - Wroclavia"));
+}
+
+#[test]
+fn render_chains_table_renders_supported_chains() {
+    let rendered_output = render_chains_table(&[
+        ("Cinema City".to_string(), "cinema-city".to_string()),
+        ("Helios".to_string(), "helios".to_string()),
+        ("Multikino".to_string(), "multikino".to_string()),
+    ]);
+
+    assert!(rendered_output.contains("Obsługiwane sieci kin"));
+    assert!(rendered_output.contains("Nazwa sieci"));
+    assert!(rendered_output.contains("ID sieci"));
+    assert!(rendered_output.contains("Cinema City"));
+    assert!(rendered_output.contains("multikino"));
 }
 
 #[test]
