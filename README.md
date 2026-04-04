@@ -1,94 +1,54 @@
 # Quick repertoire
 
-Terminalowy scraper repertuarów kin napisany w Rust. Aktualnie obsługuje
-Cinema City, Helios i Multikino, zapisuje konfigurację w `config.ini` obok binarki,
-cache'uje lokale w SQLite i wzbogaca repertuar o oceny oraz opisy z TMDB.
+`quickrep` to proste narzędzie CLI do sprawdzania repertuaru kin.
+Obsługuje `Cinema City`, `Helios` i `Multikino`, a opcjonalnie pokazuje też
+oceny i opisy filmów z TMDB.
 
 ## Wymagania
 
-- Rust 1.94+
-- cargo
-- zainstalowany Chrome lub Chromium
+- zainstalowany `Chrome` lub `Chromium`
+- opcjonalnie klucz lub token `TMDB`, jeśli chcesz widzieć oceny i opisy filmów - darmowy: [https://www.themoviedb.org/settings/api](https://www.themoviedb.org/settings/api)
 
-## Instalacja
+## Start
 
-```shell
-cargo build --release
-```
+Przykłady niżej używają polecenia `quickrep` tak jakby było w PATH. Jeśli nie jest, trzeba podać ścieżkę do pliku np. `/Users/kodzonko/Downlaods/quickrep`, `C:\Users\kodzonko\Downlaods\quickrep`.
 
-Po zbudowaniu uruchamiaj gotową binarkę, np. `./target/release/quickrep`.
-
-## Konfiguracja
-
-Aplikacja zapisuje `config.ini` oraz `db.sqlite` w katalogu binarki.
-Przy lokalnym buildzie oznacza to zwykle `target/release`.
-Przy pierwszym uruchomieniu uruchomi się interaktywny kreator:
-
-- pobierze listy lokali dla wszystkich obsługiwanych sieci z widocznym postępem
-- pozwoli wybrać domyślną sieć, lokal i datę repertuaru
-- zapyta o opcjonalne dane uwierzytelniające TMDB
-- przed zapisem sprawdzi, czy katalog binarki pozwala na utworzenie lub modyfikację
-  plików konfiguracyjnych
-
-Do pola TMDB możesz wkleić jedno z dwóch pól widocznych w ustawieniach konta:
-
-- `Przeczytaj kod odczytu API` (`API Read Access Token`) - zalecane
-- `Klucz API` (`API Key`) - też działa
-
-Obie opcje dają w tej aplikacji ten sam efekt. Zalecany jest `API Read Access Token`,
-bo TMDB traktuje go jako domyślny sposób autoryzacji i można go używać zarówno z API v3,
-jak i v4. Jeśli wkleisz 32-znakowy `Klucz API`, aplikacja użyje go w trybie zgodnym z v3.
-
-Źródło: oficjalna dokumentacja TMDB o autoryzacji aplikacji:
-[Authentication: Application](https://developer.themoviedb.org/docs/authentication-application).
-
-Poziom logowania nie jest zapisywany w `config.ini`. Buildy developerskie oraz testy
-domyślnie używają `DEBUG`, a buildy produkcyjne `INFO`.
-
-Aby uruchomić kreator ponownie:
+Przy pierwszym uruchomieniu:
 
 ```shell
-./target/release/quickrep configure
+quickrep configure
 ```
 
-## Uruchomienie
+Kreator zapisze obok programu `config.ini` i `db.sqlite`, a potem możesz używać
+krótkich poleceń bez podawania wszystkiego za każdym razem.
+
+## Komendy i przykłady
 
 ```shell
-./target/release/quickrep repertoire
-./target/release/quickrep repertoire bemowo 2024-12-06
-./target/release/quickrep repertoire --chain cinema-city
-./target/release/quickrep repertoire --chain helios
-./target/release/quickrep repertoire --chain multikino
-./target/release/quickrep venues list
-./target/release/quickrep venues update
-./target/release/quickrep venues search manufaktura
+# Wypisze wspierane sieci kin
+quickrep chains
+
+# Wypisze repertuar dla domyślnej sieci, kina i daty
+quickrep repertoire
+quickrep repertoire bemowo
+quickrep repertoire bemowo jutro
+# Wypisze repertuar dla domyślnej sieci, konkretnego kina i daty
+quickrep repertoire manufaktura 2026-04-05
+quickrep repertoire --chain helios
+quickrep repertoire --chain multikino poznan
+
+quickrep venues list
+quickrep venues list --chain cinema-city
+quickrep venues search manufaktura
+quickrep venues search mokotow --chain helios
+# Wymusi odświeżenie bazy kin
+quickrep venues update
+quickrep venues update --chain helios
 ```
 
-Polecenia nadal przyjmują jawne `--chain`. Gdy pominiesz go w `repertoire`,
-`venues list` albo `venues search`, aplikacja użyje domyślnej sieci z `config.ini`.
-`venues update` bez `--chain` odświeża równolegle wszystkie obsługiwane sieci,
-pokazując spinner dla każdej z nich oraz zbiorczy pasek postępu.
-
-## Testy i jakość
-
-```shell
-cargo fmt --check
-cargo clippy --all-targets --all-features -- -D warnings
-cargo test
-```
-
-Aby uruchomić raport pokrycia lokalnie, doinstaluj `cargo-llvm-cov` i użyj:
-
-```shell
-cargo install cargo-llvm-cov
-cargo coverage
-```
-
-Na Windows domyślny alias używa zwykłego raportu, bo `llvm-cov --branch` na nightly potrafi się wysypać.
-
-Pokrycie branchy jest liczone w CI na Linuxie. Jeśli chcesz uruchomić je lokalnie, użyj nightly na Linuxie/WSL i wywołaj `cargo llvm-cov` bez aliasu:
-
-```shell
-rustup toolchain install nightly
-cargo +nightly llvm-cov --branch --all-targets --all-features
-```
+- `repertoire` bez argumentów używa domyślnej sieci, kina i daty z konfiguracji
+- data może być podana jako `dziś`, `jutro` albo `YYYY-MM-DD` / `DD-MM-YYYY` / `DD.MM.YYYY`
+- `--chain` przyjmuje: `cinema-city`, `helios`, `multikino`
+- `venues search` szuka po fragmencie nazwy kina
+- `venues update` odświeża lokalną bazę kin
+- `TMDB` jest opcjonalne; bez niego repertuar działa dalej, ale bez ocen i opisów
