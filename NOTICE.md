@@ -1,9 +1,9 @@
-# Notices
+# Uwagi prawne
 
-- `quick-repertoire` is an independent project and is not affiliated with
-  Cinema City, Helios, Multikino, TMDB, or their owners.
-- Trademarks, logos, service marks, and brand names referenced by this
-  repository belong to their respective owners.
-- The MIT license in [`LICENSE`](LICENSE) applies to source code and
-  documentation authored for this repository. Third-party sites, APIs, content,
-  and brands remain subject to their own terms.
+- `quick-repertoire` jest niezależnym projektem i nie jest powiązany z Cinema
+  City, Helios, Multikino, TMDB ani ich właścicielami.
+- Znaki towarowe, logotypy, nazwy usług i marek wspomniane w tym repozytorium
+  należą do ich właścicieli.
+- Licencja MIT z pliku [`LICENSE`](LICENSE) dotyczy kodu źródłowego i
+  dokumentacji przygotowanej dla tego repozytorium. Zewnętrzne serwisy, API,
+  treści i marki podlegają własnym zasadom.

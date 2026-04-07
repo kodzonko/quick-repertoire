@@ -1,15 +1,15 @@
-## Summary
+## Podsumowanie
 
-- Describe the change and why it is needed.
+- Opisz zmianę i powód jej wprowadzenia.
 
-## Testing
+## Testowanie
 
 - [ ] `cargo fmt --check`
 - [ ] `cargo clippy --all-targets --all-features -- -D warnings`
 - [ ] `cargo test`
 
-## Checklist
+## Lista kontrolna
 
-- [ ] Tests were added or updated where behavior changed
-- [ ] Docs were updated if the user-facing workflow changed
-- [ ] The PR title is suitable for the changelog
+- [ ] Dodano lub zaktualizowano testy tam, gdzie zmieniło się zachowanie
+- [ ] Zaktualizowano dokumentację, jeśli zmienił się workflow użytkownika
+- [ ] Tytuł PR nadaje się do changeloga

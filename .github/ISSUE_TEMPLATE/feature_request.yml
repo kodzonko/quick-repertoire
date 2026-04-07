@@ -1,43 +1,43 @@
-name: Feature request
-description: Propose a new feature or workflow improvement.
-title: "[Feature]: "
+name: Propozycja funkcji
+description: Zasugeruj nową funkcję albo usprawnienie workflow.
+title: "[Funkcja]: "
 labels:
   - enhancement
 body:
   - type: textarea
     id: problem
     attributes:
-      label: Problem to solve
-      description: Describe the user need or friction first.
-      placeholder: I want to...
+      label: Problem do rozwiązania
+      description: Najpierw opisz potrzebę użytkownika albo utrudnienie.
+      placeholder: Chcę...
     validations:
       required: true
   - type: textarea
     id: proposal
     attributes:
-      label: Proposed change
-      description: Describe the CLI behavior, output, or workflow you want.
+      label: Proponowana zmiana
+      description: Opisz oczekiwane zachowanie CLI, output albo workflow.
     validations:
       required: true
   - type: dropdown
     id: chain
     attributes:
-      label: Relevant cinema chain
+      label: Dotycząca sieć kin
       options:
         - Cinema City
         - Helios
         - Multikino
-        - Multiple chains
-        - Not chain-specific
+        - Wiele sieci
+        - Niezależne od sieci
     validations:
       required: true
   - type: textarea
     id: alternatives
     attributes:
-      label: Alternatives considered
-      description: Workarounds or other approaches you already tried.
+      label: Rozważone alternatywy
+      description: Obejścia albo inne podejścia, które już sprawdziłeś.
   - type: textarea
     id: context
     attributes:
-      label: Additional context
-      description: Links, screenshots, mock output, or related issues.
+      label: Dodatkowy kontekst
+      description: Linki, zrzuty ekranu, przykładowy output albo powiązane issues.

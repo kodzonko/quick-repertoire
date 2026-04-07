@@ -1,38 +1,38 @@
-name: Bug report
-description: Report a defect, regression, or scraping breakage.
-title: "[Bug]: "
+name: Zgłoszenie błędu
+description: Zgłoś błąd, regresję albo problem z działaniem scrapera.
+title: "[Błąd]: "
 labels:
   - bug
 body:
   - type: dropdown
     id: chain
     attributes:
-      label: Affected cinema chain
-      description: Pick the chain where the issue happens.
+      label: Dotknięta sieć kin
+      description: Wybierz sieć, w której występuje problem.
       options:
         - Cinema City
         - Helios
         - Multikino
-        - Multiple or unknown
+        - Wiele sieci lub nie wiem
     validations:
       required: true
   - type: input
     id: venue
     attributes:
-      label: Venue
-      description: Cinema name or city, if known.
+      label: Kino
+      description: Nazwa kina albo miasto, jeśli jest znane.
       placeholder: bemowo
   - type: input
     id: date
     attributes:
-      label: Repertoire date
-      description: Date or relative input such as today or tomorrow.
+      label: Data repertuaru
+      description: Data albo określenie względne, na przykład dziś lub jutro.
       placeholder: 2026-04-07
   - type: textarea
     id: command
     attributes:
-      label: Command used
-      description: Paste the exact command that reproduces the issue.
+      label: Użyta komenda
+      description: Wklej dokładną komendę, która odtwarza problem.
       placeholder: quickrep repertoire --chain helios mokotow 2026-04-07
       render: shell
     validations:
@@ -40,39 +40,39 @@ body:
   - type: textarea
     id: expected
     attributes:
-      label: Expected behavior
+      label: Oczekiwane zachowanie
     validations:
       required: true
   - type: textarea
     id: actual
     attributes:
-      label: Actual behavior
-      description: Include the relevant output or failure details.
+      label: Rzeczywiste zachowanie
+      description: Dołącz istotny output albo szczegóły błędu.
     validations:
       required: true
   - type: textarea
     id: reproduce
     attributes:
-      label: Steps to reproduce
+      label: Kroki odtworzenia
       placeholder: |
-        1. Run ...
-        2. Select ...
-        3. Observe ...
+        1. Uruchom ...
+        2. Wybierz ...
+        3. Zobacz ...
     validations:
       required: true
   - type: input
     id: version
     attributes:
-      label: quickrep version
-      description: Release number or commit SHA if known.
+      label: Wersja quickrep
+      description: Numer wydania albo SHA commita, jeśli jest znane.
       placeholder: 1.1.0
   - type: input
     id: os
     attributes:
-      label: Operating system
+      label: System operacyjny
       placeholder: Windows 11 / macOS 15 / Ubuntu 24.04
   - type: textarea
     id: context
     attributes:
-      label: Additional context
-      description: Screenshots, links, or notes that may help.
+      label: Dodatkowy kontekst
+      description: Zrzuty ekranu, linki albo notatki, które mogą pomóc.

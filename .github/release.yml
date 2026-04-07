@@ -1,15 +1,15 @@
 changelog:
   categories:
-    - title: Features
+    - title: Nowości
       labels:
         - enhancement
-    - title: Fixes
+    - title: Poprawki
       labels:
         - bug
-    - title: Documentation
+    - title: Dokumentacja
       labels:
         - documentation
-    - title: CI and Automation
+    - title: CI i automatyzacja
       labels:
         - dependencies
         - github_actions

@@ -1,25 +1,24 @@
-# Security Policy
+# Polityka bezpieczeństwa
 
-## Supported versions
+## Wspierane wersje
 
-Only the latest released version line receives security fixes.
+Poprawki bezpieczeństwa trafiają tylko do najnowszej linii wydań.
 
-| Version         | Supported |
+| Wersja          | Wspierana |
 | --------------- | --------- |
-| 1.1.x           | Yes       |
-| 1.0.x and older | No        |
+| 1.1.x           | Tak       |
+| 1.0.x i starsze | Nie       |
 
-## Reporting a vulnerability
+## Zgłaszanie podatności
 
-Please do not open a public GitHub issue for security problems.
+Nie otwieraj publicznego issue dla problemów bezpieczeństwa.
 
-Use GitHub's private vulnerability reporting flow if it is enabled for this
-repository. If it is not available, email `janwadolowski@gmail.com` with:
+Skorzystaj z prywatnego zgłaszania podatności na GitHubie.
 
-- a description of the issue
-- steps to reproduce it
-- affected versions or commit SHAs
-- any mitigations or workarounds you already found
+- opis problemu
+- kroki potrzebne do odtworzenia
+- dotknięte wersje albo SHA commitów
+- znane obejścia lub sposoby ograniczenia skutków
 
-I will aim to acknowledge reports within 7 days and provide a status update
-after triage.
+Postaram się potwierdzić przyjęcie zgłoszenia w ciągu 7 dni i przekazać dalszy
+status po triage.

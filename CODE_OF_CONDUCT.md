@@ -1,25 +1,26 @@
-# Code of Conduct
+# Kodeks postępowania
 
-This project aims to keep collaboration direct, respectful, and useful.
+Ten projekt ma pozostać miejscem do rzeczowej, szanującej innych i przydatnej
+współpracy.
 
-## Expected behavior
+## Oczekiwane zachowanie
 
-- Be respectful and assume good faith.
-- Keep feedback specific, factual, and actionable.
-- Stay on topic in issues and pull requests.
-- Respect the terms of third-party services and avoid posting secrets,
-  credentials, or copyrighted material that should not be shared.
+- Szanuj innych i zakładaj dobrą wolę.
+- Pisz konkretnie, rzeczowo i tak, by uwagi dało się zamienić na działanie.
+- Trzymaj się tematu zgłoszenia lub pull requesta.
+- Szanuj zasady usług zewnętrznych i nie publikuj sekretów, danych dostępowych
+  ani materiałów, których nie wolno rozpowszechniać.
 
-## Unacceptable behavior
+## Niedopuszczalne zachowanie
 
-- Harassment, personal attacks, or discriminatory language.
-- Spam, trolling, or deliberately disruptive behavior.
-- Publishing private information without permission.
-- Abusive behavior toward maintainers, contributors, or users.
+- Nękanie, personalne ataki lub język dyskryminujący.
+- Spam, trollowanie lub celowe utrudnianie pracy.
+- Publikowanie cudzych prywatnych danych bez zgody.
+- Agresywne lub obraźliwe zachowanie wobec maintainerów, współtwórców i
+  użytkowników.
 
-## Enforcement
+## Egzekwowanie zasad
 
-The maintainer may edit, remove, lock, or close content that does not meet
-these expectations and may restrict participation for repeat violations.
-
-Report conduct concerns privately to `janwadolowski@gmail.com`.
+Maintainer może edytować, usuwać, blokować lub zamykać treści, które nie
+spełniają tych zasad, a w przypadku powtarzających się naruszeń ograniczyć
+udział w projekcie.
