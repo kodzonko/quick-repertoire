@@ -1,0 +1,78 @@
+name: Bug report
+description: Report a defect, regression, or scraping breakage.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: dropdown
+    id: chain
+    attributes:
+      label: Affected cinema chain
+      description: Pick the chain where the issue happens.
+      options:
+        - Cinema City
+        - Helios
+        - Multikino
+        - Multiple or unknown
+    validations:
+      required: true
+  - type: input
+    id: venue
+    attributes:
+      label: Venue
+      description: Cinema name or city, if known.
+      placeholder: bemowo
+  - type: input
+    id: date
+    attributes:
+      label: Repertoire date
+      description: Date or relative input such as today or tomorrow.
+      placeholder: 2026-04-07
+  - type: textarea
+    id: command
+    attributes:
+      label: Command used
+      description: Paste the exact command that reproduces the issue.
+      placeholder: quickrep repertoire --chain helios mokotow 2026-04-07
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include the relevant output or failure details.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run ...
+        2. Select ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: quickrep version
+      description: Release number or commit SHA if known.
+      placeholder: 1.1.0
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: Windows 11 / macOS 15 / Ubuntu 24.04
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Screenshots, links, or notes that may help.

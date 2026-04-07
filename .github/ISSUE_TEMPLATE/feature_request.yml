@@ -1,0 +1,43 @@
+name: Feature request
+description: Propose a new feature or workflow improvement.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: Describe the user need or friction first.
+      placeholder: I want to...
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: Describe the CLI behavior, output, or workflow you want.
+    validations:
+      required: true
+  - type: dropdown
+    id: chain
+    attributes:
+      label: Relevant cinema chain
+      options:
+        - Cinema City
+        - Helios
+        - Multikino
+        - Multiple chains
+        - Not chain-specific
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds or other approaches you already tried.
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Links, screenshots, mock output, or related issues.
