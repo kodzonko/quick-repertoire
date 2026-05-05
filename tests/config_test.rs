@@ -120,6 +120,22 @@ fn write_settings_omits_legacy_app_entries() {
     assert!(!config.contains("venues_list_url ="));
 }
 
+#[cfg(unix)]
+#[test]
+fn write_settings_restricts_config_file_permissions() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let temp_dir = tempdir().unwrap();
+    let paths = AppPaths::for_runtime_dir(temp_dir.path().to_path_buf());
+    let mut configured_settings = settings();
+    configured_settings.user_preferences.tmdb_access_token = Some("tmdb-token".to_string());
+
+    write_settings(&configured_settings, &paths).unwrap();
+
+    let mode = fs::metadata(paths.config_file()).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode, 0o600);
+}
+
 #[test]
 fn bootstrap_rules_match_help_and_configure_flows() {
     assert!(should_skip_bootstrap_for_argv(&["--help".to_string()]));

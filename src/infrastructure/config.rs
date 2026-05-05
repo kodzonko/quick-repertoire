@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
-use std::io;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+
+#[cfg(unix)]
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 
 use dialoguer::{Input, Select, theme::ColorfulTheme};
 
@@ -318,10 +321,12 @@ tmdb_access_token = {}\n\
         default_venues_body,
     );
 
-    let temp_path = config_path.with_extension("tmp");
-    fs::write(&temp_path, config_body)
+    let temp_path = runtime_temp_path(&config_path, paths.runtime_dir());
+    write_sensitive_file(&temp_path, config_body.as_bytes())
         .map_err(|error| AppError::configuration(error.to_string()))?;
     fs::rename(&temp_path, &config_path)
+        .map_err(|error| AppError::configuration(error.to_string()))?;
+    restrict_sensitive_file_permissions(&config_path)
         .map_err(|error| AppError::configuration(error.to_string()))?;
     Ok(())
 }
@@ -458,6 +463,44 @@ fn runtime_probe_path(target_path: &Path, runtime_dir: &Path) -> PathBuf {
     let file_name =
         target_path.file_name().and_then(|value| value.to_str()).unwrap_or("runtime-file");
     runtime_dir.join(format!(".{file_name}.write-test.{}", std::process::id()))
+}
+
+fn runtime_temp_path(target_path: &Path, runtime_dir: &Path) -> PathBuf {
+    let file_name =
+        target_path.file_name().and_then(|value| value.to_str()).unwrap_or("runtime-file");
+    runtime_dir.join(format!(".{file_name}.tmp.{}", std::process::id()))
+}
+
+fn write_sensitive_file(path: &Path, content: &[u8]) -> io::Result<()> {
+    match fs::remove_file(path) {
+        Ok(()) => {}
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error),
+    }
+
+    let mut options = OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    options.mode(0o600);
+
+    let mut file = options.open(path)?;
+    file.write_all(content)?;
+    file.sync_all()?;
+    restrict_sensitive_file_permissions(path)
+}
+
+fn restrict_sensitive_file_permissions(path: &Path) -> io::Result<()> {
+    #[cfg(unix)]
+    {
+        fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;
+    }
+
+    #[cfg(not(unix))]
+    {
+        let _ = path;
+    }
+
+    Ok(())
 }
 
 fn map_runtime_write_access_error(

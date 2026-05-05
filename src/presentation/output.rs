@@ -290,9 +290,7 @@ fn render_play_time(play_time: &MoviePlayTime) -> String {
 
 fn sanitize_hyperlink_url(url: &str) -> Option<&str> {
     let trimmed = url.trim();
-    if trimmed.is_empty()
-        || trimmed.chars().any(|character| matches!(character, '\u{1b}' | '\n' | '\r'))
-    {
+    if trimmed.is_empty() || trimmed.chars().any(char::is_control) {
         return None;
     }
 
@@ -328,6 +326,16 @@ mod tests {
         let rendered = render_play_time(&MoviePlayTime {
             value: "10:00".to_string(),
             url: Some("javascript:alert(1)".to_string()),
+        });
+
+        assert_eq!(rendered, "10:00");
+    }
+
+    #[test]
+    fn render_play_time_falls_back_to_plain_text_for_control_character_links() {
+        let rendered = render_play_time(&MoviePlayTime {
+            value: "10:00".to_string(),
+            url: Some("https://www.cinema-city.pl/\u{7}]8;;file:///etc/passwd".to_string()),
         });
 
         assert_eq!(rendered, "10:00");

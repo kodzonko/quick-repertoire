@@ -13,7 +13,7 @@ use serde_json::json;
 use support::{FakeHtmlRenderer, FakeRenderedPageRenderer};
 
 fn fixture_path(name: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/helios").join(name)
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/chains/helios").join(name)
 }
 
 fn fixture(name: &str) -> String {
