@@ -144,3 +144,59 @@ fn render_repertoire_table_renders_ratings_when_available() {
     assert!(rendered_output.contains("10:00"));
     assert!(rendered_output.contains("12:30"));
 }
+
+#[test]
+fn render_repertoire_table_sorts_movies_alphabetically_by_title() {
+    let metadata = RepertoireCliTableMetadata {
+        chain_display_name: "Cinema City".to_string(),
+        repertoire_date: "2024-06-01".to_string(),
+        cinema_venue_name: "Wroclaw - Wroclavia".to_string(),
+    };
+    let repertoire = vec![
+        Repertoire {
+            title: "Zeta Movie".to_string(),
+            genres: "Thriller".to_string(),
+            play_length: "120 min".to_string(),
+            original_language: "EN".to_string(),
+            play_details: vec![MoviePlayDetails {
+                format: "2D".to_string(),
+                play_language: "NAP: PL".to_string(),
+                play_times: vec![MoviePlayTime { value: "18:00".to_string(), url: None }],
+            }],
+            lookup_metadata: MovieLookupMetadata::default(),
+        },
+        Repertoire {
+            title: "alpha movie".to_string(),
+            genres: "Drama".to_string(),
+            play_length: "95 min".to_string(),
+            original_language: "PL".to_string(),
+            play_details: vec![MoviePlayDetails {
+                format: "2D".to_string(),
+                play_language: "DUBBING".to_string(),
+                play_times: vec![MoviePlayTime { value: "12:00".to_string(), url: None }],
+            }],
+            lookup_metadata: MovieLookupMetadata::default(),
+        },
+        Repertoire {
+            title: "Middle Movie".to_string(),
+            genres: "Comedy".to_string(),
+            play_length: "100 min".to_string(),
+            original_language: "EN".to_string(),
+            play_details: vec![MoviePlayDetails {
+                format: "IMAX".to_string(),
+                play_language: "NAP: PL".to_string(),
+                play_times: vec![MoviePlayTime { value: "15:30".to_string(), url: None }],
+            }],
+            lookup_metadata: MovieLookupMetadata::default(),
+        },
+    ];
+
+    let rendered_output = render_repertoire_table(&repertoire, &metadata, &HashMap::new());
+
+    let alpha_pos = rendered_output.find("alpha movie").unwrap();
+    let middle_pos = rendered_output.find("Middle Movie").unwrap();
+    let zeta_pos = rendered_output.find("Zeta Movie").unwrap();
+
+    assert!(alpha_pos < middle_pos);
+    assert!(middle_pos < zeta_pos);
+}

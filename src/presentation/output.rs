@@ -162,9 +162,12 @@ fn render_repertoire_table_with_width(
         table.set_width(width);
     }
 
+    let mut sorted_repertoire = repertoire.iter().collect::<Vec<_>>();
+    sorted_repertoire.sort_by_cached_key(|movie| movie.title.to_lowercase());
+
     let mut hyperlink_replacements = Vec::new();
 
-    for movie in repertoire {
+    for movie in sorted_repertoire {
         let mut row = vec![
             Cell::new(&movie.title),
             Cell::new(&movie.genres),
