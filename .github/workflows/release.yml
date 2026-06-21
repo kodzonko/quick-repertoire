@@ -72,7 +72,7 @@ jobs:
             target: aarch64-unknown-linux-musl
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.ref }}
       - name: Build Linux release binary
@@ -150,7 +150,7 @@ jobs:
             binary_path: target/aarch64-apple-darwin/release/quickrep
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.ref }}
       - name: Install Rust toolchain
