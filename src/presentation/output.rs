@@ -99,7 +99,7 @@ pub fn render_venues_table(venues: &[CinemaVenue], chain_display_name: &str) -> 
 
     let mut table = Table::new();
     table
-        .load_preset(UTF8_FULL)
+        .load_style(UTF8_FULL)
         .set_content_arrangement(ContentArrangement::Dynamic)
         .set_header(vec!["Nazwa lokalu", "ID lokalu"]);
 
@@ -117,7 +117,7 @@ pub fn render_chains_table(chains: &[(String, String)]) -> String {
 
     let mut table = Table::new();
     table
-        .load_preset(UTF8_FULL)
+        .load_style(UTF8_FULL)
         .set_content_arrangement(ContentArrangement::Dynamic)
         .set_header(vec!["Nazwa sieci", "ID sieci"]);
 
@@ -155,7 +155,7 @@ fn render_repertoire_table_with_width(
 
     let mut table = Table::new();
     table
-        .load_preset(UTF8_FULL)
+        .load_style(UTF8_FULL)
         .set_content_arrangement(ContentArrangement::Dynamic)
         .set_header(headers);
     if let Some(width) = table_width {

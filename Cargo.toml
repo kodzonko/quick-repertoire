@@ -15,20 +15,29 @@ chrono = { version = "0.4.44", features = ["clock"] }
 chromiumoxide = "0.9.1"
 clap = { version = "4.6.0", features = ["derive"] }
 clap_complete = "4.6.0"
-comfy-table = "7.2.2"
+comfy-table = "8.0.0"
 dialoguer = "0.12.0"
 env_logger = "0.11.10"
 futures = "0.3.32"
 indicatif = "0.18.4"
 log = "0.4.29"
 regex = "1.12.3"
-reqwest = { version = "0.13.2", default-features = false, features = ["json", "query", "rustls"] }
-rusqlite = { version = "0.39.0", features = ["bundled"] }
-scraper = "0.26.0"
+reqwest = { version = "0.13.2", default-features = false, features = [
+    "json",
+    "query",
+    "rustls"
+] }
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+scraper = "0.27.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 thiserror = "2.0.18"
-tokio = { version = "1.50.0", features = ["macros", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "1.50.0", features = [
+    "macros",
+    "rt-multi-thread",
+    "sync",
+    "time"
+] }
 
 [dev-dependencies]
 assert_cmd = "2.2.0"
