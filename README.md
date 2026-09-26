@@ -52,3 +52,18 @@ quickrep venues update --chain helios
 - `venues search` szuka po fragmencie nazwy kina
 - `venues update` odświeża lokalną bazę kin
 - `TMDB` jest opcjonalne; bez niego repertuar działa dalej, ale bez ocen i opisów
+
+## Testy z prawdziwymi serwisami
+
+Testy w `tests/live_e2e.rs` pobierają aktualne repertuary Cinema City, Helios i
+Multikino oraz sprawdzają dopasowania TMDB. Uruchamiają się osobno, aby zwykły
+`cargo test` działał bez sieci i klucza API:
+
+```shell
+TMDB_ACCESS_TOKEN=... cargo test --test live_e2e -- --ignored --test-threads=1
+```
+
+Harmonogram GitHub Actions uruchamia je co poniedziałek. W repozytorium trzeba
+ustawić sekret `TMDB_ACCESS_TOKEN` (klucz API lub API Read Access Token).
+Testy sprawdzają obecność seansów i wypełnienie większości podstawowych pól,
+bez przywiązywania się do konkretnych tytułów czy godzin.
