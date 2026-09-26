@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use httpmock::Method::GET;
+use httpmock::Method::{GET, POST};
 use httpmock::MockServer;
 use quick_repertoire::cinema::multikino::Multikino;
 use quick_repertoire::cinema::registry::CinemaChainClient;
@@ -244,12 +244,19 @@ async fn fetch_venues_honors_retry_after_header_on_rate_limit() {
 #[tokio::test]
 async fn fetch_repertoire_groups_multikino_sessions_by_format_and_language() {
     let server = MockServer::start();
+    let auth_mock = server.mock(|when, then| {
+        when.method(POST).path("/api/microservice/auth/token");
+        then.status(200)
+            .header("Set-Cookie", "microservicesToken=test-token; Path=/; HttpOnly")
+            .json_body(json!({"result": {"accessToken": "test-token"}, "responseCode": 0}));
+    });
     let films_mock = server.mock(|when, then| {
         when.method(GET)
             .path("/api/microservice/showings/cinemas/0034/films")
             .query_param("minEmbargoLevel", "3")
             .query_param("includesSession", "true")
-            .query_param("includeSessionAttributes", "true");
+            .query_param("includeSessionAttributes", "true")
+            .header_includes("cookie", "microservicesToken=test-token");
         then.status(200).json_body(json!({
             "result": [
                 {
@@ -415,6 +422,7 @@ async fn fetch_repertoire_groups_multikino_sessions_by_format_and_language() {
 
     let repertoire = client.fetch_repertoire("2026-04-03", &venue).await.unwrap();
 
+    auth_mock.assert();
     films_mock.assert();
     attribute_groups_mock.assert();
     assert_eq!(repertoire.len(), 2);

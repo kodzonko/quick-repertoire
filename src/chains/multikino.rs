@@ -42,7 +42,11 @@ impl Multikino {
         Self {
             base_url: base_url.into(),
             showings_api_base_url: DEFAULT_MULTIKINO_SHOWINGS_API_BASE_URL.to_string(),
-            http_client: Client::new(),
+            http_client: Client::builder()
+                .cookie_store(true)
+                .timeout(std::time::Duration::from_secs(30))
+                .build()
+                .expect("HTTP client setup"),
             retry_policy: RetryPolicy::network_requests(),
         }
     }
@@ -59,6 +63,20 @@ impl Multikino {
 
     fn venues_url(&self) -> String {
         format!("{}/cinemas", self.showings_api_base_url.trim_end_matches('/'))
+    }
+
+    async fn authenticate_guest(&self) -> AppResult<()> {
+        let url = format!("{}/api/microservice/auth/token", self.base_url.trim_end_matches('/'));
+        let response = self.http_client.post(&url).send().await.map_err(|error| {
+            AppError::Http(format!("Nie udało się pobrać sesji Multikino: {error}"))
+        })?;
+        if !response.status().is_success() {
+            return Err(AppError::Http(format!(
+                "API Multikino zwróciło błąd podczas pobierania sesji: status {}",
+                response.status()
+            )));
+        }
+        Ok(())
     }
 
     fn films_url(&self, venue_id: &str) -> String {
@@ -296,6 +314,7 @@ impl CinemaChainClient for Multikino {
         date: &str,
         venue: &CinemaVenue,
     ) -> AppResult<Vec<Repertoire>> {
+        self.authenticate_guest().await?;
         let films_url = self.films_url(&venue.venue_id);
         debug!(
             "Multikino repertoire fetch starting url={films_url} venue_id={} venue_name={:?} date={date}",
