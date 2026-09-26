@@ -1,13 +1,12 @@
 name: Build and Publish Release Binaries
 
 on:
-  push:
-    tags:
-      - "*"
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Tag name to create or update for this release."
+        description: "Tag of an existing release to upload binaries to."
         required: true
         type: string
 
@@ -28,7 +27,6 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       release_tag: ${{ steps.release-metadata.outputs.release_tag }}
-      release_target: ${{ steps.release-metadata.outputs.release_target }}
     steps:
       - name: Resolve release metadata
         id: release-metadata
@@ -40,7 +38,6 @@ jobs:
           else
             echo "release_tag=${{ inputs.release_tag }}" >> "${GITHUB_OUTPUT}"
           fi
-          echo "release_target=${GITHUB_SHA}" >> "${GITHUB_OUTPUT}"
 
   build-linux:
     name: Build Linux Binary (${{ matrix.artifact_name }})
@@ -180,7 +177,7 @@ jobs:
           if-no-files-found: error
 
   publish-release:
-    name: Publish GitHub Release
+    name: Upload GitHub Release Assets
     needs:
       - prepare-release
       - build-linux
@@ -194,11 +191,10 @@ jobs:
         with:
           path: release-assets
           merge-multiple: true
-      - name: Publish GitHub release
+      - name: Upload release assets
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.prepare-release.outputs.release_tag }}
-          RELEASE_TARGET: ${{ needs.prepare-release.outputs.release_target }}
         shell: bash
         run: |
           set -euo pipefail
@@ -210,8 +206,4 @@ jobs:
             exit 1
           fi
 
-          if gh release view "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload "${RELEASE_TAG}" "${assets[@]}" --repo "${GITHUB_REPOSITORY}" --clobber
-          else
-            gh release create "${RELEASE_TAG}" "${assets[@]}" --repo "${GITHUB_REPOSITORY}" --target "${RELEASE_TARGET}" --generate-notes
-          fi
+          gh release upload "${RELEASE_TAG}" "${assets[@]}" --repo "${GITHUB_REPOSITORY}" --clobber
