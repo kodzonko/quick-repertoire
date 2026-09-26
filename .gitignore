@@ -1,13 +1,3 @@
-.idea/
-.vscode/
-.run/
-node_modules/
-run.env
-chromedriver.exe
-.codex-tmp/
+.env
+
 target/
-.playwright-cli/
-.codex
-.pytest_cache/
-__pycache__/
-*.pyc
