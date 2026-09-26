@@ -41,7 +41,7 @@ const CINEMA_CITY_BROWSER_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win6
 
 static TITLE_SUFFIX_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"(?iu)(?:[\s\-–:|/()]+(?:(?:film\s+z\s+napisami|z\s+napisami|bez\s+napisów|bez\s+napisow|wersja\s+oryginalna)|(?:(?:pl|en|ua|ukr|polski|polska|angielski|angielska|ukraiński|ukrainski|ukraińska|ukrainska|polish|english|ukrainian)\s+)?(?:dubbing|dubbed|dubbingiem|lektor|napisy|napisami|subbed|subtitles?)))+$",
+        r"(?iu)(?:[\s\-–:|/()]+(?:(?:film\s+z\s+napisami|z\s+napisami|bez\s+napisów|bez\s+napisow|wersja\s+oryginalna|wersja\s+rozszerzona|infinity\s+vision|re-release\)?)|(?:(?:pl|en|ua|ukr|polski|polska|angielski|angielska|ukraiński|ukrainski|ukraińska|ukrainska|polish|english|ukrainian)\s+)?(?:dubbing|dubbed|dubbingiem|lektor|napisy|napisami|subbed|subtitles?)))+$",
     )
     .expect("title suffix regex must compile")
 });
@@ -1570,7 +1570,16 @@ fn has_runtime_conflict(expected_runtime: Option<u16>, candidate_runtime: Option
 
 #[cfg(test)]
 mod tests {
-    use super::render_rating;
+    use super::{build_search_query, render_rating};
+
+    #[test]
+    fn build_search_query_strips_cinema_release_labels() {
+        assert_eq!(
+            build_search_query("Avengers: Koniec gry – wersja rozszerzona Infinity Vision"),
+            "Avengers: Koniec gry"
+        );
+        assert_eq!(build_search_query("Avengers: Endgame (re-release)"), "Avengers: Endgame");
+    }
 
     #[test]
     fn render_rating_rounds_to_one_decimal_place() {

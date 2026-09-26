@@ -701,6 +701,9 @@ impl CinemaCity {
             let entry =
                 quickbook_movies.entry(Self::normalize_lookup_text(&movie.title)).or_default();
             Self::merge_lookup_metadata(&mut entry.lookup_metadata, &movie.lookup_metadata);
+            if let Some(language) = event.languages.play_language() {
+                entry.showtime_languages.insert(showtime_value.clone(), language);
+            }
             entry.showtimes.insert(showtime_value);
         }
 
@@ -829,6 +832,24 @@ impl CinemaCity {
                 &mut movie.lookup_metadata,
                 &quickbook_movie.lookup_metadata,
             );
+            if movie.original_language == MISSING_DATA_LABEL
+                && let Some(language) = &movie.lookup_metadata.original_language_code
+            {
+                movie.original_language = language.clone();
+            }
+
+            for play_detail in &mut movie.play_details {
+                if play_detail.play_language == MISSING_DATA_LABEL {
+                    let languages = play_detail
+                        .play_times
+                        .iter()
+                        .filter_map(|time| quickbook_movie.showtime_languages.get(&time.value))
+                        .collect::<HashSet<_>>();
+                    if languages.len() == 1 {
+                        play_detail.play_language = languages.into_iter().next().unwrap().clone();
+                    }
+                }
+            }
             let Some(movie_page_url) = movie.lookup_metadata.movie_page_url.clone() else {
                 continue;
             };
@@ -1041,6 +1062,42 @@ struct CinemaCityFilmEvent {
     sold_out: bool,
     #[serde(rename = "compositeBookingLink")]
     composite_booking_link: Option<CinemaCityCompositeBookingLink>,
+    #[serde(default)]
+    languages: CinemaCityEventLanguages,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct CinemaCityEventLanguages {
+    #[serde(default)]
+    original: Vec<String>,
+    #[serde(default)]
+    dubbed: Vec<String>,
+    #[serde(default)]
+    voiceover: Vec<String>,
+    #[serde(default)]
+    subtitles: Vec<String>,
+}
+
+impl CinemaCityEventLanguages {
+    fn play_language(&self) -> Option<String> {
+        let (label, codes) = if !self.subtitles.is_empty() {
+            ("FILM Z NAPISAMI", &self.subtitles)
+        } else if !self.dubbed.is_empty() {
+            ("DUBBING", &self.dubbed)
+        } else if !self.voiceover.is_empty() {
+            ("LEKTOR", &self.voiceover)
+        } else {
+            ("WERSJA ORYGINALNA", &self.original)
+        };
+        if codes.is_empty() {
+            None
+        } else {
+            Some(format!(
+                "{label}: {}",
+                codes.iter().map(|code| code.to_uppercase()).collect::<Vec<_>>().join(", ")
+            ))
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -1059,4 +1116,5 @@ struct BookableMovieMetadata {
 struct QuickbookMovieEnrichment {
     lookup_metadata: MovieLookupMetadata,
     showtimes: HashSet<String>,
+    showtime_languages: HashMap<String, String>,
 }
