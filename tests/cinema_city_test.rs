@@ -471,6 +471,63 @@ async fn fetch_repertoire_adds_movie_page_links_for_bookable_showtimes() {
 }
 
 #[tokio::test]
+async fn fetch_repertoire_fills_missing_languages_from_quickbook_events() {
+    let server = MockServer::start_async().await;
+    let film_events_mock = server
+        .mock_async(|when, then| {
+            when.method(GET)
+                .path("/v1/quickbook/10103/film-events/in-cinema/1097/at-date/2026-09-26")
+                .query_param("lang", "pl_PL");
+            then.status(200).header("content-type", "application/json").body(
+                r#"{"body":{"films":[
+                    {"id":"one","name":"Film z napisami","attributeIds":["original-lang-en"]},
+                    {"id":"two","name":"Film z dubbingiem","attributeIds":["dubbed-lang-uk"]}
+                ],"events":[
+                    {"filmId":"one","eventDateTime":"2026-09-26T20:00:00","bookingLink":"/book/one","soldOut":false,"languages":{"original":["en"],"dubbed":[],"voiceover":[],"subtitles":["pl"]}},
+                    {"filmId":"two","eventDateTime":"2026-09-26T21:00:00","bookingLink":"/book/two","soldOut":false,"languages":{"original":[],"dubbed":["uk"],"voiceover":[],"subtitles":[]}}
+                ]}}"#,
+            );
+        })
+        .await;
+    let html = r#"
+        <h2 class="mr-sm">Repertuar</h2>
+        <div class="row qb-movie">
+          <h3 class="qb-movie-name">Film z napisami</h3>
+          <div class="qb-movie-info-column">
+            <ul class="qb-screening-attributes"><li><span aria-label="Screening type">2D</span></li></ul>
+            <a class="btn btn-primary btn-lg">20:00</a>
+          </div>
+        </div>
+        <div class="row qb-movie">
+          <h3 class="qb-movie-name">Film z dubbingiem</h3>
+          <div class="qb-movie-info-column">
+            <ul class="qb-screening-attributes"><li><span aria-label="Screening type">2D</span></li></ul>
+            <a class="btn btn-primary btn-lg">21:00</a>
+          </div>
+        </div>
+    "#;
+    let cinema = CinemaCity::new(
+        "https://www.cinema-city.pl/kina/{cinema_venue_slug}/{cinema_venue_id}#/buy-tickets-by-cinema?in-cinema={cinema_venue_id}&at={repertoire_date}&view-mode=list".to_string(),
+        "https://www.cinema-city.pl/#/buy-tickets-by-cinema".to_string(),
+        Arc::new(FakeHtmlRenderer { html: html.to_string() }),
+    )
+    .with_quickbook_api_base_url(server.url(""));
+    let venue = CinemaVenue {
+        chain_id: "cinema-city".to_string(),
+        venue_id: "1097".to_string(),
+        venue_name: "Wroclaw - Wroclavia".to_string(),
+    };
+
+    let repertoire = cinema.fetch_repertoire("2026-09-26", &venue).await.unwrap();
+
+    film_events_mock.assert_async().await;
+    assert_eq!(repertoire[0].original_language, "EN");
+    assert_eq!(repertoire[0].play_details[0].play_language, "FILM Z NAPISAMI: PL");
+    assert_eq!(repertoire[1].original_language, "Brak danych");
+    assert_eq!(repertoire[1].play_details[0].play_language, "DUBBING: UK");
+}
+
+#[tokio::test]
 async fn fetch_repertoire_retries_transient_browser_failures() {
     let renderer = Arc::new(SequencedHtmlRenderer::new(vec![
         Err(AppError::BrowserUnavailable("temporary page navigation failure".to_string())),
