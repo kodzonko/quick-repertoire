@@ -40,8 +40,6 @@ static PLAY_LENGTH_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^\d+ min").expect("play length regex must compile"));
 static WHITESPACE_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\s+").expect("whitespace regex must compile"));
-static TEMPLATE_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\{([^}]+)\}").expect("template regex must compile"));
 static TENANT_ID_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"tenantId\s*=\s*"(?P<tenant_id>\d+)""#).expect("tenant id regex must compile")
 });
@@ -85,22 +83,6 @@ impl CinemaCity {
         self
     }
 
-    fn fill_string_template(text: &str, values: &[(&str, &str)]) -> AppResult<String> {
-        let values = values
-            .iter()
-            .map(|(key, value)| ((*key).to_string(), (*value).to_string()))
-            .collect::<HashMap<_, _>>();
-        let mut rendered = text.to_string();
-        for capture in TEMPLATE_RE.captures_iter(text) {
-            let variable = capture.get(1).map(|matched| matched.as_str()).unwrap_or_default();
-            let replacement = values.get(variable).ok_or_else(|| AppError::TemplateRender {
-                missing_variable: variable.to_string(),
-            })?;
-            rendered = rendered.replace(&format!("{{{variable}}}"), replacement);
-        }
-        Ok(rendered)
-    }
-
     fn parse_title(movie: &ElementRef<'_>) -> String {
         first_text(movie, "h3.qb-movie-name").unwrap_or_else(|| MISSING_DATA_LABEL.to_string())
     }
@@ -118,7 +100,7 @@ impl CinemaCity {
     fn parse_original_language(movie: &ElementRef<'_>) -> String {
         let selector = selector("span[aria-label]");
         movie
-            .select(selector.as_ref())
+            .select(&selector)
             .find(|element| {
                 element
                     .value()
@@ -132,7 +114,7 @@ impl CinemaCity {
     fn parse_play_length(movie: &ElementRef<'_>) -> String {
         let selector = selector("div.qb-movie-info-wrapper span");
         movie
-            .select(selector.as_ref())
+            .select(&selector)
             .map(normalized_text)
             .find(|text| PLAY_LENGTH_RE.is_match(text))
             .unwrap_or_else(|| MISSING_DATA_LABEL.to_string())
@@ -141,7 +123,7 @@ impl CinemaCity {
     fn parse_play_format(play_detail: &ElementRef<'_>) -> String {
         let selector = selector("ul.qb-screening-attributes span[aria-label]");
         let formats = play_detail
-            .select(selector.as_ref())
+            .select(&selector)
             .filter(|element| {
                 element
                     .value()
@@ -159,7 +141,7 @@ impl CinemaCity {
     ) -> Vec<MoviePlayTime> {
         let selector = selector("a.btn.btn-primary.btn-lg");
         play_detail
-            .select(selector.as_ref())
+            .select(&selector)
             .map(|play_time| MoviePlayTime {
                 value: normalized_text(play_time),
                 url: if Self::play_time_has_booking_hint(&play_time) {
@@ -174,7 +156,7 @@ impl CinemaCity {
     fn parse_play_language(play_detail: &ElementRef<'_>) -> String {
         let selector = selector("span[aria-label]");
         let prefix = play_detail
-            .select(selector.as_ref())
+            .select(&selector)
             .find(|element| {
                 element.value().attr("aria-label").is_some_and(|label| {
                     label.contains("subAbbr")
@@ -184,7 +166,7 @@ impl CinemaCity {
             })
             .map(normalized_text);
         let language = play_detail
-            .select(selector.as_ref())
+            .select(&selector)
             .find(|element| {
                 element.value().attr("aria-label").is_some_and(|label| {
                     label.contains("subbed-lang")
@@ -209,7 +191,7 @@ impl CinemaCity {
     ) -> Vec<MoviePlayDetails> {
         let selector = selector("div.qb-movie-info-column");
         movie
-            .select(selector.as_ref())
+            .select(&selector)
             .map(|play_detail| MoviePlayDetails {
                 format: Self::parse_play_format(&play_detail),
                 play_language: Self::parse_play_language(&play_detail),
@@ -221,7 +203,7 @@ impl CinemaCity {
     fn parse_movie_link_url(movie: &ElementRef<'_>) -> Option<String> {
         let selector = selector("a.qb-movie-link[href]");
         movie
-            .select(selector.as_ref())
+            .select(&selector)
             .find_map(|link| link.value().attr("href"))
             .and_then(Self::canonicalize_cinema_city_url)
     }
@@ -412,13 +394,13 @@ impl CinemaCity {
     fn is_presale(movie: &ElementRef<'_>) -> bool {
         let selector = selector("div.qb-movie-info-column h4");
         movie
-            .select(selector.as_ref())
+            .select(&selector)
             .any(|element| normalized_text(element).to_uppercase().contains("PRZEDSPRZED"))
     }
 
     fn parse_legacy_venues(html: &Html) -> Vec<CinemaVenue> {
         let selector = selector(LEGACY_CINEMA_VENUES_SELECTOR);
-        html.select(selector.as_ref())
+        html.select(&selector)
             .filter_map(|cinema| {
                 let venue_name = cinema.value().attr("data-tokens")?.trim().to_string();
                 let venue_id = cinema.value().attr("value")?.trim().to_string();
@@ -439,6 +421,11 @@ impl CinemaCity {
 
     fn parse_api_sites_list_venues(rendered_html: &str) -> AppResult<Vec<CinemaVenue>> {
         let Some(api_sites_list) = extract_json_array_assignment(rendered_html, "apiSitesList")
+            .map_err(|error| {
+                AppError::BrowserUnavailable(format!(
+                    "Nie udało się odczytać listy lokali Cinema City z aktualnego formatu strony: {error}"
+                ))
+            })?
         else {
             debug!(
                 "Cinema City venues page did not include an apiSitesList assignment; html_preview={}",
@@ -497,20 +484,16 @@ impl CinemaCity {
         template.contains("/#/buy-tickets-by-cinema") && !template.contains("{cinema_venue_slug}")
     }
 
-    fn build_repertoire_url(&self, venue: &CinemaVenue, date: &str) -> AppResult<String> {
+    fn build_repertoire_url(&self, venue: &CinemaVenue, date: &str) -> String {
         if Self::uses_legacy_repertoire_template(&self.repertoire_url) {
-            return Ok(Self::canonical_repertoire_url(venue, date));
+            return Self::canonical_repertoire_url(venue, date);
         }
 
         let venue_slug = Self::build_venue_slug(&venue.venue_name);
-        Self::fill_string_template(
-            &self.repertoire_url,
-            &[
-                ("cinema_venue_id", venue.venue_id.as_str()),
-                ("cinema_venue_slug", venue_slug.as_str()),
-                ("repertoire_date", date),
-            ],
-        )
+        self.repertoire_url
+            .replace("{cinema_venue_id}", &venue.venue_id)
+            .replace("{cinema_venue_slug}", &venue_slug)
+            .replace("{repertoire_date}", date)
     }
 
     fn build_quickbook_film_events_url(
@@ -580,7 +563,7 @@ impl CinemaCity {
                 );
                 DEFAULT_CINEMA_CITY_TENANT_ID.to_string()
             });
-        let repertoire_url = self.build_repertoire_url(venue, date)?;
+        let repertoire_url = self.build_repertoire_url(venue, date);
         let primary_payload = self.fetch_quickbook_film_events_payload(
             &tenant_id,
             venue,
@@ -878,7 +861,7 @@ impl CinemaChainClient for CinemaCity {
         date: &str,
         venue: &CinemaVenue,
     ) -> AppResult<Vec<Repertoire>> {
-        let url = self.build_repertoire_url(venue, date)?;
+        let url = self.build_repertoire_url(venue, date);
         debug!(
             "Cinema City repertoire fetch starting url={url} venue_id={} venue_name={:?} date={date}",
             venue.venue_id, venue.venue_name,
@@ -887,7 +870,7 @@ impl CinemaChainClient for CinemaCity {
         let mut repertoire = {
             let html = Html::parse_document(&rendered_html);
             let selector = selector(REPERTOIRE_SELECTOR);
-            html.select(selector.as_ref())
+            html.select(&selector)
                 .filter(|movie| !Self::is_presale(movie))
                 .filter_map(|movie| {
                     let title = Self::parse_title(&movie);

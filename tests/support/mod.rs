@@ -270,11 +270,10 @@ pub fn registered_chain(
     display_name: &str,
     cinema_client: FakeCinemaClient,
 ) -> RegisteredCinemaChain {
-    let factory_client = cinema_client.clone();
     RegisteredCinemaChain {
         chain_id,
         display_name: display_name.to_string(),
-        client_factory: Arc::new(move |_| Box::new(factory_client.clone())),
+        client: Arc::new(cinema_client),
     }
 }
 
@@ -335,11 +334,10 @@ pub fn delayed_registered_chain(
     display_name: &str,
     cinema_client: DelayedCinemaClient,
 ) -> RegisteredCinemaChain {
-    let factory_client = cinema_client.clone();
     RegisteredCinemaChain {
         chain_id,
         display_name: display_name.to_string(),
-        client_factory: Arc::new(move |_| Box::new(factory_client.clone())),
+        client: Arc::new(cinema_client),
     }
 }
 

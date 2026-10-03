@@ -6,8 +6,7 @@ use std::time::Duration;
 
 use quick_repertoire::config::{
     AppPaths, DEFAULT_DEVELOPMENT_LOG_LEVEL, DEFAULT_PRODUCTION_LOG_LEVEL, default_log_level,
-    load_settings, run_interactive_configuration, should_defer_bootstrap_to_command,
-    should_skip_bootstrap_for_argv, write_settings,
+    load_settings, run_interactive_configuration, write_settings,
 };
 use quick_repertoire::domain::{CinemaChainId, CinemaVenue};
 use quick_repertoire::error::AppError;
@@ -134,19 +133,6 @@ fn write_settings_restricts_config_file_permissions() {
 
     let mode = fs::metadata(paths.config_file()).unwrap().permissions().mode() & 0o777;
     assert_eq!(mode, 0o600);
-}
-
-#[test]
-fn bootstrap_rules_match_help_and_configure_flows() {
-    assert!(should_skip_bootstrap_for_argv(&["--help".to_string()]));
-    assert!(should_skip_bootstrap_for_argv(&[
-        "venues".to_string(),
-        "list".to_string(),
-        "--help".to_string()
-    ]));
-    assert!(should_defer_bootstrap_to_command(&["configure".to_string()]));
-    assert!(should_defer_bootstrap_to_command(&["chains".to_string()]));
-    assert!(!should_defer_bootstrap_to_command(&["repertoire".to_string()]));
 }
 
 #[test]

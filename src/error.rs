@@ -25,10 +25,6 @@ pub enum AppError {
     Configuration(String),
     #[error("Konfiguracja została przerwana przez użytkownika.")]
     ConfigurationAborted,
-    #[error(
-        "Nie udało się wypełnić templatki z adresem url. Brakująca zmienna: {missing_variable}."
-    )]
-    TemplateRender { missing_variable: String },
     #[error("{0}")]
     DatabaseConnection(String),
     #[error("{0}")]

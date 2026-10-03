@@ -12,8 +12,7 @@ use crate::config::{
     AppPaths, BINARY_NAME, PromptAdapter, RuntimeWriteAccessProbe, Settings, build_prompt_adapter,
     build_runtime_write_access_probe, ensure_settings_for_argv_with_write_access_probe,
     load_settings, load_settings_if_available,
-    run_interactive_configuration_with_write_access_probe, should_defer_bootstrap_to_command,
-    should_skip_bootstrap_for_argv,
+    run_interactive_configuration_with_write_access_probe,
 };
 use crate::domain::{
     CinemaChainId, CinemaVenue, RepertoireCliTableMetadata, TmdbLookupMovie, TmdbMovieDetails,
@@ -81,27 +80,6 @@ pub async fn run_with_args(
 ) -> i32 {
     init_logging();
 
-    let argv = args.iter().skip(1).cloned().collect::<Vec<_>>();
-    let mut settings =
-        if should_skip_bootstrap_for_argv(&argv) || should_defer_bootstrap_to_command(&argv) {
-            load_settings_if_available(&dependencies.paths)
-        } else {
-            match ensure_settings_for_argv_with_write_access_probe(
-                &dependencies.paths,
-                &dependencies.registry,
-                dependencies.prompt.as_ref(),
-                dependencies.runtime_write_access_probe.as_ref(),
-            )
-            .await
-            {
-                Ok(settings) => Some(settings),
-                Err(error) => {
-                    terminal.write_line(&error.to_string());
-                    return 1;
-                }
-            }
-        };
-
     let cli = match Cli::try_parse_from(args) {
         Ok(cli) => cli,
         Err(error) => {
@@ -124,7 +102,7 @@ pub async fn run_with_args(
     if matches!(command, Commands::Configure) {
         return match run_interactive_configuration_with_write_access_probe(
             &dependencies.paths,
-            settings.take(),
+            load_settings_if_available(&dependencies.paths),
             &dependencies.registry,
             dependencies.prompt.as_ref(),
             dependencies.runtime_write_access_probe.as_ref(),
@@ -152,15 +130,23 @@ pub async fn run_with_args(
         };
     }
 
+    let settings = if std::env::vars().any(|(key, _)| key.ends_with("_COMPLETE")) {
+        load_settings(&dependencies.paths)
+    } else {
+        ensure_settings_for_argv_with_write_access_probe(
+            &dependencies.paths,
+            &dependencies.registry,
+            dependencies.prompt.as_ref(),
+            dependencies.runtime_write_access_probe.as_ref(),
+        )
+        .await
+    };
     let settings = match settings {
-        Some(settings) => settings,
-        None => match load_settings(&dependencies.paths) {
-            Ok(settings) => settings,
-            Err(error) => {
-                terminal.write_line(&error.to_string());
-                return 1;
-            }
-        },
+        Ok(settings) => settings,
+        Err(error) => {
+            terminal.write_line(&error.to_string());
+            return 1;
+        }
     };
 
     let result = match command {
@@ -190,14 +176,8 @@ pub async fn run_with_args(
                 .await
             }
             VenueCommands::Update { chain } => {
-                handle_venues_update(
-                    &settings,
-                    &dependencies.paths,
-                    &dependencies.registry,
-                    chain,
-                    terminal,
-                )
-                .await
+                handle_venues_update(&dependencies.paths, &dependencies.registry, chain, terminal)
+                    .await
             }
             VenueCommands::Search { venue_name, chain } => {
                 handle_venues_search(
@@ -270,7 +250,6 @@ fn build_database_manager(paths: &AppPaths) -> AppResult<DatabaseManager> {
 }
 
 async fn rehydrate_venues_database_if_missing(
-    settings: &Settings,
     paths: &AppPaths,
     registry: &Registry,
 ) -> AppResult<()> {
@@ -278,8 +257,7 @@ async fn rehydrate_venues_database_if_missing(
         return Ok(());
     }
 
-    let venues_by_chain =
-        fetch_registered_venues(settings, registry.get_registered_chains()).await?;
+    let venues_by_chain = fetch_registered_venues(registry.get_registered_chains()).await?;
     let payload = venues_by_chain
         .into_iter()
         .map(|(chain_id, venues)| (chain_id.as_str().to_string(), venues))
@@ -299,7 +277,7 @@ async fn handle_repertoire(
     let registered_chain = resolve_chain(chain, context.settings, registry)?;
     let resolved_venue_name = resolve_venue_name(venue_name, &registered_chain, context.settings)?;
     let venue_name_parsed = cinema_venue_input_parser(&resolved_venue_name);
-    rehydrate_venues_database_if_missing(context.settings, context.paths, registry).await?;
+    rehydrate_venues_database_if_missing(context.paths, registry).await?;
     let db_manager = build_database_manager(context.paths)?;
     let found_venues =
         db_manager.find_venues_by_name(registered_chain.chain_id.as_str(), &venue_name_parsed)?;
@@ -307,8 +285,7 @@ async fn handle_repertoire(
     let date_parsed = date_input_parser(
         date.as_deref().unwrap_or(&context.settings.user_preferences.default_day),
     )?;
-    let cinema_client = (registered_chain.client_factory)(context.settings);
-    let fetched_repertoire = cinema_client.fetch_repertoire(&date_parsed, &venue).await?;
+    let fetched_repertoire = registered_chain.client.fetch_repertoire(&date_parsed, &venue).await?;
     let lookup_movies = fetched_repertoire.iter().map(TmdbLookupMovie::from).collect::<Vec<_>>();
     let ratings = load_tmdb_ratings(
         &lookup_movies,
@@ -335,7 +312,7 @@ async fn handle_venues_list(
     terminal: &mut dyn Terminal,
 ) -> AppResult<()> {
     let registered_chain = resolve_chain(chain, settings, registry)?;
-    rehydrate_venues_database_if_missing(settings, paths, registry).await?;
+    rehydrate_venues_database_if_missing(paths, registry).await?;
     let db_manager = build_database_manager(paths)?;
     let venues = db_manager.get_all_venues(registered_chain.chain_id.as_str())?;
     terminal.write_line(&render_venues_table(&venues, &registered_chain.display_name));
@@ -343,7 +320,6 @@ async fn handle_venues_list(
 }
 
 async fn handle_venues_update(
-    settings: &Settings,
     paths: &AppPaths,
     registry: &Registry,
     chain: Option<String>,
@@ -363,7 +339,7 @@ async fn handle_venues_update(
         terminal.write_line("Aktualizowanie lokali dla wszystkich obsługiwanych sieci...");
     }
 
-    let venues_by_chain = fetch_registered_venues(settings, chains_to_update.clone()).await?;
+    let venues_by_chain = fetch_registered_venues(chains_to_update.clone()).await?;
     let db_manager = build_database_manager(paths)?;
     let payload = venues_by_chain
         .iter()
@@ -390,7 +366,7 @@ async fn handle_venues_search(
     terminal: &mut dyn Terminal,
 ) -> AppResult<()> {
     let registered_chain = resolve_chain(chain, settings, registry)?;
-    rehydrate_venues_database_if_missing(settings, paths, registry).await?;
+    rehydrate_venues_database_if_missing(paths, registry).await?;
     let db_manager = build_database_manager(paths)?;
     let venues = db_manager.find_venues_by_name(
         registered_chain.chain_id.as_str(),

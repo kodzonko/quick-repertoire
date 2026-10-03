@@ -9,7 +9,9 @@ use regex::Regex;
 use reqwest::{Client, StatusCode};
 use serde::Deserialize;
 
-use crate::cinema::common::parse_movie_page_fallback_details;
+use crate::cinema::common::{
+    normalize_lookup_text as normalize_for_comparison, parse_movie_page_fallback_details,
+};
 use crate::domain::{
     MovieLookupMetadata, MoviePageFallbackDetails, TmdbLookupMovie, TmdbMovieDetails,
 };
@@ -64,7 +66,6 @@ pub trait TmdbService: Send + Sync {
 #[derive(Clone)]
 pub struct ReqwestTmdbClient {
     client: Client,
-    auth_url: String,
     search_url: String,
     movie_details_base_url: String,
     retry_policy: RetryPolicy,
@@ -78,19 +79,14 @@ impl ReqwestTmdbClient {
             .map_err(|error| AppError::Http(error.to_string()))?;
         Ok(Self {
             client,
-            auth_url: "https://api.themoviedb.org/3/authentication".to_string(),
             search_url: "https://api.themoviedb.org/3/search/movie".to_string(),
             movie_details_base_url: "https://api.themoviedb.org/3/movie".to_string(),
             retry_policy: RetryPolicy::network_requests(),
         })
     }
 
-    pub fn with_base_urls(
-        auth_url: impl Into<String>,
-        search_url: impl Into<String>,
-    ) -> AppResult<Self> {
+    pub fn with_search_url(search_url: impl Into<String>) -> AppResult<Self> {
         let mut client = Self::new()?;
-        client.auth_url = auth_url.into();
         client.search_url = search_url.into();
         client.movie_details_base_url = derive_movie_details_base_url(&client.search_url);
         Ok(client)
@@ -99,82 +95,6 @@ impl ReqwestTmdbClient {
     pub fn with_retry_policy(mut self, retry_policy: RetryPolicy) -> Self {
         self.retry_policy = retry_policy;
         self
-    }
-
-    pub async fn verify_api_key(&self, access_token: &str) -> bool {
-        let authentication_mode = self.authentication_mode(access_token);
-
-        retry_with_backoff(self.retry_policy, |attempt| {
-            let redacted_token = redact_secret(access_token);
-            async move {
-                debug!(
-                    "TMDB authentication request attempt={attempt} url={} auth_mode={authentication_mode:?} token={}",
-                    self.auth_url,
-                    redacted_token,
-                );
-                let request =
-                    match self.authorize_request(self.client.get(&self.auth_url), access_token) {
-                        Ok(request) => request,
-                        Err(error) => {
-                            debug!(
-                                "TMDB authentication request setup failed attempt={attempt} url={} error={error}",
-                                self.auth_url,
-                            );
-                            self.client.get(&self.auth_url)
-                        }
-                    };
-                let response = request.send().await.map_err(|error| {
-                    classify_tmdb_transport_error(
-                        "authentication",
-                        attempt,
-                        &self.auth_url,
-                        None,
-                        error,
-                    )
-                })?;
-                let retry_after = retry_after_delay(response.headers());
-                let status = response.status();
-                debug!(
-                    "TMDB authentication response attempt={attempt} url={} status={status} retry_after={retry_after:?}",
-                    self.auth_url,
-                );
-
-                if status == StatusCode::OK {
-                    return Ok(true);
-                }
-
-                if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
-                    debug!(
-                        "TMDB authentication rejected credentials attempt={attempt} url={} body_preview={}",
-                        self.auth_url,
-                        response_body_preview(response, MAX_LOG_BODY_PREVIEW_CHARS).await,
-                    );
-                    return Ok(false);
-                }
-
-                if is_retryable_tmdb_status(status) {
-                    let error = tmdb_status_error(status);
-                    debug!(
-                        "TMDB authentication received retryable status attempt={attempt} url={} status={status} body_preview={}",
-                        self.auth_url,
-                        response_body_preview(response, MAX_LOG_BODY_PREVIEW_CHARS).await,
-                    );
-                    return Err(match retry_after {
-                        Some(delay) => RetryDirective::retry_after(error, delay),
-                        None => RetryDirective::retry(error),
-                    });
-                }
-
-                debug!(
-                    "TMDB authentication returned unexpected non-success status attempt={attempt} url={} status={status} body_preview={}",
-                    self.auth_url,
-                    response_body_preview(response, MAX_LOG_BODY_PREVIEW_CHARS).await,
-                );
-                Ok(false)
-            }
-        })
-        .await
-        .unwrap_or(false)
     }
 
     async fn search_movies(
@@ -458,8 +378,6 @@ impl ReqwestTmdbClient {
         &self,
         movie: &TmdbLookupMovie,
         access_token: &str,
-        movie_page_cache: &mut HashMap<String, Option<MoviePageFallbackDetails>>,
-        details_cache: &mut HashMap<u64, TmdbMovieDetailsResponse>,
     ) -> AppResult<Option<TmdbMovieDetails>> {
         let search_year = resolve_search_year(&movie.lookup_metadata);
         let mut attempted_searches = HashSet::<(String, Option<i32>)>::new();
@@ -489,7 +407,7 @@ impl ReqwestTmdbClient {
         }
 
         if is_preliminary_weak(&ranked) {
-            fallback_details = self.load_movie_page_details(movie, movie_page_cache).await;
+            fallback_details = self.load_movie_page_details(movie).await;
             let fallback_queries = build_search_queries(movie, fallback_details.as_ref());
             self.extend_search_results_for_queries(
                 &fallback_queries,
@@ -521,8 +439,7 @@ impl ReqwestTmdbClient {
             return Ok(None);
         }
 
-        let detailed_candidates =
-            self.fetch_detailed_candidates(&ranked, access_token, details_cache).await;
+        let detailed_candidates = self.fetch_detailed_candidates(&ranked, access_token).await;
         if !detailed_candidates.is_empty() {
             let final_candidates =
                 rank_detailed_candidates(movie, fallback_details.as_ref(), &detailed_candidates);
@@ -548,18 +465,13 @@ impl ReqwestTmdbClient {
     async fn load_movie_page_details(
         &self,
         movie: &TmdbLookupMovie,
-        movie_page_cache: &mut HashMap<String, Option<MoviePageFallbackDetails>>,
     ) -> Option<MoviePageFallbackDetails> {
         let movie_page_url = movie.lookup_metadata.movie_page_url.as_deref()?;
-        if let Some(cached) = movie_page_cache.get(movie_page_url) {
-            return cached.clone();
-        }
         if !movie_page_url.contains("cinema-city.pl") {
-            movie_page_cache.insert(movie_page_url.to_string(), None);
             return None;
         }
 
-        let details = match self.fetch_movie_page_fallback_details(movie_page_url).await {
+        match self.fetch_movie_page_fallback_details(movie_page_url).await {
             Ok(details) => Some(details),
             Err(error) => {
                 debug!(
@@ -568,37 +480,27 @@ impl ReqwestTmdbClient {
                 );
                 None
             }
-        };
-        movie_page_cache.insert(movie_page_url.to_string(), details.clone());
-        details
+        }
     }
 
     async fn fetch_detailed_candidates(
         &self,
         ranked_candidates: &[RankedSearchCandidate],
         access_token: &str,
-        details_cache: &mut HashMap<u64, TmdbMovieDetailsResponse>,
     ) -> Vec<TmdbDetailedCandidate> {
         let mut detailed_candidates = Vec::new();
         for ranked_candidate in ranked_candidates.iter().take(MAX_DETAILED_CANDIDATES) {
-            let details = if let Some(cached) = details_cache.get(&ranked_candidate.result.id) {
-                cached.clone()
-            } else {
-                match self
-                    .fetch_movie_details_payload(ranked_candidate.result.id, access_token)
-                    .await
-                {
-                    Ok(details) => {
-                        details_cache.insert(ranked_candidate.result.id, details.clone());
-                        details
-                    }
-                    Err(error) => {
-                        debug!(
-                            "TMDB movie details enrichment failed movie_id={} error={error}",
-                            ranked_candidate.result.id,
-                        );
-                        continue;
-                    }
+            let details = match self
+                .fetch_movie_details_payload(ranked_candidate.result.id, access_token)
+                .await
+            {
+                Ok(details) => details,
+                Err(error) => {
+                    debug!(
+                        "TMDB movie details enrichment failed movie_id={} error={error}",
+                        ranked_candidate.result.id,
+                    );
+                    continue;
                 }
             };
             detailed_candidates
@@ -698,11 +600,7 @@ impl TmdbService for ReqwestTmdbClient {
         );
 
         let lookup_results = stream::iter(unique_movies.into_iter().map(|movie| async move {
-            let mut movie_page_cache = HashMap::<String, Option<MoviePageFallbackDetails>>::new();
-            let mut details_cache = HashMap::<u64, TmdbMovieDetailsResponse>::new();
-            let result = self
-                .resolve_movie(&movie, access_token, &mut movie_page_cache, &mut details_cache)
-                .await;
+            let result = self.resolve_movie(&movie, access_token).await;
             (movie.lookup_key.clone(), movie.title.clone(), result)
         }))
         .buffer_unordered(MAX_CONCURRENT_MOVIE_LOOKUPS)
@@ -1299,50 +1197,12 @@ fn parse_release_year(release_date: &str) -> Option<i32> {
     NaiveDate::parse_from_str(release_date, "%Y-%m-%d").ok().map(|date| date.year())
 }
 
-fn normalize_for_comparison(value: &str) -> String {
-    let mut normalized = String::new();
-    let mut previous_was_separator = false;
-    for character in value.chars() {
-        let lowered = fold_character(character).to_ascii_lowercase();
-        if lowered.is_ascii_alphanumeric() {
-            normalized.push(lowered);
-            previous_was_separator = false;
-        } else if !previous_was_separator {
-            normalized.push(' ');
-            previous_was_separator = true;
-        }
-    }
-    normalized.split_whitespace().collect::<Vec<_>>().join(" ")
-}
-
 fn normalize_language_code(value: &str) -> String {
     normalize_for_comparison(value)
         .split_whitespace()
         .next()
         .unwrap_or_default()
         .to_ascii_uppercase()
-}
-
-fn fold_character(character: char) -> char {
-    match character {
-        'ą' | 'á' | 'à' | 'ä' | 'â' => 'a',
-        'ć' | 'č' => 'c',
-        'ę' | 'é' | 'è' | 'ë' | 'ê' => 'e',
-        'ł' => 'l',
-        'ń' => 'n',
-        'ó' | 'ö' | 'ô' | 'ò' => 'o',
-        'ś' | 'š' => 's',
-        'ź' | 'ż' | 'ž' => 'z',
-        'Ą' | 'Á' | 'À' | 'Ä' | 'Â' => 'A',
-        'Ć' | 'Č' => 'C',
-        'Ę' | 'É' | 'È' | 'Ë' | 'Ê' => 'E',
-        'Ł' => 'L',
-        'Ń' => 'N',
-        'Ó' | 'Ö' | 'Ô' | 'Ò' => 'O',
-        'Ś' | 'Š' => 'S',
-        'Ź' | 'Ż' | 'Ž' => 'Z',
-        _ => character,
-    }
 }
 
 fn token_set(value: &str) -> HashSet<String> {
