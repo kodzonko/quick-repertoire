@@ -20,8 +20,6 @@ pub const BINARY_NAME: &str = "quickrep";
 pub const DEFAULT_DAY_CHOICES: [&str; 2] = ["dziś", "jutro"];
 pub const DEFAULT_PRODUCTION_LOG_LEVEL: &str = "INFO";
 pub const DEFAULT_DEVELOPMENT_LOG_LEVEL: &str = "DEBUG";
-pub const HELP_AND_COMPLETION_FLAGS: [&str; 4] =
-    ["-h", "--help", "--install-completion", "--show-completion"];
 pub const DEFAULT_CINEMA_CITY_REPERTOIRE_URL: &str = "https://www.cinema-city.pl/kina/{cinema_venue_slug}/{cinema_venue_id}#/buy-tickets-by-cinema?in-cinema={cinema_venue_id}&at={repertoire_date}&view-mode=list";
 pub const DEFAULT_CINEMA_CITY_VENUES_LIST_URL: &str =
     "https://www.cinema-city.pl/#/buy-tickets-by-cinema";
@@ -189,19 +187,6 @@ pub fn build_prompt_adapter() -> Box<dyn PromptAdapter> {
     Box::new(DialoguerPrompt)
 }
 
-pub fn should_skip_bootstrap_for_argv(argv: &[String]) -> bool {
-    if argv.iter().any(|argument| HELP_AND_COMPLETION_FLAGS.contains(&argument.as_str())) {
-        return true;
-    }
-    std::env::vars().any(|(key, _)| key.ends_with("_COMPLETE"))
-}
-
-pub fn should_defer_bootstrap_to_command(argv: &[String]) -> bool {
-    argv.iter()
-        .find(|argument| !argument.starts_with('-'))
-        .is_some_and(|argument| argument == "configure" || argument == "chains")
-}
-
 pub async fn ensure_settings_for_argv(
     paths: &AppPaths,
     registry: &Registry,
@@ -361,8 +346,7 @@ pub async fn run_interactive_configuration_with_write_access_probe(
     base_settings.user_preferences.default_day =
         canonicalize_default_day(&base_settings.user_preferences.default_day);
     let mut working_settings = base_settings.clone();
-    let venues_by_chain =
-        fetch_registered_venues(&working_settings, registry.get_registered_chains()).await?;
+    let venues_by_chain = fetch_registered_venues(registry.get_registered_chains()).await?;
 
     let chain_choices = registry
         .get_registered_chains()

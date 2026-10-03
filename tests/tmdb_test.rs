@@ -221,11 +221,7 @@ async fn get_movie_ratings_and_summaries_ranks_ambiguous_localized_titles_with_m
         })
         .await;
 
-    let client = ReqwestTmdbClient::with_base_urls(
-        server.url("/authentication"),
-        server.url("/search/movie"),
-    )
-    .unwrap();
+    let client = ReqwestTmdbClient::with_search_url(server.url("/search/movie")).unwrap();
 
     let details = client
         .get_movie_ratings_and_summaries(
@@ -298,11 +294,7 @@ async fn get_movie_ratings_and_summaries_strips_screening_suffixes_and_includes_
         ),
     ]);
 
-    let client = ReqwestTmdbClient::with_base_urls(
-        format!("{base_url}/authentication"),
-        format!("{base_url}/search/movie"),
-    )
-    .unwrap();
+    let client = ReqwestTmdbClient::with_search_url(format!("{base_url}/search/movie")).unwrap();
 
     let details = client
         .get_movie_ratings_and_summaries(
@@ -422,11 +414,7 @@ async fn get_movie_ratings_and_summaries_uses_movie_page_fallback_metadata_to_br
         })
         .await;
 
-    let client = ReqwestTmdbClient::with_base_urls(
-        server.url("/authentication"),
-        server.url("/search/movie"),
-    )
-    .unwrap();
+    let client = ReqwestTmdbClient::with_search_url(server.url("/search/movie")).unwrap();
 
     let details = client
         .get_movie_ratings_and_summaries(
@@ -498,11 +486,7 @@ async fn get_movie_ratings_and_summaries_accepts_single_exact_title_match_with_p
         })
         .await;
 
-    let client = ReqwestTmdbClient::with_base_urls(
-        server.url("/authentication"),
-        server.url("/search/movie"),
-    )
-    .unwrap();
+    let client = ReqwestTmdbClient::with_search_url(server.url("/search/movie")).unwrap();
 
     let details = client
         .get_movie_ratings_and_summaries(
@@ -579,11 +563,7 @@ async fn get_movie_ratings_and_summaries_uses_alternate_titles_for_translated_se
         })
         .await;
 
-    let client = ReqwestTmdbClient::with_base_urls(
-        server.url("/authentication"),
-        server.url("/search/movie"),
-    )
-    .unwrap();
+    let client = ReqwestTmdbClient::with_search_url(server.url("/search/movie")).unwrap();
 
     let details = client
         .get_movie_ratings_and_summaries(
@@ -657,11 +637,7 @@ async fn get_movie_ratings_and_summaries_strips_screening_suffixes_from_alternat
         ),
     ]);
 
-    let client = ReqwestTmdbClient::with_base_urls(
-        format!("{base_url}/authentication"),
-        format!("{base_url}/search/movie"),
-    )
-    .unwrap();
+    let client = ReqwestTmdbClient::with_search_url(format!("{base_url}/search/movie")).unwrap();
 
     let details = client
         .get_movie_ratings_and_summaries(
@@ -753,11 +729,7 @@ async fn get_movie_ratings_and_summaries_accepts_exact_title_match_when_details_
         })
         .await;
 
-    let client = ReqwestTmdbClient::with_base_urls(
-        server.url("/authentication"),
-        server.url("/search/movie"),
-    )
-    .unwrap();
+    let client = ReqwestTmdbClient::with_search_url(server.url("/search/movie")).unwrap();
 
     let details = client
         .get_movie_ratings_and_summaries(
@@ -822,11 +794,7 @@ async fn get_movie_ratings_and_summaries_leaves_low_confidence_matches_blank() {
         })
         .await;
 
-    let client = ReqwestTmdbClient::with_base_urls(
-        server.url("/authentication"),
-        server.url("/search/movie"),
-    )
-    .unwrap();
+    let client = ReqwestTmdbClient::with_search_url(server.url("/search/movie")).unwrap();
 
     let details =
         client.get_movie_ratings_and_summaries(&[lookup_movie("Amator")], "token").await.unwrap();
@@ -882,11 +850,7 @@ async fn get_movie_ratings_and_summaries_accepts_legacy_v3_api_keys() {
         ),
     ]);
 
-    let client = ReqwestTmdbClient::with_base_urls(
-        format!("{base_url}/authentication"),
-        format!("{base_url}/search/movie"),
-    )
-    .unwrap();
+    let client = ReqwestTmdbClient::with_search_url(format!("{base_url}/search/movie")).unwrap();
 
     let details = client
         .get_movie_ratings_and_summaries(
@@ -963,12 +927,9 @@ async fn get_movie_ratings_and_summaries_retries_retryable_tmdb_responses() {
         ),
     ]);
 
-    let client = ReqwestTmdbClient::with_base_urls(
-        format!("{base_url}/authentication"),
-        format!("{base_url}/search/movie"),
-    )
-    .unwrap()
-    .with_retry_policy(RetryPolicy::new(2, Duration::ZERO, Duration::ZERO));
+    let client = ReqwestTmdbClient::with_search_url(format!("{base_url}/search/movie"))
+        .unwrap()
+        .with_retry_policy(RetryPolicy::new(2, Duration::ZERO, Duration::ZERO));
 
     let details =
         client.get_movie_ratings_and_summaries(&[lookup_movie("Garfield")], "token").await.unwrap();
@@ -994,39 +955,6 @@ async fn get_movie_ratings_and_summaries_retries_retryable_tmdb_responses() {
 }
 
 #[tokio::test]
-async fn verify_api_key_retries_retryable_tmdb_responses() {
-    let (base_url, recorded_requests, server) = start_sequenced_http_server(vec![
-        json_response(
-            500,
-            "Internal Server Error",
-            json!({"status_message": "temporary failure"}),
-            &[],
-        ),
-        json_response(200, "OK", json!({"success": true}), &[]),
-    ]);
-
-    let client = ReqwestTmdbClient::with_base_urls(
-        format!("{base_url}/authentication"),
-        format!("{base_url}/search/movie"),
-    )
-    .unwrap()
-    .with_retry_policy(RetryPolicy::new(2, Duration::ZERO, Duration::ZERO));
-
-    assert!(client.verify_api_key("token").await);
-
-    server.join().expect("test server should finish cleanly");
-
-    let requests = recorded_requests.lock().expect("recorded requests lock poisoned");
-    assert_eq!(requests.len(), 2);
-    assert!(requests.iter().all(|request| request.contains("GET /authentication")));
-    assert!(
-        requests
-            .iter()
-            .all(|request| request.to_ascii_lowercase().contains("authorization: bearer token"))
-    );
-}
-
-#[tokio::test]
 async fn get_movie_ratings_and_summaries_reports_invalid_tmdb_json() {
     let server = MockServer::start_async().await;
     let invalid_json_mock = server
@@ -1036,11 +964,7 @@ async fn get_movie_ratings_and_summaries_reports_invalid_tmdb_json() {
         })
         .await;
 
-    let client = ReqwestTmdbClient::with_base_urls(
-        server.url("/authentication"),
-        server.url("/search/movie"),
-    )
-    .unwrap();
+    let client = ReqwestTmdbClient::with_search_url(server.url("/search/movie")).unwrap();
 
     let error = client
         .get_movie_ratings_and_summaries(&[lookup_movie("Garfield")], "token")
@@ -1135,11 +1059,7 @@ async fn get_movie_ratings_and_summaries_processes_movies_concurrently() {
         })
         .await;
 
-    let client = ReqwestTmdbClient::with_base_urls(
-        server.url("/authentication"),
-        server.url("/search/movie"),
-    )
-    .unwrap();
+    let client = ReqwestTmdbClient::with_search_url(server.url("/search/movie")).unwrap();
 
     let started_at = Instant::now();
     let details = client

@@ -62,7 +62,7 @@ impl Helios {
         let mut seen_ids = HashSet::new();
         let mut venues = Vec::new();
 
-        for anchor in html.select(selector.as_ref()) {
+        for anchor in html.select(&selector) {
             let Some(href) = anchor.value().attr("href") else {
                 continue;
             };

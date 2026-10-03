@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-use std::sync::{Arc, LazyLock, RwLock};
+use std::sync::LazyLock;
 
 use log::debug;
 use regex::Regex;
@@ -16,9 +15,6 @@ pub const MISSING_DATA_LABEL: &str = "Brak danych";
 
 static WHITESPACE_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\s+").expect("whitespace regex must compile"));
-static SELECTOR_CACHE: LazyLock<RwLock<HashMap<String, Arc<Selector>>>> =
-    LazyLock::new(|| RwLock::new(HashMap::new()));
-
 #[derive(Debug, Deserialize)]
 struct EmbeddedMoviePageDetails {
     #[serde(rename = "originalName")]
@@ -30,21 +26,13 @@ struct EmbeddedMoviePageDetails {
     synopsis: Option<String>,
 }
 
-pub fn selector(value: &str) -> Arc<Selector> {
-    if let Some(cached) =
-        SELECTOR_CACHE.read().expect("selector cache read lock poisoned").get(value).cloned()
-    {
-        return cached;
-    }
-
-    let parsed = Arc::new(Selector::parse(value).expect("selector must compile"));
-    let mut cache = SELECTOR_CACHE.write().expect("selector cache write lock poisoned");
-    cache.entry(value.to_string()).or_insert_with(|| parsed.clone()).clone()
+pub fn selector(value: &str) -> Selector {
+    Selector::parse(value).expect("selector must compile")
 }
 
 pub fn first_text(element: &ElementRef<'_>, selector_value: &str) -> Option<String> {
     let selector = selector(selector_value);
-    element.select(selector.as_ref()).next().map(normalized_text)
+    element.select(&selector).next().map(normalized_text)
 }
 
 pub fn normalized_text(element: ElementRef<'_>) -> String {
@@ -73,71 +61,56 @@ pub fn extract_query_param(url: &str, parameter_name: &str) -> Option<String> {
         .filter(|value| !value.trim().is_empty())
 }
 
-pub fn extract_json_array_assignment<'a>(html: &'a str, variable_name: &str) -> Option<&'a str> {
-    extract_json_assignment(html, variable_name, '[', ']')
+pub fn extract_json_array_assignment<'a>(
+    html: &'a str,
+    variable_name: &str,
+) -> Result<Option<&'a str>, serde_json::Error> {
+    extract_json_assignment(html, variable_name, '[')
 }
 
-pub fn extract_json_object_assignment<'a>(html: &'a str, variable_name: &str) -> Option<&'a str> {
-    extract_json_assignment(html, variable_name, '{', '}')
+pub fn extract_json_object_assignment<'a>(
+    html: &'a str,
+    variable_name: &str,
+) -> Result<Option<&'a str>, serde_json::Error> {
+    extract_json_assignment(html, variable_name, '{')
 }
 
-pub fn extract_json_assignment<'a>(
+fn extract_json_assignment<'a>(
     html: &'a str,
     variable_name: &str,
     open_char: char,
-    close_char: char,
-) -> Option<&'a str> {
-    let start = html.find(&format!("{variable_name} = {open_char}"))?;
-    let json_start = start + html[start..].find(open_char)?;
-    let mut depth = 0;
-    let mut inside_string = false;
-    let mut escaped = false;
-
-    for (offset, character) in html[json_start..].char_indices() {
-        if inside_string {
-            match character {
-                '\\' if !escaped => escaped = true,
-                '"' if !escaped => inside_string = false,
-                _ => escaped = false,
-            }
-            continue;
-        }
-
-        match character {
-            '"' => inside_string = true,
-            character if character == open_char => depth += 1,
-            character if character == close_char => {
-                depth -= 1;
-                if depth == 0 {
-                    let json_end = json_start + offset + character.len_utf8();
-                    return Some(&html[json_start..json_end]);
-                }
-            }
-            _ => {}
-        }
+) -> Result<Option<&'a str>, serde_json::Error> {
+    let Some(start) = html.find(&format!("{variable_name} = {open_char}")) else {
+        return Ok(None);
+    };
+    let json_start = start + html[start..].find(open_char).expect("assignment contains JSON start");
+    let mut values =
+        serde_json::Deserializer::from_str(&html[json_start..]).into_iter::<serde_json::Value>();
+    match values.next() {
+        Some(Ok(_)) => Ok(Some(&html[json_start..json_start + values.byte_offset()])),
+        Some(Err(error)) => Err(error),
+        None => Ok(None),
     }
-
-    None
 }
 
 pub fn fold_polish_character_to_ascii(character: char) -> char {
     match character {
-        'ą' => 'a',
-        'ć' => 'c',
-        'ę' => 'e',
+        'ą' | 'á' | 'à' | 'ä' | 'â' => 'a',
+        'ć' | 'č' => 'c',
+        'ę' | 'é' | 'è' | 'ë' | 'ê' => 'e',
         'ł' => 'l',
         'ń' => 'n',
-        'ó' => 'o',
-        'ś' => 's',
-        'ź' | 'ż' => 'z',
-        'Ą' => 'A',
-        'Ć' => 'C',
-        'Ę' => 'E',
+        'ó' | 'ö' | 'ô' | 'ò' => 'o',
+        'ś' | 'š' => 's',
+        'ź' | 'ż' | 'ž' => 'z',
+        'Ą' | 'Á' | 'À' | 'Ä' | 'Â' => 'A',
+        'Ć' | 'Č' => 'C',
+        'Ę' | 'É' | 'È' | 'Ë' | 'Ê' => 'E',
         'Ł' => 'L',
         'Ń' => 'N',
-        'Ó' => 'O',
-        'Ś' => 'S',
-        'Ź' | 'Ż' => 'Z',
+        'Ó' | 'Ö' | 'Ô' | 'Ò' => 'O',
+        'Ś' | 'Š' => 'S',
+        'Ź' | 'Ż' | 'Ž' => 'Z',
         _ => character,
     }
 }
@@ -164,6 +137,11 @@ pub fn parse_movie_page_fallback_details(
     rendered_html: &str,
 ) -> AppResult<MoviePageFallbackDetails> {
     let Some(film_details_json) = extract_json_object_assignment(rendered_html, "filmDetails")
+        .map_err(|error| {
+            AppError::BrowserUnavailable(format!(
+                "Nie udało się odczytać szczegółów filmu z aktualnego formatu strony: {error}"
+            ))
+        })?
     else {
         debug!(
             "Movie page did not include a filmDetails assignment; html_preview={}",
@@ -196,15 +174,19 @@ pub fn parse_movie_page_fallback_details(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
-    use super::selector;
+    use super::{extract_json_object_assignment, normalize_lookup_text};
 
     #[test]
-    fn selector_reuses_cached_instance_for_identical_values() {
-        let first = selector("div.example");
-        let second = selector("div.example");
+    fn extracts_embedded_json_with_escaped_quotes_and_braces() {
+        let html = r#"filmDetails = {"synopsis":"escaped \" brace }","cast":["A"]}; next"#;
+        assert_eq!(
+            extract_json_object_assignment(html, "filmDetails").unwrap(),
+            Some(r#"{"synopsis":"escaped \" brace }","cast":["A"]}"#),
+        );
+    }
 
-        assert!(Arc::ptr_eq(&first, &second));
+    #[test]
+    fn normalizes_accented_titles() {
+        assert_eq!(normalize_lookup_text("Żółć — Café Čas"), "zolc cafe cas");
     }
 }

@@ -130,33 +130,12 @@ impl HtmlRenderer for ChromiumHtmlRenderer {
             evaluation_results.insert(evaluation.name.clone(), value);
         }
 
-        close_browser_session(&mut browser).await;
+        let _ = browser.close().await;
+        let _ = browser.wait().await;
         handler_task.abort();
 
         Ok(RenderedPage { html, evaluations: evaluation_results })
     }
-}
-
-#[async_trait]
-trait BrowserSession: Send {
-    async fn request_close(&mut self);
-    async fn wait_for_exit(&mut self);
-}
-
-#[async_trait]
-impl BrowserSession for Browser {
-    async fn request_close(&mut self) {
-        let _ = self.close().await;
-    }
-
-    async fn wait_for_exit(&mut self) {
-        let _ = self.wait().await;
-    }
-}
-
-async fn close_browser_session(browser: &mut dyn BrowserSession) {
-    browser.request_close().await;
-    browser.wait_for_exit().await;
 }
 
 pub async fn render_html_with_retry(
@@ -373,29 +352,5 @@ mod tests {
                     .to_string(),
             )
         );
-    }
-
-    struct FakeBrowserSession {
-        calls: Vec<&'static str>,
-    }
-
-    #[async_trait]
-    impl BrowserSession for FakeBrowserSession {
-        async fn request_close(&mut self) {
-            self.calls.push("close");
-        }
-
-        async fn wait_for_exit(&mut self) {
-            self.calls.push("wait");
-        }
-    }
-
-    #[tokio::test]
-    async fn close_browser_session_waits_for_browser_exit_after_close_request() {
-        let mut browser = FakeBrowserSession { calls: Vec::new() };
-
-        close_browser_session(&mut browser).await;
-
-        assert_eq!(browser.calls, vec!["close", "wait"]);
     }
 }
