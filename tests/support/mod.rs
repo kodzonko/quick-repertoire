@@ -1,10 +1,12 @@
 #![allow(dead_code)]
 
 use std::collections::{HashMap, VecDeque};
-use std::io;
+use std::io::{self, Read, Write};
+use std::net::TcpListener;
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
+use std::thread;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -187,66 +189,17 @@ impl TmdbService for FakeTmdbService {
     }
 }
 
-pub fn dependencies(
-    runtime_dir: &Path,
-    prompt: FakePrompt,
-    cinema_client: FakeCinemaClient,
-    tmdb_service: FakeTmdbService,
-) -> AppDependencies {
-    dependencies_with_prompt_adapter_and_write_access_probe(
-        runtime_dir,
-        prompt,
-        cinema_client,
-        tmdb_service,
-        Box::new(FileSystemRuntimeWriteAccessProbe),
-    )
-}
-
-pub fn dependencies_with_prompt_adapter<P: PromptAdapter + 'static>(
+pub fn dependencies<P: PromptAdapter + 'static>(
     runtime_dir: &Path,
     prompt: P,
     cinema_client: FakeCinemaClient,
     tmdb_service: FakeTmdbService,
 ) -> AppDependencies {
-    dependencies_with_prompt_adapter_and_write_access_probe(
+    dependencies_with_chains(
         runtime_dir,
         prompt,
-        cinema_client,
+        vec![registered_chain(CinemaChainId::CinemaCity, "Cinema City", cinema_client)],
         tmdb_service,
-        Box::new(FileSystemRuntimeWriteAccessProbe),
-    )
-}
-
-pub fn dependencies_with_write_access_probe(
-    runtime_dir: &Path,
-    prompt: FakePrompt,
-    cinema_client: FakeCinemaClient,
-    tmdb_service: FakeTmdbService,
-    runtime_write_access_probe: Box<dyn RuntimeWriteAccessProbe>,
-) -> AppDependencies {
-    dependencies_with_prompt_adapter_and_write_access_probe(
-        runtime_dir,
-        prompt,
-        cinema_client,
-        tmdb_service,
-        runtime_write_access_probe,
-    )
-}
-
-fn dependencies_with_prompt_adapter_and_write_access_probe<P: PromptAdapter + 'static>(
-    runtime_dir: &Path,
-    prompt: P,
-    cinema_client: FakeCinemaClient,
-    tmdb_service: FakeTmdbService,
-    runtime_write_access_probe: Box<dyn RuntimeWriteAccessProbe>,
-) -> AppDependencies {
-    let chain = registered_chain(CinemaChainId::CinemaCity, "Cinema City", cinema_client);
-    dependencies_with_registry_and_write_access_probe(
-        runtime_dir,
-        prompt,
-        Registry::from_chains(vec![chain]),
-        tmdb_service,
-        runtime_write_access_probe,
     )
 }
 
@@ -256,13 +209,13 @@ pub fn dependencies_with_chains<P: PromptAdapter + 'static>(
     chains: Vec<RegisteredCinemaChain>,
     tmdb_service: FakeTmdbService,
 ) -> AppDependencies {
-    dependencies_with_registry_and_write_access_probe(
-        runtime_dir,
-        prompt,
-        Registry::from_chains(chains),
-        tmdb_service,
-        Box::new(FileSystemRuntimeWriteAccessProbe),
-    )
+    AppDependencies {
+        paths: AppPaths::for_runtime_dir(runtime_dir.to_path_buf()),
+        prompt: Box::new(prompt),
+        registry: Registry::from_chains(chains),
+        tmdb_client: Arc::new(tmdb_service),
+        runtime_write_access_probe: Box::new(FileSystemRuntimeWriteAccessProbe),
+    }
 }
 
 pub fn registered_chain(
@@ -341,22 +294,6 @@ pub fn delayed_registered_chain(
     }
 }
 
-fn dependencies_with_registry_and_write_access_probe<P: PromptAdapter + 'static>(
-    runtime_dir: &Path,
-    prompt: P,
-    registry: Registry,
-    tmdb_service: FakeTmdbService,
-    runtime_write_access_probe: Box<dyn RuntimeWriteAccessProbe>,
-) -> AppDependencies {
-    AppDependencies {
-        paths: AppPaths::for_runtime_dir(runtime_dir.to_path_buf()),
-        prompt: Box::new(prompt),
-        registry,
-        tmdb_client: Arc::new(tmdb_service),
-        runtime_write_access_probe,
-    }
-}
-
 #[derive(Clone)]
 pub struct FakeHtmlRenderer {
     pub html: String,
@@ -400,4 +337,62 @@ impl HtmlRenderer for FakeRenderedPageRenderer {
 
         Ok(RenderedPage { html: self.html.clone(), evaluations: values })
     }
+}
+
+pub fn json_response(
+    status_code: u16,
+    reason_phrase: &str,
+    body: serde_json::Value,
+    extra_headers: &[(&str, &str)],
+) -> String {
+    let body = body.to_string();
+    let mut response = format!(
+        "HTTP/1.1 {status_code} {reason_phrase}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n",
+        body.len()
+    );
+
+    for (name, value) in extra_headers {
+        response.push_str(&format!("{name}: {value}\r\n"));
+    }
+
+    response.push_str("\r\n");
+    response.push_str(&body);
+    response
+}
+
+pub fn start_sequenced_http_server(
+    responses: Vec<String>,
+) -> (String, Arc<Mutex<Vec<String>>>, thread::JoinHandle<()>) {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("test server should bind");
+    let address = listener.local_addr().expect("test server should expose its address");
+    let recorded_requests = Arc::new(Mutex::new(Vec::new()));
+    let recorded_requests_handle = recorded_requests.clone();
+
+    let server = thread::spawn(move || {
+        for response in responses {
+            let (mut stream, _) = listener.accept().expect("test server should accept a request");
+            let mut request = Vec::new();
+            let mut buffer = [0_u8; 1024];
+
+            loop {
+                let bytes_read = stream.read(&mut buffer).expect("request should be readable");
+                if bytes_read == 0 {
+                    break;
+                }
+                request.extend_from_slice(&buffer[..bytes_read]);
+                if request.windows(4).any(|window| window == b"\r\n\r\n") {
+                    break;
+                }
+            }
+
+            recorded_requests_handle
+                .lock()
+                .expect("recorded requests lock poisoned")
+                .push(String::from_utf8(request).expect("request should be valid utf-8"));
+            stream.write_all(response.as_bytes()).expect("response should be writable");
+            stream.flush().expect("response should flush");
+        }
+    });
+
+    (format!("http://{address}"), recorded_requests, server)
 }

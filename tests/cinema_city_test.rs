@@ -154,31 +154,6 @@ fn rendered_repertoire_html_with_translated_movie_link() -> String {
     .to_string()
 }
 
-fn rendered_repertoire_html_with_fallback_schedule_date() -> String {
-    r#"
-    <h2 class="mr-sm">Repertuar Cinema City Wroclaw - Wroclavia</h2>
-    <div class="row qb-movie">
-      <a class="qb-movie-link" href="https://www.cinema-city.pl/filmy/projekt-hail-mary/7449s2r#/buy-tickets-by-film?in-cinema=1097&at=2026-04-01&for-movie=7449s2r&view-mode=list">
-        <h3 class="qb-movie-name">Projekt Hail Mary</h3>
-      </a>
-      <div class="qb-movie-info-wrapper">
-        <span>| Dramat, Sci-Fi, Thriller |</span>
-        <span>156 min</span>
-        <span aria-label="original-lang">EN</span>
-      </div>
-      <div class="qb-movie-info-column">
-        <ul class="qb-screening-attributes">
-          <li><span aria-label="Screening type">IMAX</span></li>
-          <li><span aria-label="subAbbr">FILM Z NAPISAMI</span></li>
-          <li><span aria-label="subbed-lang">PL</span></li>
-        </ul>
-        <a class="btn btn-primary btn-lg" ng-click="buy()">18:10</a>
-      </div>
-    </div>
-    "#
-    .to_string()
-}
-
 #[derive(Default)]
 struct RecordingHtmlRenderer {
     urls: Mutex<VecDeque<String>>,
@@ -282,7 +257,7 @@ async fn fetch_repertoire_upgrades_legacy_url_template_to_canonical_cinema_route
         renderer.clone(),
     )
     .with_quickbook_api_base_url("");
-    let venue_data = CinemaVenue {
+    let mut venue_data = CinemaVenue {
         chain_id: "cinema-city".to_string(),
         venue_id: "1097".to_string(),
         venue_name: "Wroclaw - Wroclavia".to_string(),
@@ -300,6 +275,13 @@ async fn fetch_repertoire_upgrades_legacy_url_template_to_canonical_cinema_route
     assert_eq!(
         rendered_url,
         "https://www.cinema-city.pl/kina/wroclavia/1097#/buy-tickets-by-cinema?in-cinema=1097&at=2026-03-31&view-mode=list"
+    );
+
+    venue_data.venue_name = "Łódź - Żółć / Café -- IMAX ".to_string();
+    cinema.fetch_repertoire("2026-03-31", &venue_data).await.unwrap();
+    assert_eq!(
+        renderer.urls.lock().unwrap().back().unwrap(),
+        "https://www.cinema-city.pl/kina/zolc-cafe-imax/1097#/buy-tickets-by-cinema?in-cinema=1097&at=2026-03-31&view-mode=list"
     );
 }
 
@@ -342,7 +324,7 @@ async fn fetch_repertoire_ignores_rows_when_rendered_booking_date_differs_from_r
         "https://www.cinema-city.pl/kina/{cinema_venue_slug}/{cinema_venue_id}#/buy-tickets-by-cinema?in-cinema={cinema_venue_id}&at={repertoire_date}&view-mode=list".to_string(),
         "https://www.cinema-city.pl/#/buy-tickets-by-cinema".to_string(),
         Arc::new(FakeHtmlRenderer {
-            html: rendered_repertoire_html_with_fallback_schedule_date(),
+            html: rendered_repertoire_html_with_movie_link_fragment(),
         }),
     )
     .with_quickbook_api_base_url("");

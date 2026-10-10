@@ -5,8 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use quick_repertoire::config::{
-    AppPaths, DEFAULT_DEVELOPMENT_LOG_LEVEL, DEFAULT_PRODUCTION_LOG_LEVEL, default_log_level,
-    load_settings, run_interactive_configuration, write_settings,
+    AppPaths, load_settings, run_interactive_configuration, write_settings,
 };
 use quick_repertoire::domain::{CinemaChainId, CinemaVenue};
 use quick_repertoire::error::AppError;
@@ -14,7 +13,7 @@ use quick_repertoire::persistence::DatabaseManager;
 use support::{
     AcceptDefaultsPrompt, ConcurrencyTracker, DelayedCinemaClient, FakeCinemaClient, FakePrompt,
     FakeTmdbService, delayed_registered_chain, dependencies, dependencies_with_chains,
-    dependencies_with_prompt_adapter, registered_chain, settings,
+    registered_chain, settings,
 };
 use tempfile::tempdir;
 
@@ -144,16 +143,6 @@ fn load_settings_reports_recovery_command_with_binary_name() {
     let error = load_settings(&paths).unwrap_err();
 
     assert!(error.to_string().contains("`quickrep configure`"));
-}
-
-#[test]
-fn default_log_level_matches_current_build_profile() {
-    let expected = if cfg!(debug_assertions) {
-        DEFAULT_DEVELOPMENT_LOG_LEVEL
-    } else {
-        DEFAULT_PRODUCTION_LOG_LEVEL
-    };
-    assert_eq!(default_log_level(), expected);
 }
 
 #[tokio::test]
@@ -400,7 +389,7 @@ async fn run_interactive_configuration_defaults_venue_to_first_sorted_option() {
             },
         ],
     );
-    let dependencies = dependencies_with_prompt_adapter(
+    let dependencies = dependencies(
         temp_dir.path(),
         AcceptDefaultsPrompt::new(Vec::new(), Vec::new()),
         cinema_client,

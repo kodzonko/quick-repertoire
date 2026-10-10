@@ -87,34 +87,20 @@ where
     Fut: Future<Output = Result<T, RetryDirective<E>>>,
 {
     for attempt in 1..=policy.max_attempts {
-        match operation(attempt).await {
+        let (error, delay) = match operation(attempt).await {
             Ok(value) => return Ok(value),
             Err(RetryDirective::Fail(error)) => return Err(error),
-            Err(RetryDirective::Retry(error)) => {
-                if attempt == policy.max_attempts {
-                    debug!(
-                        "Retry policy exhausted after {attempt} attempt(s) without Retry-After delay"
-                    );
-                    return Err(error);
-                }
-                let delay = policy.delay_for_retry(attempt);
-                debug!("Retryable operation failed on attempt {attempt}; retrying in {delay:?}");
-                sleep(delay).await;
-            }
+            Err(RetryDirective::Retry(error)) => (error, policy.delay_for_retry(attempt)),
             Err(RetryDirective::RetryAfter { error, delay }) => {
-                if attempt == policy.max_attempts {
-                    debug!(
-                        "Retry policy exhausted after {attempt} attempt(s) while honoring Retry-After"
-                    );
-                    return Err(error);
-                }
-                let bounded_delay = delay.min(policy.max_delay);
-                debug!(
-                    "Retryable operation failed on attempt {attempt}; retrying in {bounded_delay:?} after Retry-After"
-                );
-                sleep(bounded_delay).await;
+                (error, delay.min(policy.max_delay))
             }
+        };
+        if attempt == policy.max_attempts {
+            debug!("Retry policy exhausted after {attempt} attempt(s)");
+            return Err(error);
         }
+        debug!("Retryable operation failed on attempt {attempt}; retrying in {delay:?}");
+        sleep(delay).await;
     }
 
     unreachable!("retry loop must return or exhaust the configured attempts");
@@ -193,5 +179,36 @@ mod tests {
 
         assert_eq!(result, Err("permanent failure"));
         assert_eq!(attempts.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn retry_with_backoff_caps_retry_after_and_stops_at_the_attempt_limit() {
+        for use_retry_after in [false, true] {
+            let mut attempts = 0;
+            let result = tokio::time::timeout(
+                Duration::from_secs(1),
+                retry_with_backoff(
+                    RetryPolicy::new(2, Duration::ZERO, Duration::ZERO),
+                    |attempt| {
+                        attempts = attempt;
+                        async move {
+                            Err::<(), _>(if use_retry_after {
+                                RetryDirective::retry_after(
+                                    "temporary failure",
+                                    Duration::from_secs(60),
+                                )
+                            } else {
+                                RetryDirective::retry("temporary failure")
+                            })
+                        }
+                    },
+                ),
+            )
+            .await
+            .expect("retry delay must respect the policy limit");
+
+            assert_eq!(result, Err("temporary failure"));
+            assert_eq!(attempts, 2);
+        }
     }
 }

@@ -455,21 +455,7 @@ impl CinemaCity {
 
     fn build_venue_slug(venue_name: &str) -> String {
         let slug_source = venue_name.rsplit(" - ").next().unwrap_or(venue_name);
-        let mut slug = String::new();
-        let mut previous_was_separator = false;
-
-        for character in slug_source.chars().map(fold_polish_character_to_ascii) {
-            let lowered = character.to_ascii_lowercase();
-            if lowered.is_ascii_alphanumeric() {
-                slug.push(lowered);
-                previous_was_separator = false;
-            } else if !previous_was_separator {
-                slug.push('-');
-                previous_was_separator = true;
-            }
-        }
-
-        slug.trim_matches('-').to_string()
+        common_normalize_lookup_text(slug_source).replace(' ', "-")
     }
 
     fn canonical_repertoire_url(venue: &CinemaVenue, date: &str) -> String {

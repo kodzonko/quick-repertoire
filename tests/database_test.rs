@@ -1,6 +1,6 @@
 mod support;
 
-use quick_repertoire::domain::CinemaVenue;
+use quick_repertoire::domain::{CinemaChainId, CinemaVenue};
 use quick_repertoire::persistence::DatabaseManager;
 use tempfile::tempdir;
 
@@ -22,7 +22,7 @@ fn replace_venues_replaces_existing_records_only_for_selected_chain() {
 
     db_manager
         .replace_venues(
-            "cinema-city",
+            CinemaChainId::CinemaCity,
             &[CinemaVenue {
                 chain_id: "cinema-city".to_string(),
                 venue_name: "Warszawa - Janki".to_string(),
@@ -32,7 +32,7 @@ fn replace_venues_replaces_existing_records_only_for_selected_chain() {
         .unwrap();
     db_manager
         .replace_venues(
-            "helios",
+            CinemaChainId::Helios,
             &[CinemaVenue {
                 chain_id: "helios".to_string(),
                 venue_name: "Lodz - Sukcesja".to_string(),
@@ -42,7 +42,7 @@ fn replace_venues_replaces_existing_records_only_for_selected_chain() {
         .unwrap();
     db_manager
         .replace_venues(
-            "cinema-city",
+            CinemaChainId::CinemaCity,
             &[CinemaVenue {
                 chain_id: "cinema-city".to_string(),
                 venue_name: "Wroclaw - Wroclavia".to_string(),
@@ -78,7 +78,7 @@ fn find_venues_by_name_returns_matching_venues_for_selected_chain() {
 
     db_manager
         .replace_venues(
-            "cinema-city",
+            CinemaChainId::CinemaCity,
             &[
                 CinemaVenue {
                     chain_id: "cinema-city".to_string(),
@@ -100,7 +100,7 @@ fn find_venues_by_name_returns_matching_venues_for_selected_chain() {
         .unwrap();
     db_manager
         .replace_venues(
-            "helios",
+            CinemaChainId::Helios,
             &[CinemaVenue {
                 chain_id: "helios".to_string(),
                 venue_name: "Warszawa - Blue City".to_string(),

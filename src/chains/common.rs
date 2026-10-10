@@ -133,6 +133,17 @@ pub fn normalize_lookup_text(value: &str) -> String {
     normalized.trim().to_string()
 }
 
+pub fn normalize_genre_tags(genres: &[String]) -> Vec<String> {
+    let mut tags = Vec::new();
+    for genre in genres {
+        let normalized = normalize_lookup_text(genre);
+        if !normalized.is_empty() && !tags.contains(&normalized) {
+            tags.push(normalized);
+        }
+    }
+    tags
+}
+
 pub fn parse_movie_page_fallback_details(
     rendered_html: &str,
 ) -> AppResult<MoviePageFallbackDetails> {

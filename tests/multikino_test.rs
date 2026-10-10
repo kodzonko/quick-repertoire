@@ -1,7 +1,5 @@
-use std::io::{Read, Write};
-use std::net::TcpListener;
-use std::sync::{Arc, Mutex};
-use std::thread;
+mod support;
+
 use std::time::{Duration, Instant};
 
 use httpmock::Method::{GET, POST};
@@ -11,68 +9,11 @@ use quick_repertoire::cinema::registry::CinemaChainClient;
 use quick_repertoire::domain::CinemaVenue;
 use quick_repertoire::retry::RetryPolicy;
 use serde_json::json;
+use support::{json_response, start_sequenced_http_server};
 
 fn build_client(server: &MockServer) -> Multikino {
     Multikino::new(server.base_url())
         .with_showings_api_base_url(format!("{}/api/microservice/showings", server.base_url()))
-}
-
-fn json_response(
-    status_code: u16,
-    reason_phrase: &str,
-    body: serde_json::Value,
-    extra_headers: &[(&str, &str)],
-) -> String {
-    let body = body.to_string();
-    let mut response = format!(
-        "HTTP/1.1 {status_code} {reason_phrase}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n",
-        body.len()
-    );
-
-    for (name, value) in extra_headers {
-        response.push_str(&format!("{name}: {value}\r\n"));
-    }
-
-    response.push_str("\r\n");
-    response.push_str(&body);
-    response
-}
-
-fn start_sequenced_http_server(
-    responses: Vec<String>,
-) -> (String, Arc<Mutex<Vec<String>>>, thread::JoinHandle<()>) {
-    let listener = TcpListener::bind("127.0.0.1:0").expect("test server should bind");
-    let address = listener.local_addr().expect("test server should expose its address");
-    let recorded_requests = Arc::new(Mutex::new(Vec::new()));
-    let recorded_requests_handle = recorded_requests.clone();
-
-    let server = thread::spawn(move || {
-        for response in responses {
-            let (mut stream, _) = listener.accept().expect("test server should accept a request");
-            let mut request = Vec::new();
-            let mut buffer = [0_u8; 1024];
-
-            loop {
-                let bytes_read = stream.read(&mut buffer).expect("request should be readable");
-                if bytes_read == 0 {
-                    break;
-                }
-                request.extend_from_slice(&buffer[..bytes_read]);
-                if request.windows(4).any(|window| window == b"\r\n\r\n") {
-                    break;
-                }
-            }
-
-            recorded_requests_handle
-                .lock()
-                .expect("recorded requests lock poisoned")
-                .push(String::from_utf8_lossy(&request).into_owned());
-            stream.write_all(response.as_bytes()).expect("response should be writable");
-            stream.flush().expect("response should be flushed");
-        }
-    });
-
-    (format!("http://{address}"), recorded_requests, server)
 }
 
 #[tokio::test]

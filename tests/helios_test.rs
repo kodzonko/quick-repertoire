@@ -36,7 +36,7 @@ fn build_live_client() -> Helios {
     Helios::new(
         DEFAULT_HELIOS_BASE_URL,
         DEFAULT_HELIOS_VENUES_URL,
-        Arc::new(FakeRenderedPageRenderer { html: fixture("lodz-repertoire.html"), evaluations }),
+        Arc::new(FakeRenderedPageRenderer { html: String::new(), evaluations }),
     )
 }
 
@@ -156,6 +156,7 @@ async fn fetch_repertoire_handles_imax_and_missing_language_from_state() {
                 "id": 9001,
                 "sourceId": "movie-source",
                 "title": "Imax Test",
+                "name": "Ignored extra API label",
                 "titleOriginal": "Imax Test Original",
                 "slug": "imax-test",
                 "duration": 120,
@@ -195,7 +196,7 @@ async fn fetch_repertoire_handles_imax_and_missing_language_from_state() {
         DEFAULT_HELIOS_BASE_URL,
         DEFAULT_HELIOS_VENUES_URL,
         Arc::new(FakeRenderedPageRenderer {
-            html: fixture("lodz-repertoire.html"),
+            html: String::new(),
             evaluations: HashMap::from([
                 ("repertoire".to_string(), serde_json::to_string(&repertoire_state).unwrap()),
                 ("current_cinema".to_string(), serde_json::to_string(&current_cinema).unwrap()),
@@ -224,22 +225,117 @@ async fn fetch_repertoire_handles_imax_and_missing_language_from_state() {
 }
 
 #[tokio::test]
-async fn fetch_repertoire_uses_configured_base_url_for_metadata_links() {
-    let custom_base_url = "https://mirror.helios.example";
-    let mut evaluations = HashMap::new();
-    evaluations.insert("repertoire".to_string(), fixture("lodz-repertoire-state.json"));
-    evaluations.insert("current_cinema".to_string(), fixture("lodz-current-cinema.json"));
-    let client = Helios::new(
-        custom_base_url,
-        DEFAULT_HELIOS_VENUES_URL,
-        Arc::new(FakeRenderedPageRenderer { html: fixture("lodz-repertoire.html"), evaluations }),
-    );
+async fn fetch_repertoire_uses_configured_base_url_and_encodes_booking_query() {
+    for custom_base_url in
+        ["https://mirror.helios.example", "https://mirror.helios.example/Łódź +&"]
+    {
+        let client = Helios::new(
+            custom_base_url,
+            DEFAULT_HELIOS_VENUES_URL,
+            Arc::new(FakeRenderedPageRenderer {
+                html: String::new(),
+                evaluations: HashMap::from([
+                    ("repertoire".to_string(), fixture("lodz-repertoire-state.json")),
+                    ("current_cinema".to_string(), fixture("lodz-current-cinema.json")),
+                ]),
+            }),
+        );
 
-    let repertoire = client.fetch_repertoire("2026-04-01", &lodz_venue()).await.unwrap();
-    let hopnieci = find_movie(&repertoire, "Hopnięci");
+        let repertoire = client.fetch_repertoire("2026-04-01", &lodz_venue()).await.unwrap();
+        let hopnieci = find_movie(&repertoire, "Hopnięci");
+        assert_eq!(
+            hopnieci.lookup_metadata.movie_page_url.as_deref(),
+            Some(format!("{custom_base_url}/lodz/kino-helios/filmy/hopnieci-4172").as_str())
+        );
+        let booking_url =
+            reqwest::Url::parse(hopnieci.play_details[0].play_times[0].url.as_deref().unwrap())
+                .unwrap();
+        assert_eq!(
+            booking_url.query_pairs().collect::<HashMap<_, _>>(),
+            HashMap::from([
+                ("cinemaId".into(), "46055d88-5f34-44a0-9584-b041caa71e26".into()),
+                ("backUrl".into(), format!("{custom_base_url}/lodz/kino-helios/repertuar").into()),
+                ("item_id".into(), "f5d309a0-b1a8-4b8f-b6aa-82300425cc59".into()),
+                ("item_source_id".into(), "4172".into()),
+            ])
+        );
+    }
+}
 
-    assert_eq!(
-        hopnieci.lookup_metadata.movie_page_url.as_deref(),
-        Some("https://mirror.helios.example/lodz/kino-helios/filmy/hopnieci-4172")
-    );
+#[tokio::test]
+async fn fetch_repertoire_keeps_event_identity_without_an_underlying_movie() {
+    for (event, expected_title, expected_id, expected_url, expected_alternate_titles) in [
+        (
+            json!({
+                "id": 9002,
+                "sourceId": "event-source",
+                "name": "Noc filmowa",
+                "title": "Ignored movie title",
+                "titleOriginal": "Ignored original movie title",
+                "premiereDate": "1900-01-01",
+                "cinemaPremiereDate": "1901-01-01",
+                "slug": "noc-filmowa",
+                "duration": 180,
+                "genres": [{"name": "dramat"}],
+                "isImax": true
+            }),
+            "Noc filmowa",
+            "event-source",
+            "https://helios.pl/lodz/kino-helios/wydarzenie/noc-filmowa-9002",
+            vec![],
+        ),
+        (
+            serde_json::Value::Null,
+            "Wydarzenie z katalogu",
+            "catalog-source",
+            "https://helios.pl/lodz/kino-helios/wydarzenie/katalog-9001",
+            vec!["Catalog event".to_string()],
+        ),
+    ] {
+        let state = json!({
+            "list": [{
+                "id": 9001,
+                "sourceId": "catalog-source",
+                "title": "Wydarzenie z katalogu",
+                "titleOriginal": "Catalog event",
+                "slug": "katalog",
+                "duration": 180,
+                "genres": [{"name": "dramat"}],
+                "isEvent": true,
+                "isImax": true
+            }],
+            "screenings": {"2026-04-01": {"e9001": {"screenings": [{
+                "timeFrom": "2026-04-01 19:30:00",
+                "sourceId": "screening-source",
+                "cinemaSourceId": "cinema-source",
+                "event": event
+            }]}}}
+        });
+        let client = Helios::new(
+            DEFAULT_HELIOS_BASE_URL,
+            DEFAULT_HELIOS_VENUES_URL,
+            Arc::new(FakeRenderedPageRenderer {
+                html: String::new(),
+                evaluations: HashMap::from([
+                    ("repertoire".to_string(), state.to_string()),
+                    ("current_cinema".to_string(), fixture("lodz-current-cinema.json")),
+                ]),
+            }),
+        );
+
+        let movies = client.fetch_repertoire("2026-04-01", &lodz_venue()).await.unwrap();
+        assert_eq!(movies.len(), 1);
+        let movie = &movies[0];
+        assert_eq!(movie.title, expected_title);
+        assert_eq!(movie.genres, "dramat");
+        assert_eq!(movie.play_length, "180 min");
+        assert_eq!(movie.play_details[0].format, "IMAX");
+        assert_eq!(movie.lookup_metadata.chain_movie_id.as_deref(), Some(expected_id));
+        assert_eq!(movie.lookup_metadata.movie_page_url.as_deref(), Some(expected_url));
+        assert_eq!(movie.lookup_metadata.alternate_titles, expected_alternate_titles);
+        assert_eq!(movie.lookup_metadata.runtime_minutes, Some(180));
+        assert_eq!(movie.lookup_metadata.genre_tags, vec!["dramat"]);
+        assert_eq!(movie.lookup_metadata.production_year, None);
+        assert_eq!(movie.lookup_metadata.polish_premiere_date, None);
+    }
 }

@@ -102,111 +102,13 @@ impl ReqwestTmdbClient {
         search_request: &TmdbSearchRequest,
         access_token: &str,
     ) -> AppResult<TmdbSearchResponse> {
-        let authentication_mode = self.authentication_mode(access_token);
-        retry_with_backoff(self.retry_policy, |attempt| {
-            let redacted_token = redact_secret(access_token);
-            async move {
-                let search_params = self.make_search_params(search_request);
-                debug!(
-                    "TMDB movie search request attempt={attempt} query={:?} year={:?} url={} auth_mode={authentication_mode:?} token={} params={search_params:?}",
-                    search_request.query,
-                    search_request.year,
-                    self.search_url,
-                    redacted_token,
-                );
-                let response = self
-                    .authorize_request(self.client.get(&self.search_url), access_token)
-                    .map_err(|error| {
-                        debug!(
-                            "TMDB movie search request setup failed attempt={attempt} query={:?} url={} error={error}",
-                            search_request.query,
-                            self.search_url,
-                        );
-                        RetryDirective::fail(error)
-                    })?
-                    .query(&search_params)
-                    .send()
-                    .await
-                    .map_err(|error| {
-                        classify_tmdb_transport_error(
-                            "movie search",
-                            attempt,
-                            &self.search_url,
-                            Some(search_request.query.as_str()),
-                            error,
-                        )
-                    })?;
-                let retry_after = retry_after_delay(response.headers());
-                let status = response.status();
-                debug!(
-                    "TMDB movie search response attempt={attempt} query={:?} url={} status={status} retry_after={retry_after:?}",
-                    search_request.query,
-                    self.search_url,
-                );
-
-                if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
-                    debug!(
-                        "TMDB movie search authorization failed attempt={attempt} query={:?} url={} body_preview={}",
-                        search_request.query,
-                        self.search_url,
-                        response_body_preview(response, MAX_LOG_BODY_PREVIEW_CHARS).await,
-                    );
-                    return Err(RetryDirective::fail(tmdb_status_error(status)));
-                }
-
-                if is_retryable_tmdb_status(status) {
-                    let error = tmdb_status_error(status);
-                    debug!(
-                        "TMDB movie search received retryable status attempt={attempt} query={:?} url={} status={status} body_preview={}",
-                        search_request.query,
-                        self.search_url,
-                        response_body_preview(response, MAX_LOG_BODY_PREVIEW_CHARS).await,
-                    );
-                    return Err(match retry_after {
-                        Some(delay) => RetryDirective::retry_after(error, delay),
-                        None => RetryDirective::retry(error),
-                    });
-                }
-
-                if status.is_client_error() || status.is_server_error() {
-                    debug!(
-                        "TMDB movie search failed with non-retryable status attempt={attempt} query={:?} url={} status={status} body_preview={}",
-                        search_request.query,
-                        self.search_url,
-                        response_body_preview(response, MAX_LOG_BODY_PREVIEW_CHARS).await,
-                    );
-                    return Err(RetryDirective::fail(tmdb_status_error(status)));
-                }
-
-                let body = response.text().await.map_err(|error| {
-                    classify_tmdb_response_read_error(
-                        "movie search",
-                        attempt,
-                        &self.search_url,
-                        Some(search_request.query.as_str()),
-                        error,
-                    )
-                })?;
-                debug!(
-                    "TMDB movie search body received attempt={attempt} query={:?} url={} bytes={}",
-                    search_request.query,
-                    self.search_url,
-                    body.len(),
-                );
-                serde_json::from_str::<TmdbSearchResponse>(&body).map_err(|error| {
-                    debug!(
-                        "TMDB movie search JSON parse failed attempt={attempt} query={:?} url={} error={error} body_preview={}",
-                        search_request.query,
-                        self.search_url,
-                        preview_for_log(&body, MAX_LOG_BODY_PREVIEW_CHARS),
-                    );
-                    RetryDirective::fail(AppError::Http(format!(
-                        "TMDB returned invalid JSON for search `{}`: {error}",
-                        search_request.query
-                    )))
-                })
-            }
-        })
+        self.fetch_json(
+            &self.search_url,
+            &self.make_search_params(search_request),
+            access_token,
+            "movie search",
+            &format!("search `{}`", search_request.query),
+        )
         .await
     }
 
@@ -217,105 +119,86 @@ impl ReqwestTmdbClient {
     ) -> AppResult<TmdbMovieDetailsResponse> {
         let details_url =
             format!("{}/{}", self.movie_details_base_url.trim_end_matches('/'), movie_id);
+        let params = [
+            ("language", TMDB_LANGUAGE.to_string()),
+            ("append_to_response", TMDB_APPEND_TO_RESPONSE.to_string()),
+        ];
+        self.fetch_json(
+            &details_url,
+            &params,
+            access_token,
+            "movie details",
+            &format!("movie id `{movie_id}`"),
+        )
+        .await
+    }
+
+    async fn fetch_json<T: for<'de> Deserialize<'de>>(
+        &self,
+        url: &str,
+        params: &[(&str, String)],
+        access_token: &str,
+        operation: &str,
+        subject: &str,
+    ) -> AppResult<T> {
         let authentication_mode = self.authentication_mode(access_token);
-        retry_with_backoff(self.retry_policy, |attempt| {
-            let redacted_token = redact_secret(access_token);
-            let details_url = details_url.clone();
-            async move {
-                let params = [
-                    ("language", TMDB_LANGUAGE.to_string()),
-                    ("append_to_response", TMDB_APPEND_TO_RESPONSE.to_string()),
-                ];
-                debug!(
-                    "TMDB movie details request attempt={attempt} movie_id={} url={} auth_mode={authentication_mode:?} token={} params={params:?}",
-                    movie_id,
-                    details_url,
-                    redacted_token,
-                );
-                let response = self
-                    .authorize_request(self.client.get(&details_url), access_token)
-                    .map_err(RetryDirective::fail)?
-                    .query(&params)
-                    .send()
-                    .await
-                    .map_err(|error| {
-                        classify_tmdb_transport_error(
-                            "movie details",
-                            attempt,
-                            &details_url,
-                            None,
-                            error,
-                        )
-                    })?;
-                let retry_after = retry_after_delay(response.headers());
-                let status = response.status();
-                debug!(
-                    "TMDB movie details response attempt={attempt} movie_id={} url={} status={status} retry_after={retry_after:?}",
-                    movie_id,
-                    details_url,
-                );
-
-                if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
+        retry_with_backoff(self.retry_policy, |attempt| async move {
+            debug!(
+                "TMDB {operation} request attempt={attempt} subject={subject:?} url={url} auth_mode={authentication_mode:?} token={} params={params:?}",
+                redact_secret(access_token),
+            );
+            let response = self
+                .authorize_request(self.client.get(url), access_token)
+                .map_err(|error| {
                     debug!(
-                        "TMDB movie details authorization failed attempt={attempt} movie_id={} url={} body_preview={}",
-                        movie_id,
-                        details_url,
-                        response_body_preview(response, MAX_LOG_BODY_PREVIEW_CHARS).await,
+                        "TMDB {operation} request setup failed attempt={attempt} subject={subject:?} url={url} error={error}"
                     );
-                    return Err(RetryDirective::fail(tmdb_status_error(status)));
-                }
-
-                if is_retryable_tmdb_status(status) {
-                    let error = tmdb_status_error(status);
-                    debug!(
-                        "TMDB movie details received retryable status attempt={attempt} movie_id={} url={} status={status} body_preview={}",
-                        movie_id,
-                        details_url,
-                        response_body_preview(response, MAX_LOG_BODY_PREVIEW_CHARS).await,
-                    );
-                    return Err(match retry_after {
+                    RetryDirective::fail(error)
+                })?
+                .query(params)
+                .send()
+                .await
+                .map_err(|error| {
+                    classify_tmdb_transport_error(operation, attempt, url, Some(subject), error)
+                })?;
+            let retry_after = retry_after_delay(response.headers());
+            let status = response.status();
+            debug!(
+                "TMDB {operation} response attempt={attempt} subject={subject:?} url={url} status={status} retry_after={retry_after:?}"
+            );
+            if status.is_client_error() || status.is_server_error() {
+                let retryable = is_retryable_tmdb_status(status);
+                debug!(
+                    "TMDB {operation} request failed attempt={attempt} subject={subject:?} url={url} status={status} retryable={retryable} body_preview={}",
+                    response_body_preview(response, MAX_LOG_BODY_PREVIEW_CHARS).await,
+                );
+                let error = tmdb_status_error(status);
+                return Err(if retryable {
+                    match retry_after {
                         Some(delay) => RetryDirective::retry_after(error, delay),
                         None => RetryDirective::retry(error),
-                    });
-                }
-
-                if status.is_client_error() || status.is_server_error() {
-                    debug!(
-                        "TMDB movie details failed with non-retryable status attempt={attempt} movie_id={} url={} status={status} body_preview={}",
-                        movie_id,
-                        details_url,
-                        response_body_preview(response, MAX_LOG_BODY_PREVIEW_CHARS).await,
-                    );
-                    return Err(RetryDirective::fail(tmdb_status_error(status)));
-                }
-
-                let body = response.text().await.map_err(|error| {
-                    classify_tmdb_response_read_error(
-                        "movie details",
-                        attempt,
-                        &details_url,
-                        None,
-                        error,
-                    )
-                })?;
-                debug!(
-                    "TMDB movie details body received attempt={attempt} movie_id={} url={} bytes={}",
-                    movie_id,
-                    details_url,
-                    body.len(),
-                );
-                serde_json::from_str::<TmdbMovieDetailsResponse>(&body).map_err(|error| {
-                    debug!(
-                        "TMDB movie details JSON parse failed attempt={attempt} movie_id={} url={} error={error} body_preview={}",
-                        movie_id,
-                        details_url,
-                        preview_for_log(&body, MAX_LOG_BODY_PREVIEW_CHARS),
-                    );
-                    RetryDirective::fail(AppError::Http(format!(
-                        "TMDB returned invalid JSON for movie id `{movie_id}`: {error}"
-                    )))
-                })
+                    }
+                } else {
+                    RetryDirective::fail(error)
+                });
             }
+
+            let body = response.text().await.map_err(|error| {
+                classify_tmdb_response_read_error(operation, attempt, url, Some(subject), error)
+            })?;
+            debug!(
+                "TMDB {operation} body received attempt={attempt} subject={subject:?} url={url} bytes={}",
+                body.len(),
+            );
+            serde_json::from_str(&body).map_err(|error| {
+                debug!(
+                    "TMDB {operation} JSON parse failed attempt={attempt} subject={subject:?} url={url} error={error} body_preview={}",
+                    preview_for_log(&body, MAX_LOG_BODY_PREVIEW_CHARS),
+                );
+                RetryDirective::fail(AppError::Http(format!(
+                    "TMDB returned invalid JSON for {subject}: {error}"
+                )))
+            })
         })
         .await
     }
@@ -444,12 +327,12 @@ impl ReqwestTmdbClient {
             let final_candidates =
                 rank_detailed_candidates(movie, fallback_details.as_ref(), &detailed_candidates);
             if is_final_confident(movie, fallback_details.as_ref(), &final_candidates) {
-                return Ok(Some(render_details_from_detailed(&final_candidates[0].details)));
+                return Ok(Some(render_details_from_detailed(&final_candidates[0].value)));
             }
         }
 
         if is_preliminary_confident(movie, fallback_details.as_ref(), &ranked) {
-            return Ok(Some(render_details_from_search(&ranked[0].result)));
+            return Ok(Some(render_details_from_search(&ranked[0].value)));
         }
 
         debug!(
@@ -485,26 +368,25 @@ impl ReqwestTmdbClient {
 
     async fn fetch_detailed_candidates(
         &self,
-        ranked_candidates: &[RankedSearchCandidate],
+        ranked_candidates: &[Ranked<TmdbSearchResult>],
         access_token: &str,
-    ) -> Vec<TmdbDetailedCandidate> {
+    ) -> Vec<Ranked<TmdbMovieDetailsResponse>> {
         let mut detailed_candidates = Vec::new();
         for ranked_candidate in ranked_candidates.iter().take(MAX_DETAILED_CANDIDATES) {
             let details = match self
-                .fetch_movie_details_payload(ranked_candidate.result.id, access_token)
+                .fetch_movie_details_payload(ranked_candidate.value.id, access_token)
                 .await
             {
                 Ok(details) => details,
                 Err(error) => {
                     debug!(
                         "TMDB movie details enrichment failed movie_id={} error={error}",
-                        ranked_candidate.result.id,
+                        ranked_candidate.value.id,
                     );
                     continue;
                 }
             };
-            detailed_candidates
-                .push(TmdbDetailedCandidate { details, preliminary_score: ranked_candidate.score });
+            detailed_candidates.push(Ranked { value: details, score: ranked_candidate.score });
         }
         detailed_candidates
     }
@@ -741,26 +623,9 @@ struct TmdbCrewMember {
 }
 
 #[derive(Debug, Clone)]
-struct RankedSearchCandidate {
-    result: TmdbSearchResult,
+struct Ranked<T> {
+    value: T,
     score: i32,
-}
-
-#[derive(Debug, Clone)]
-struct TmdbDetailedCandidate {
-    details: TmdbMovieDetailsResponse,
-    preliminary_score: i32,
-}
-
-#[derive(Debug, Clone)]
-struct RankedDetailedCandidate {
-    details: TmdbMovieDetailsResponse,
-    score: i32,
-}
-
-#[derive(Debug, Clone)]
-struct TitleVariants {
-    normalized: Vec<String>,
 }
 
 fn derive_movie_details_base_url(search_url: &str) -> String {
@@ -825,18 +690,18 @@ fn rank_search_candidates(
     movie: &TmdbLookupMovie,
     fallback_details: Option<&MoviePageFallbackDetails>,
     candidates: &[TmdbSearchResult],
-) -> Vec<RankedSearchCandidate> {
+) -> Vec<Ranked<TmdbSearchResult>> {
     let title_variants = build_title_variants(movie, fallback_details);
     let mut ranked = candidates
         .iter()
         .cloned()
-        .map(|candidate| RankedSearchCandidate {
+        .map(|candidate| Ranked {
             score: score_preliminary_candidate(&movie.lookup_metadata, &title_variants, &candidate),
-            result: candidate,
+            value: candidate,
         })
         .collect::<Vec<_>>();
     ranked.sort_by(|left, right| {
-        compare_rank(left.score, left.result.vote_count, right.score, right.result.vote_count)
+        compare_rank(left.score, left.value.vote_count, right.score, right.value.vote_count)
     });
     ranked
 }
@@ -844,25 +709,25 @@ fn rank_search_candidates(
 fn rank_detailed_candidates(
     movie: &TmdbLookupMovie,
     fallback_details: Option<&MoviePageFallbackDetails>,
-    candidates: &[TmdbDetailedCandidate],
-) -> Vec<RankedDetailedCandidate> {
+    candidates: &[Ranked<TmdbMovieDetailsResponse>],
+) -> Vec<Ranked<TmdbMovieDetailsResponse>> {
     let title_variants = build_title_variants(movie, fallback_details);
     let mut ranked = candidates
         .iter()
         .cloned()
-        .map(|candidate| RankedDetailedCandidate {
+        .map(|candidate| Ranked {
             score: score_detailed_candidate(
                 &movie.lookup_metadata,
                 fallback_details,
                 &title_variants,
-                &candidate.details,
-                candidate.preliminary_score,
+                &candidate.value,
+                candidate.score,
             ),
-            details: candidate.details,
+            value: candidate.value,
         })
         .collect::<Vec<_>>();
     ranked.sort_by(|left, right| {
-        compare_rank(left.score, left.details.vote_count, right.score, right.details.vote_count)
+        compare_rank(left.score, left.value.vote_count, right.score, right.value.vote_count)
     });
     ranked
 }
@@ -880,7 +745,7 @@ fn compare_rank(
 
 fn score_preliminary_candidate(
     metadata: &MovieLookupMetadata,
-    title_variants: &TitleVariants,
+    title_variants: &[String],
     candidate: &TmdbSearchResult,
 ) -> i32 {
     title_score(title_variants, &[candidate.title.as_deref(), candidate.original_title.as_deref()])
@@ -895,24 +760,12 @@ fn score_preliminary_candidate(
 fn score_detailed_candidate(
     metadata: &MovieLookupMetadata,
     fallback_details: Option<&MoviePageFallbackDetails>,
-    title_variants: &TitleVariants,
+    title_variants: &[String],
     candidate: &TmdbMovieDetailsResponse,
     preliminary_score: i32,
 ) -> i32 {
     title_score(title_variants, &[candidate.title.as_deref(), candidate.original_title.as_deref()])
-        + year_score(resolve_search_year(metadata), candidate.release_date.as_deref())
-        + language_score(
-            metadata.original_language_code.as_deref(),
-            candidate.original_language.as_deref(),
-        )
-        + runtime_score(metadata.runtime_minutes, candidate.runtime)
-        + genre_score(&metadata.genre_tags, &candidate.genres)
-        + country_score(
-            fallback_details.and_then(|details| details.country.as_deref()),
-            &candidate.production_countries,
-        )
-        + director_score(fallback_details.map(|details| details.directors.as_slice()), candidate)
-        + cast_score(fallback_details.map(|details| details.cast.as_slice()), candidate)
+        + detailed_metadata_support(metadata, fallback_details, candidate)
         + (preliminary_score / 10)
         + vote_score(candidate.vote_count)
 }
@@ -950,7 +803,7 @@ fn push_search_query(queries: &mut Vec<String>, title: &str) {
 fn build_title_variants(
     movie: &TmdbLookupMovie,
     fallback_details: Option<&MoviePageFallbackDetails>,
-) -> TitleVariants {
+) -> Vec<String> {
     let mut normalized = Vec::new();
     push_title_variants(&mut normalized, &movie.title);
     for alternate_title in &movie.lookup_metadata.alternate_titles {
@@ -961,7 +814,7 @@ fn build_title_variants(
     {
         push_title_variants(&mut normalized, original_title);
     }
-    TitleVariants { normalized }
+    normalized
 }
 
 fn push_title_variants(variants: &mut Vec<String>, title: &str) {
@@ -974,7 +827,7 @@ fn push_title_variants(variants: &mut Vec<String>, title: &str) {
     }
 }
 
-fn title_score(title_variants: &TitleVariants, candidate_titles: &[Option<&str>]) -> i32 {
+fn title_score(title_variants: &[String], candidate_titles: &[Option<&str>]) -> i32 {
     candidate_titles
         .iter()
         .flatten()
@@ -983,47 +836,38 @@ fn title_score(title_variants: &TitleVariants, candidate_titles: &[Option<&str>]
         .unwrap_or_default()
 }
 
-fn score_single_title(title_variants: &TitleVariants, candidate_title: &str) -> i32 {
+fn score_single_title(title_variants: &[String], candidate_title: &str) -> i32 {
     let normalized_candidate = normalize_for_comparison(candidate_title);
     if normalized_candidate.is_empty() {
         return 0;
     }
 
     title_variants
-        .normalized
         .iter()
-        .map(|variant| score_title_variant(variant, &normalized_candidate, 100, 82, 68, 56, 40))
+        .map(|variant| score_title_variant(variant, &normalized_candidate))
         .max()
         .unwrap_or_default()
 }
 
-fn score_title_variant(
-    variant: &str,
-    candidate: &str,
-    exact_score: i32,
-    token_score: i32,
-    contains_score: i32,
-    high_similarity_score: i32,
-    medium_similarity_score: i32,
-) -> i32 {
+fn score_title_variant(variant: &str, candidate: &str) -> i32 {
     if variant.is_empty() || candidate.is_empty() {
         return 0;
     }
     if variant == candidate {
-        return exact_score;
+        return 100;
     }
     if token_set(variant) == token_set(candidate) {
-        return token_score;
+        return 82;
     }
     if candidate.contains(variant) || variant.contains(candidate) {
-        return contains_score;
+        return 68;
     }
     let similarity = token_similarity(variant, candidate);
     if similarity >= 0.8 {
-        return high_similarity_score;
+        return 56;
     }
     if similarity >= 0.6 {
-        return medium_similarity_score;
+        return 40;
     }
     0
 }
@@ -1225,18 +1069,15 @@ fn dedupe_search_results(results: &mut Vec<TmdbSearchResult>) {
     results.retain(|candidate| seen.insert(candidate.id));
 }
 
-fn score_gap<T>(ranked_candidates: &[T]) -> i32
-where
-    T: RankedScore,
-{
+fn score_gap<T>(ranked_candidates: &[Ranked<T>]) -> i32 {
     match ranked_candidates {
         [] => 0,
         [_] => i32::MAX,
-        [top, second, ..] => top.score() - second.score(),
+        [top, second, ..] => top.score - second.score,
     }
 }
 
-fn is_preliminary_weak(ranked_candidates: &[RankedSearchCandidate]) -> bool {
+fn is_preliminary_weak(ranked_candidates: &[Ranked<TmdbSearchResult>]) -> bool {
     ranked_candidates.is_empty()
         || ranked_candidates[0].score < PRELIMINARY_WEAK_SCORE
         || score_gap(ranked_candidates) < PRELIMINARY_MIN_GAP
@@ -1245,7 +1086,7 @@ fn is_preliminary_weak(ranked_candidates: &[RankedSearchCandidate]) -> bool {
 fn is_preliminary_confident(
     movie: &TmdbLookupMovie,
     fallback_details: Option<&MoviePageFallbackDetails>,
-    ranked_candidates: &[RankedSearchCandidate],
+    ranked_candidates: &[Ranked<TmdbSearchResult>],
 ) -> bool {
     (!ranked_candidates.is_empty()
         && ranked_candidates[0].score >= PRELIMINARY_CONFIDENT_SCORE
@@ -1256,7 +1097,7 @@ fn is_preliminary_confident(
 fn is_final_confident(
     movie: &TmdbLookupMovie,
     fallback_details: Option<&MoviePageFallbackDetails>,
-    ranked_candidates: &[RankedDetailedCandidate],
+    ranked_candidates: &[Ranked<TmdbMovieDetailsResponse>],
 ) -> bool {
     (!ranked_candidates.is_empty()
         && ranked_candidates[0].score >= FINAL_MIN_SCORE
@@ -1267,37 +1108,37 @@ fn is_final_confident(
 fn is_relaxed_preliminary_match(
     movie: &TmdbLookupMovie,
     fallback_details: Option<&MoviePageFallbackDetails>,
-    ranked_candidates: &[RankedSearchCandidate],
+    ranked_candidates: &[Ranked<TmdbSearchResult>],
 ) -> bool {
     let Some(top_candidate) = ranked_candidates.first() else {
         return false;
     };
 
     let title_variants = build_title_variants(movie, fallback_details);
-    preliminary_title_match_score(&title_variants, &top_candidate.result)
+    preliminary_title_match_score(&title_variants, &top_candidate.value)
         >= RELAXED_TITLE_MATCH_SCORE
-        && !has_search_metadata_conflict(&movie.lookup_metadata, &top_candidate.result)
+        && !has_search_metadata_conflict(&movie.lookup_metadata, &top_candidate.value)
         && ranked_candidates.len() == 1
 }
 
 fn is_relaxed_detailed_match(
     movie: &TmdbLookupMovie,
     fallback_details: Option<&MoviePageFallbackDetails>,
-    ranked_candidates: &[RankedDetailedCandidate],
+    ranked_candidates: &[Ranked<TmdbMovieDetailsResponse>],
 ) -> bool {
     let Some(top_candidate) = ranked_candidates.first() else {
         return false;
     };
 
     let title_variants = build_title_variants(movie, fallback_details);
-    detailed_title_match_score(&title_variants, &top_candidate.details) >= RELAXED_TITLE_MATCH_SCORE
-        && !has_detailed_metadata_conflict(&movie.lookup_metadata, &top_candidate.details)
+    detailed_title_match_score(&title_variants, &top_candidate.value) >= RELAXED_TITLE_MATCH_SCORE
+        && !has_detailed_metadata_conflict(&movie.lookup_metadata, &top_candidate.value)
         && (ranked_candidates.len() == 1
             || score_gap(ranked_candidates) >= RELAXED_DETAILED_MIN_GAP
             || detailed_metadata_support(
                 &movie.lookup_metadata,
                 fallback_details,
-                &top_candidate.details,
+                &top_candidate.value,
             ) >= RELAXED_DETAILED_SUPPORT_SCORE)
 }
 
@@ -1324,31 +1165,12 @@ fn render_rating(vote_average: Option<f64>, vote_count: Option<u32>) -> String {
     }
 }
 
-trait RankedScore {
-    fn score(&self) -> i32;
-}
-
-impl RankedScore for RankedSearchCandidate {
-    fn score(&self) -> i32 {
-        self.score
-    }
-}
-
-impl RankedScore for RankedDetailedCandidate {
-    fn score(&self) -> i32 {
-        self.score
-    }
-}
-
-fn preliminary_title_match_score(
-    title_variants: &TitleVariants,
-    candidate: &TmdbSearchResult,
-) -> i32 {
+fn preliminary_title_match_score(title_variants: &[String], candidate: &TmdbSearchResult) -> i32 {
     title_score(title_variants, &[candidate.title.as_deref(), candidate.original_title.as_deref()])
 }
 
 fn detailed_title_match_score(
-    title_variants: &TitleVariants,
+    title_variants: &[String],
     candidate: &TmdbMovieDetailsResponse,
 ) -> i32 {
     title_score(title_variants, &[candidate.title.as_deref(), candidate.original_title.as_deref()])
