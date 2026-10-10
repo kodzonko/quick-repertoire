@@ -9,10 +9,9 @@ use crate::cinema::browser::ChromiumHtmlRenderer;
 use crate::cinema::registry::{RegisteredCinemaChain, Registry};
 use crate::cli::{Cli, Commands, VenueCommands};
 use crate::config::{
-    AppPaths, BINARY_NAME, PromptAdapter, RuntimeWriteAccessProbe, Settings, build_prompt_adapter,
-    build_runtime_write_access_probe, ensure_settings_for_argv_with_write_access_probe,
-    load_settings, load_settings_if_available,
-    run_interactive_configuration_with_write_access_probe,
+    AppPaths, BINARY_NAME, DialoguerPrompt, FileSystemRuntimeWriteAccessProbe, PromptAdapter,
+    RuntimeWriteAccessProbe, Settings, ensure_settings_for_argv_with_write_access_probe,
+    load_settings, run_interactive_configuration_with_write_access_probe,
 };
 use crate::domain::{
     CinemaChainId, CinemaVenue, RepertoireCliTableMetadata, TmdbLookupMovie, TmdbMovieDetails,
@@ -45,10 +44,10 @@ impl AppDependencies {
     pub fn real(paths: AppPaths) -> AppResult<Self> {
         Ok(Self {
             paths,
-            prompt: build_prompt_adapter(),
+            prompt: Box::new(DialoguerPrompt),
             registry: Registry::new(Arc::new(ChromiumHtmlRenderer)),
             tmdb_client: Arc::new(ReqwestTmdbClient::new()?),
-            runtime_write_access_probe: build_runtime_write_access_probe(),
+            runtime_write_access_probe: Box::new(FileSystemRuntimeWriteAccessProbe),
         })
     }
 }
@@ -102,7 +101,7 @@ pub async fn run_with_args(
     if matches!(command, Commands::Configure) {
         return match run_interactive_configuration_with_write_access_probe(
             &dependencies.paths,
-            load_settings_if_available(&dependencies.paths),
+            load_settings(&dependencies.paths).ok(),
             &dependencies.registry,
             dependencies.prompt.as_ref(),
             dependencies.runtime_write_access_probe.as_ref(),
@@ -245,10 +244,6 @@ fn resolve_venue_name(
     }
 }
 
-fn build_database_manager(paths: &AppPaths) -> AppResult<DatabaseManager> {
-    DatabaseManager::new(paths.db_file())
-}
-
 async fn rehydrate_venues_database_if_missing(
     paths: &AppPaths,
     registry: &Registry,
@@ -258,11 +253,7 @@ async fn rehydrate_venues_database_if_missing(
     }
 
     let venues_by_chain = fetch_registered_venues(registry.get_registered_chains()).await?;
-    let payload = venues_by_chain
-        .into_iter()
-        .map(|(chain_id, venues)| (chain_id.as_str().to_string(), venues))
-        .collect::<HashMap<_, _>>();
-    build_database_manager(paths)?.replace_venues_batch(&payload)
+    DatabaseManager::new(paths.db_file())?.replace_venues_batch(&venues_by_chain)
 }
 
 async fn handle_repertoire(
@@ -278,7 +269,7 @@ async fn handle_repertoire(
     let resolved_venue_name = resolve_venue_name(venue_name, &registered_chain, context.settings)?;
     let venue_name_parsed = cinema_venue_input_parser(&resolved_venue_name);
     rehydrate_venues_database_if_missing(context.paths, registry).await?;
-    let db_manager = build_database_manager(context.paths)?;
+    let db_manager = DatabaseManager::new(context.paths.db_file())?;
     let found_venues =
         db_manager.find_venues_by_name(registered_chain.chain_id.as_str(), &venue_name_parsed)?;
     let venue = resolve_single_venue(&found_venues)?;
@@ -313,7 +304,7 @@ async fn handle_venues_list(
 ) -> AppResult<()> {
     let registered_chain = resolve_chain(chain, settings, registry)?;
     rehydrate_venues_database_if_missing(paths, registry).await?;
-    let db_manager = build_database_manager(paths)?;
+    let db_manager = DatabaseManager::new(paths.db_file())?;
     let venues = db_manager.get_all_venues(registered_chain.chain_id.as_str())?;
     terminal.write_line(&render_venues_table(&venues, &registered_chain.display_name));
     Ok(())
@@ -340,12 +331,8 @@ async fn handle_venues_update(
     }
 
     let venues_by_chain = fetch_registered_venues(chains_to_update.clone()).await?;
-    let db_manager = build_database_manager(paths)?;
-    let payload = venues_by_chain
-        .iter()
-        .map(|(chain_id, venues)| (chain_id.as_str().to_string(), venues.clone()))
-        .collect::<HashMap<_, _>>();
-    db_manager.replace_venues_batch(&payload)?;
+    let db_manager = DatabaseManager::new(paths.db_file())?;
+    db_manager.replace_venues_batch(&venues_by_chain)?;
 
     if chains_to_update.len() == 1 {
         terminal.write_line("Lokale zaktualizowane w lokalnej bazie danych.");
@@ -367,7 +354,7 @@ async fn handle_venues_search(
 ) -> AppResult<()> {
     let registered_chain = resolve_chain(chain, settings, registry)?;
     rehydrate_venues_database_if_missing(paths, registry).await?;
-    let db_manager = build_database_manager(paths)?;
+    let db_manager = DatabaseManager::new(paths.db_file())?;
     let venues = db_manager.find_venues_by_name(
         registered_chain.chain_id.as_str(),
         &cinema_venue_input_parser(venue_name.as_deref().unwrap_or_default()),

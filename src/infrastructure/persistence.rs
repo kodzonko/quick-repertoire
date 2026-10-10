@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use rusqlite::{Connection, params};
 
-use crate::domain::CinemaVenue;
+use crate::domain::{CinemaChainId, CinemaVenue};
 use crate::error::{AppError, AppResult};
 
 #[derive(Debug, Clone)]
@@ -45,32 +45,13 @@ impl DatabaseManager {
             .map_err(|_| AppError::database_connection(&self.db_file_path))
     }
 
-    pub fn replace_venues(
-        &self,
-        chain_id: impl AsRef<str>,
-        venues: &[CinemaVenue],
-    ) -> AppResult<()> {
-        let mut connection = self.open_connection()?;
-        let transaction = connection
-            .transaction()
-            .map_err(|_| AppError::database_connection(&self.db_file_path))?;
-        transaction
-            .execute("DELETE FROM cinema_venues WHERE chain_id = ?1", [chain_id.as_ref()])
-            .map_err(|_| AppError::database_connection(&self.db_file_path))?;
-        for venue in venues {
-            transaction
-                .execute(
-                    "INSERT INTO cinema_venues (chain_id, venue_id, venue_name) VALUES (?1, ?2, ?3)",
-                    params![venue.chain_id, venue.venue_id, venue.venue_name],
-                )
-                .map_err(|_| AppError::database_connection(&self.db_file_path))?;
-        }
-        transaction.commit().map_err(|_| AppError::database_connection(&self.db_file_path))
+    pub fn replace_venues(&self, chain_id: CinemaChainId, venues: &[CinemaVenue]) -> AppResult<()> {
+        self.replace_venues_batch(&HashMap::from([(chain_id, venues.to_vec())]))
     }
 
     pub fn replace_venues_batch(
         &self,
-        venues_by_chain: &HashMap<String, Vec<CinemaVenue>>,
+        venues_by_chain: &HashMap<CinemaChainId, Vec<CinemaVenue>>,
     ) -> AppResult<()> {
         let mut connection = self.open_connection()?;
         let transaction = connection

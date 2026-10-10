@@ -3,10 +3,10 @@ mod support;
 use std::collections::HashMap;
 use std::fs;
 use std::io;
+use std::process::Command;
 use std::sync::Arc;
 use std::time::Duration;
 
-use assert_cmd::Command;
 use quick_repertoire::app::run_with_args;
 use quick_repertoire::config::write_settings;
 use quick_repertoire::domain::{
@@ -18,25 +18,20 @@ use quick_repertoire::persistence::DatabaseManager;
 use support::{
     ConcurrencyTracker, DelayedCinemaClient, FailingWriteAccessProbe, FakeCinemaClient, FakePrompt,
     FakeTmdbService, delayed_registered_chain, dependencies, dependencies_with_chains,
-    dependencies_with_write_access_probe, registered_chain, settings,
+    registered_chain, settings,
 };
 use tempfile::tempdir;
 
 #[test]
 fn binary_help_lists_top_level_commands() {
-    Command::cargo_bin("quickrep")
-        .unwrap()
-        .arg("--help")
-        .assert()
-        .success()
-        .stdout(predicates::str::contains("quickrep"))
-        .stdout(predicates::str::contains("Użycie"))
-        .stdout(predicates::str::contains("Polecenia"))
-        .stdout(predicates::str::contains("Opcje"))
-        .stdout(predicates::str::contains("chains"))
-        .stdout(predicates::str::contains("configure"))
-        .stdout(predicates::str::contains("repertoire"))
-        .stdout(predicates::str::contains("venues"));
+    let output = Command::new(env!("CARGO_BIN_EXE_quickrep")).arg("--help").output().unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    for expected in
+        ["quickrep", "Użycie", "Polecenia", "Opcje", "chains", "configure", "repertoire", "venues"]
+    {
+        assert!(stdout.contains(expected), "missing `{expected}` in help: {stdout}");
+    }
 }
 
 #[tokio::test]
@@ -141,7 +136,7 @@ async fn repertoire_command_uses_default_chain_and_default_venue_when_name_not_p
     DatabaseManager::new(dependencies.paths.db_file())
         .unwrap()
         .replace_venues(
-            "cinema-city",
+            CinemaChainId::CinemaCity,
             &[CinemaVenue {
                 chain_id: "cinema-city".to_string(),
                 venue_name: "Wroclaw - Wroclavia".to_string(),
@@ -194,7 +189,7 @@ async fn repertoire_command_warns_when_tmdb_is_disabled() {
     DatabaseManager::new(dependencies.paths.db_file())
         .unwrap()
         .replace_venues(
-            "cinema-city",
+            CinemaChainId::CinemaCity,
             &[CinemaVenue {
                 chain_id: "cinema-city".to_string(),
                 venue_name: "Wroclaw - Wroclavia".to_string(),
@@ -263,7 +258,7 @@ async fn repertoire_command_supports_helios_chain() {
     DatabaseManager::new(dependencies.paths.db_file())
         .unwrap()
         .replace_venues(
-            "helios",
+            CinemaChainId::Helios,
             &[CinemaVenue {
                 chain_id: "helios".to_string(),
                 venue_name: "Łódź - Helios".to_string(),
@@ -341,7 +336,7 @@ async fn repertoire_command_supports_multikino_chain() {
     DatabaseManager::new(dependencies.paths.db_file())
         .unwrap()
         .replace_venues(
-            "multikino",
+            CinemaChainId::Multikino,
             &[CinemaVenue {
                 chain_id: "multikino".to_string(),
                 venue_name: "Warszawa Złote Tarasy".to_string(),
@@ -606,7 +601,7 @@ async fn repertoire_command_warns_when_tmdb_lookup_fails() {
     DatabaseManager::new(dependencies.paths.db_file())
         .unwrap()
         .replace_venues(
-            "cinema-city",
+            CinemaChainId::CinemaCity,
             &[CinemaVenue {
                 chain_id: "cinema-city".to_string(),
                 venue_name: "Wroclaw - Wroclavia".to_string(),
@@ -868,7 +863,7 @@ async fn repertoire_command_exits_when_no_matching_venue_is_found() {
     DatabaseManager::new(dependencies.paths.db_file())
         .unwrap()
         .replace_venues(
-            "cinema-city",
+            CinemaChainId::CinemaCity,
             &[CinemaVenue {
                 chain_id: "cinema-city".to_string(),
                 venue_name: "Wroclaw - Wroclavia".to_string(),
@@ -902,7 +897,7 @@ async fn repertoire_command_exits_when_venue_name_is_ambiguous() {
     DatabaseManager::new(dependencies.paths.db_file())
         .unwrap()
         .replace_venues(
-            "cinema-city",
+            CinemaChainId::CinemaCity,
             &[
                 CinemaVenue {
                     chain_id: "cinema-city".to_string(),
@@ -1007,16 +1002,16 @@ async fn configure_command_recovers_from_invalid_existing_config() {
 #[tokio::test]
 async fn configure_command_exits_with_explicit_message_when_runtime_dir_is_not_writable() {
     let temp_dir = tempdir().unwrap();
-    let dependencies = dependencies_with_write_access_probe(
+    let mut dependencies = dependencies(
         temp_dir.path(),
         FakePrompt::new(Vec::new(), Vec::new()),
         FakeCinemaClient::new(Vec::new(), Vec::new()),
         FakeTmdbService { result: Default::default(), error: None },
-        Box::new(FailingWriteAccessProbe {
-            error_kind: io::ErrorKind::PermissionDenied,
-            message: "access denied".to_string(),
-        }),
     );
+    dependencies.runtime_write_access_probe = Box::new(FailingWriteAccessProbe {
+        error_kind: io::ErrorKind::PermissionDenied,
+        message: "access denied".to_string(),
+    });
     let mut terminal = BufferTerminal::default();
 
     let exit_code = run_with_args(

@@ -9,7 +9,7 @@ use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use dialoguer::{Input, Select, theme::ColorfulTheme};
 
 use crate::cinema::registry::Registry;
-use crate::domain::{CinemaChainId, CinemaVenue};
+use crate::domain::CinemaChainId;
 use crate::error::{AppError, AppResult};
 use crate::persistence::DatabaseManager;
 use crate::venue_refresh::fetch_registered_venues;
@@ -18,8 +18,6 @@ pub const CONFIG_FILE_NAME: &str = "config.ini";
 pub const DB_FILE_NAME: &str = "db.sqlite";
 pub const BINARY_NAME: &str = "quickrep";
 pub const DEFAULT_DAY_CHOICES: [&str; 2] = ["dziś", "jutro"];
-pub const DEFAULT_PRODUCTION_LOG_LEVEL: &str = "INFO";
-pub const DEFAULT_DEVELOPMENT_LOG_LEVEL: &str = "DEBUG";
 pub const DEFAULT_CINEMA_CITY_REPERTOIRE_URL: &str = "https://www.cinema-city.pl/kina/{cinema_venue_slug}/{cinema_venue_id}#/buy-tickets-by-cinema?in-cinema={cinema_venue_id}&at={repertoire_date}&view-mode=list";
 pub const DEFAULT_CINEMA_CITY_VENUES_LIST_URL: &str =
     "https://www.cinema-city.pl/#/buy-tickets-by-cinema";
@@ -69,10 +67,6 @@ impl RuntimeWriteAccessProbe for FileSystemRuntimeWriteAccessProbe {
     fn verify_target_writable(&self, target_path: &Path, runtime_dir: &Path) -> io::Result<()> {
         verify_target_writable(target_path, runtime_dir)
     }
-}
-
-pub fn build_runtime_write_access_probe() -> Box<dyn RuntimeWriteAccessProbe> {
-    Box::new(FileSystemRuntimeWriteAccessProbe)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -127,14 +121,6 @@ impl Settings {
     }
 }
 
-pub fn default_log_level() -> &'static str {
-    if cfg!(debug_assertions) {
-        DEFAULT_DEVELOPMENT_LOG_LEVEL
-    } else {
-        DEFAULT_PRODUCTION_LOG_LEVEL
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectionChoice {
     pub title: String,
@@ -183,20 +169,6 @@ impl PromptAdapter for DialoguerPrompt {
     }
 }
 
-pub fn build_prompt_adapter() -> Box<dyn PromptAdapter> {
-    Box::new(DialoguerPrompt)
-}
-
-pub async fn ensure_settings_for_argv(
-    paths: &AppPaths,
-    registry: &Registry,
-    prompt: &dyn PromptAdapter,
-) -> AppResult<Settings> {
-    let write_access_probe = FileSystemRuntimeWriteAccessProbe;
-    ensure_settings_for_argv_with_write_access_probe(paths, registry, prompt, &write_access_probe)
-        .await
-}
-
 pub async fn ensure_settings_for_argv_with_write_access_probe(
     paths: &AppPaths,
     registry: &Registry,
@@ -217,10 +189,6 @@ pub async fn ensure_settings_for_argv_with_write_access_probe(
         }
         Err(error) => Err(error),
     }
-}
-
-pub fn load_settings_if_available(paths: &AppPaths) -> Option<Settings> {
-    load_settings(paths).ok()
 }
 
 pub fn load_settings(paths: &AppPaths) -> AppResult<Settings> {
@@ -403,21 +371,9 @@ pub async fn run_interactive_configuration_with_write_access_probe(
         .default_venues
         .set(selected_default_chain, Some(selected_default_venue));
 
-    persist_venues(paths, &venues_by_chain)?;
+    DatabaseManager::new(paths.db_file())?.replace_venues_batch(&venues_by_chain)?;
     write_settings(&working_settings, paths)?;
     Ok(working_settings)
-}
-
-fn persist_venues(
-    paths: &AppPaths,
-    venues_by_chain: &HashMap<CinemaChainId, Vec<CinemaVenue>>,
-) -> AppResult<()> {
-    let db_manager = DatabaseManager::new(paths.db_file())?;
-    let payload = venues_by_chain
-        .iter()
-        .map(|(chain_id, venues)| (chain_id.as_str().to_string(), venues.clone()))
-        .collect::<HashMap<_, _>>();
-    db_manager.replace_venues_batch(&payload)
 }
 
 fn verify_runtime_write_access(

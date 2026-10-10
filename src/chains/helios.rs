@@ -8,7 +8,9 @@ use serde::Deserialize;
 use crate::cinema::browser::{
     BrowserEvaluation, HtmlRenderer, render_html_with_retry, render_page_with_retry,
 };
-use crate::cinema::common::{MISSING_DATA_LABEL, normalize_lookup_text, normalized_text, selector};
+use crate::cinema::common::{
+    MISSING_DATA_LABEL, normalize_genre_tags, normalize_lookup_text, normalized_text, selector,
+};
 use crate::cinema::registry::CinemaChainClient;
 use crate::domain::{
     CinemaChainId, CinemaVenue, MovieLookupMetadata, MoviePlayDetails, MoviePlayTime, Repertoire,
@@ -107,22 +109,14 @@ impl Helios {
                 continue;
             }
 
-            let display_source = if catalog_item.is_event {
-                entry
-                    .first_event()
-                    .map(HeliosDisplaySource::from)
-                    .unwrap_or_else(|| HeliosDisplaySource::from(&catalog_item))
+            let (display_source, lookup_source, page_kind) = if catalog_item.is_event {
+                let event = entry.first_event().unwrap_or(&catalog_item.movie);
+                match entry.first_underlying_movie() {
+                    Some(movie) => (event, movie, HeliosPageKind::Movie),
+                    None => (event, event, HeliosPageKind::Event),
+                }
             } else {
-                HeliosDisplaySource::from(&catalog_item)
-            };
-            let lookup_source = if catalog_item.is_event {
-                entry
-                    .first_underlying_movie()
-                    .map(HeliosLookupSource::from)
-                    .or_else(|| entry.first_event().map(HeliosLookupSource::from))
-                    .unwrap_or_else(|| HeliosLookupSource::from(&catalog_item))
-            } else {
-                HeliosLookupSource::from(&catalog_item)
+                (&catalog_item.movie, &catalog_item.movie, HeliosPageKind::Movie)
             };
 
             let play_details = Self::build_play_details(
@@ -146,8 +140,9 @@ impl Helios {
                 original_language: MISSING_DATA_LABEL.to_string(),
                 play_details,
                 lookup_metadata: build_lookup_metadata(
-                    &display_source,
-                    &lookup_source,
+                    &display_source.title,
+                    lookup_source,
+                    page_kind,
                     base_url,
                     route_fragment,
                 ),
@@ -275,24 +270,10 @@ struct HeliosRepertoireState {
 
 #[derive(Debug, Deserialize, Clone)]
 struct HeliosCatalogItem {
-    id: u32,
-    #[serde(rename = "sourceId")]
-    source_id: String,
-    title: String,
-    #[serde(rename = "titleOriginal")]
-    title_original: Option<String>,
-    slug: String,
-    duration: Option<u16>,
-    #[serde(default)]
-    genres: Vec<HeliosNamedValue>,
-    #[serde(rename = "premiereDate")]
-    premiere_date: Option<String>,
-    #[serde(rename = "cinemaPremiereDate")]
-    cinema_premiere_date: Option<String>,
+    #[serde(flatten)]
+    movie: HeliosMovie,
     #[serde(rename = "isEvent", default)]
     is_event: bool,
-    #[serde(rename = "isImax", default)]
-    is_imax: bool,
 }
 
 #[derive(Debug, Deserialize, Clone, Default)]
@@ -302,11 +283,11 @@ struct HeliosDateEntry {
 }
 
 impl HeliosDateEntry {
-    fn first_event(&self) -> Option<&HeliosEventInfo> {
+    fn first_event(&self) -> Option<&HeliosMovie> {
         self.screenings.iter().find_map(|screening| screening.event.as_ref())
     }
 
-    fn first_underlying_movie(&self) -> Option<&HeliosNestedMovie> {
+    fn first_underlying_movie(&self) -> Option<&HeliosMovie> {
         self.screenings
             .iter()
             .flat_map(|screening| screening.screening_movies.iter())
@@ -327,7 +308,8 @@ struct HeliosDayScreening {
     cinema_screen: HeliosCinemaScreen,
     #[serde(rename = "moviePrint", default)]
     movie_print: HeliosMoviePrint,
-    event: Option<HeliosEventInfo>,
+    #[serde(default, deserialize_with = "deserialize_event")]
+    event: Option<HeliosMovie>,
     #[serde(rename = "screeningMovies", default)]
     screening_movies: Vec<HeliosScreeningMovie>,
 }
@@ -374,27 +356,13 @@ impl HeliosMoviePrint {
 
 #[derive(Debug, Deserialize, Clone)]
 struct HeliosScreeningMovie {
-    movie: HeliosNestedMovie,
+    movie: HeliosMovie,
     #[serde(rename = "moviePrint", default)]
     movie_print: HeliosMoviePrint,
 }
 
 #[derive(Debug, Deserialize, Clone)]
-struct HeliosEventInfo {
-    id: u32,
-    #[serde(rename = "sourceId")]
-    source_id: String,
-    name: String,
-    slug: String,
-    duration: Option<u16>,
-    #[serde(default)]
-    genres: Vec<HeliosNamedValue>,
-    #[serde(rename = "isImax", default)]
-    is_imax: bool,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-struct HeliosNestedMovie {
+struct HeliosMovie {
     id: u32,
     #[serde(rename = "sourceId")]
     source_id: String,
@@ -411,6 +379,38 @@ struct HeliosNestedMovie {
     cinema_premiere_date: Option<String>,
     #[serde(rename = "isImax", default)]
     is_imax: bool,
+}
+
+#[derive(Deserialize)]
+struct HeliosEventInfo {
+    id: u32,
+    #[serde(rename = "sourceId")]
+    source_id: String,
+    name: String,
+    slug: String,
+    duration: Option<u16>,
+    #[serde(default)]
+    genres: Vec<HeliosNamedValue>,
+    #[serde(rename = "isImax", default)]
+    is_imax: bool,
+}
+
+fn deserialize_event<'de, D>(deserializer: D) -> Result<Option<HeliosMovie>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Ok(Option::<HeliosEventInfo>::deserialize(deserializer)?.map(|event| HeliosMovie {
+        id: event.id,
+        source_id: event.source_id,
+        title: event.name,
+        title_original: None,
+        slug: event.slug,
+        duration: event.duration,
+        genres: event.genres,
+        premiere_date: None,
+        cinema_premiere_date: None,
+        is_imax: event.is_imax,
+    }))
 }
 
 #[derive(Debug, Deserialize)]
@@ -437,108 +437,6 @@ enum HeliosPageKind {
     Event,
 }
 
-#[derive(Debug, Clone)]
-struct HeliosDisplaySource {
-    id: u32,
-    source_id: String,
-    title: String,
-    duration: Option<u16>,
-    genres: Vec<String>,
-}
-
-impl From<&HeliosCatalogItem> for HeliosDisplaySource {
-    fn from(value: &HeliosCatalogItem) -> Self {
-        Self {
-            id: value.id,
-            source_id: value.source_id.clone(),
-            title: value.title.clone(),
-            duration: value.duration,
-            genres: value.genres.iter().map(|genre| genre.name.clone()).collect(),
-        }
-    }
-}
-
-impl From<&HeliosEventInfo> for HeliosDisplaySource {
-    fn from(value: &HeliosEventInfo) -> Self {
-        Self {
-            id: value.id,
-            source_id: value.source_id.clone(),
-            title: value.name.clone(),
-            duration: value.duration,
-            genres: value.genres.iter().map(|genre| genre.name.clone()).collect(),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-struct HeliosLookupSource {
-    id: u32,
-    source_id: String,
-    title: String,
-    title_original: Option<String>,
-    slug: String,
-    duration: Option<u16>,
-    genres: Vec<String>,
-    premiere_date: Option<String>,
-    cinema_premiere_date: Option<String>,
-    is_imax: bool,
-    page_kind: HeliosPageKind,
-}
-
-impl From<&HeliosCatalogItem> for HeliosLookupSource {
-    fn from(value: &HeliosCatalogItem) -> Self {
-        Self {
-            id: value.id,
-            source_id: value.source_id.clone(),
-            title: value.title.clone(),
-            title_original: value.title_original.clone(),
-            slug: value.slug.clone(),
-            duration: value.duration,
-            genres: value.genres.iter().map(|genre| genre.name.clone()).collect(),
-            premiere_date: value.premiere_date.clone(),
-            cinema_premiere_date: value.cinema_premiere_date.clone(),
-            is_imax: value.is_imax,
-            page_kind: if value.is_event { HeliosPageKind::Event } else { HeliosPageKind::Movie },
-        }
-    }
-}
-
-impl From<&HeliosEventInfo> for HeliosLookupSource {
-    fn from(value: &HeliosEventInfo) -> Self {
-        Self {
-            id: value.id,
-            source_id: value.source_id.clone(),
-            title: value.name.clone(),
-            title_original: None,
-            slug: value.slug.clone(),
-            duration: value.duration,
-            genres: value.genres.iter().map(|genre| genre.name.clone()).collect(),
-            premiere_date: None,
-            cinema_premiere_date: None,
-            is_imax: value.is_imax,
-            page_kind: HeliosPageKind::Event,
-        }
-    }
-}
-
-impl From<&HeliosNestedMovie> for HeliosLookupSource {
-    fn from(value: &HeliosNestedMovie) -> Self {
-        Self {
-            id: value.id,
-            source_id: value.source_id.clone(),
-            title: value.title.clone(),
-            title_original: value.title_original.clone(),
-            slug: value.slug.clone(),
-            duration: value.duration,
-            genres: value.genres.iter().map(|genre| genre.name.clone()).collect(),
-            premiere_date: value.premiere_date.clone(),
-            cinema_premiere_date: value.cinema_premiere_date.clone(),
-            is_imax: value.is_imax,
-            page_kind: HeliosPageKind::Movie,
-        }
-    }
-}
-
 fn normalize_anchor_label(anchor: scraper::ElementRef<'_>) -> String {
     normalize_whitespace(
         &normalized_text(anchor).replace("Sala Dream", "").replace("Sala Imax", ""),
@@ -547,7 +445,7 @@ fn normalize_anchor_label(anchor: scraper::ElementRef<'_>) -> String {
 
 fn entry_key_for(item: &HeliosCatalogItem) -> String {
     let prefix = if item.is_event { 'e' } else { 'm' };
-    format!("{prefix}{}", item.id)
+    format!("{prefix}{}", item.movie.id)
 }
 
 fn normalize_whitespace(value: &str) -> String {
@@ -571,16 +469,17 @@ fn parse_required_json<T: for<'de> Deserialize<'de>>(
 }
 
 fn build_lookup_metadata(
-    display_source: &HeliosDisplaySource,
-    lookup_source: &HeliosLookupSource,
+    display_title: &str,
+    lookup_source: &HeliosMovie,
+    page_kind: HeliosPageKind,
     base_url: &str,
     route_fragment: &str,
 ) -> MovieLookupMetadata {
     let mut alternate_titles = Vec::new();
-    push_alternate_title(&mut alternate_titles, &display_source.title, Some(&lookup_source.title));
+    push_alternate_title(&mut alternate_titles, display_title, Some(&lookup_source.title));
     push_alternate_title(
         &mut alternate_titles,
-        &display_source.title,
+        display_title,
         lookup_source.title_original.as_deref(),
     );
 
@@ -589,14 +488,16 @@ fn build_lookup_metadata(
         movie_page_url: Some(build_item_page_url(
             base_url,
             route_fragment,
-            lookup_source.page_kind,
+            page_kind,
             &lookup_source.slug,
             lookup_source.id,
         )),
         alternate_titles,
         runtime_minutes: lookup_source.duration,
         original_language_code: None,
-        genre_tags: normalize_genre_tags(&lookup_source.genres),
+        genre_tags: normalize_genre_tags(
+            &lookup_source.genres.iter().map(|genre| genre.name.clone()).collect::<Vec<_>>(),
+        ),
         production_year: lookup_source.premiere_date.as_deref().and_then(parse_year_from_date),
         polish_premiere_date: lookup_source
             .cinema_premiere_date
@@ -623,17 +524,6 @@ fn push_alternate_title(
         return;
     }
     alternate_titles.push(candidate.to_string());
-}
-
-fn normalize_genre_tags(genres: &[String]) -> Vec<String> {
-    let mut tags = Vec::new();
-    for genre in genres {
-        let normalized = normalize_lookup_text(genre);
-        if !normalized.is_empty() && !tags.contains(&normalized) {
-            tags.push(normalized);
-        }
-    }
-    tags
 }
 
 fn build_item_page_url(
@@ -698,30 +588,27 @@ fn build_booking_url(
     item_source_id: &str,
     item_id: u32,
 ) -> String {
-    format!(
-        "https://bilety.helios.pl/screen/{screening_source_id}?cinemaId={cinema_source_id}&backUrl={}&item_id={item_source_id}&item_source_id={item_id}",
-        percent_encode_query_value(repertoire_url),
+    reqwest::Url::parse_with_params(
+        &format!("https://bilety.helios.pl/screen/{screening_source_id}"),
+        [
+            ("cinemaId", cinema_source_id),
+            ("backUrl", repertoire_url),
+            ("item_id", item_source_id),
+            ("item_source_id", &item_id.to_string()),
+        ],
     )
-}
-
-fn percent_encode_query_value(value: &str) -> String {
-    let mut encoded = String::new();
-    for byte in value.bytes() {
-        let character = byte as char;
-        if character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.' | '~') {
-            encoded.push(character);
-        } else {
-            encoded.push('%');
-            encoded.push_str(&format!("{byte:02X}"));
-        }
-    }
-    encoded
+    .expect("Helios booking URL must be valid")
+    .into()
 }
 
 fn parse_year_from_date(value: &str) -> Option<i32> {
     value.get(0..4)?.parse::<i32>().ok()
 }
 
-fn join_or_missing(values: &[String]) -> String {
-    if values.is_empty() { MISSING_DATA_LABEL.to_string() } else { values.join(", ") }
+fn join_or_missing(values: &[HeliosNamedValue]) -> String {
+    if values.is_empty() {
+        MISSING_DATA_LABEL.to_string()
+    } else {
+        values.iter().map(|genre| genre.name.as_str()).collect::<Vec<_>>().join(", ")
+    }
 }

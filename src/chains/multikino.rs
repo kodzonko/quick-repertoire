@@ -5,7 +5,7 @@ use log::debug;
 use reqwest::{Client, StatusCode};
 use serde::Deserialize;
 
-use crate::cinema::common::{MISSING_DATA_LABEL, normalize_lookup_text};
+use crate::cinema::common::{MISSING_DATA_LABEL, normalize_genre_tags, normalize_lookup_text};
 use crate::cinema::registry::CinemaChainClient;
 use crate::domain::{
     CinemaChainId, CinemaVenue, MovieLookupMetadata, MoviePlayDetails, MoviePlayTime, Repertoire,
@@ -493,17 +493,6 @@ fn collect_alternate_titles(title: &str, original_title: Option<&str>) -> Vec<St
     } else {
         vec![original_title.to_string()]
     }
-}
-
-fn normalize_genre_tags(genres: &[String]) -> Vec<String> {
-    let mut tags = Vec::new();
-    for genre in genres {
-        let normalized = normalize_lookup_text(genre);
-        if !normalized.is_empty() && !tags.contains(&normalized) {
-            tags.push(normalized);
-        }
-    }
-    tags
 }
 
 fn join_or_missing(values: &[String]) -> String {

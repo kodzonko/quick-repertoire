@@ -49,11 +49,6 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-llvm-cov
-      - name: Install Chromium
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y chromium-browser || sudo apt-get install -y chromium
       - name: Run test suite with coverage
         if: matrix.coverage
         shell: bash
