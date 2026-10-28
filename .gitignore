@@ -1,3 +1,6 @@
 .env
 
 target/
+
+/.codex-tmp/
+/chromedriver/
