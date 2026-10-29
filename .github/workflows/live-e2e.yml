@@ -15,8 +15,8 @@ jobs:
     env:
       TMDB_ACCESS_TOKEN: ${{ secrets.TMDB_ACCESS_TOKEN }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: jdx/mise-action@v5
+      - uses: actions/checkout@v7.0.1
+      - uses: jdx/mise-action@v5.2.4
       - name: Install Chromium
         run: |
           sudo apt-get update
