@@ -4,6 +4,18 @@
 Obsługuje `Cinema City`, `Helios` i `Multikino`, a opcjonalnie pokazuje też
 oceny i opisy filmów z TMDB.
 
+## Tool setup
+
+Install [mise](https://mise.jdx.dev/getting-started.html), then run from the repository root:
+
+```sh
+mise trust
+mise install
+```
+
+Tool versions are declared in `mise.toml`. Activate mise in your shell, or prefix
+project commands with `mise exec --` (for example, `mise exec -- cargo --version`).
+
 ## Wymagania
 
 - zainstalowany `Chrome` lub `Chromium`

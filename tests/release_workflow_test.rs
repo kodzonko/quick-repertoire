@@ -69,10 +69,13 @@ fn release_workflow_builds_and_packages_the_declared_binary() {
 fn rust_ci_workflow_uses_stable_toolchain() {
     let workflow = fs::read_to_string(LINT_TEST_WORKFLOW_PATH).unwrap();
 
+    let tools = fs::read_to_string("mise.toml").unwrap();
+
     assert!(
-        workflow.contains("uses: dtolnay/rust-toolchain@stable"),
-        "expected lint-test.yml to install the stable Rust toolchain"
+        workflow.contains("uses: jdx/mise-action@v5"),
+        "expected lint-test.yml to install the toolchain through mise"
     );
+    assert!(tools.contains(r#"version = "stable""#));
     assert!(
         !workflow.contains("uses: dtolnay/rust-toolchain@nightly"),
         "lint-test.yml should not install the nightly Rust toolchain"
