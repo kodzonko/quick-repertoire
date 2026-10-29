@@ -1,0 +1,4 @@
+[tools]
+rust = { version = "stable", profile = "minimal", components = ["rustfmt", "clippy", "llvm-tools"] }
+dotenvx = "2.38.2"
+"aqua:taiki-e/cargo-llvm-cov" = "0.9.1"

@@ -3,7 +3,7 @@ name: Rust Formatting and Linting
 on:
   push:
     branches:
-      - master
+      - main
   pull_request:
     types:
       - opened
@@ -33,9 +33,7 @@ jobs:
         with:
           ref: ${{ github.ref }}
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
+        uses: jdx/mise-action@v5
       - name: Run rustfmt
         run: cargo fmt --all --check
 
@@ -48,8 +46,6 @@ jobs:
         with:
           ref: ${{ github.ref }}
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
+        uses: jdx/mise-action@v5
       - name: Run clippy
         run: cargo clippy --locked --all-targets --all-features -- -D warnings
