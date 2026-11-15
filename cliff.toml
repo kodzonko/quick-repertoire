@@ -1,0 +1,51 @@
+# Changelog and release notes generated from Conventional Commits.
+# Docs: https://git-cliff.org/docs/configuration
+
+[changelog]
+header = """
+# Changelog
+
+All notable changes to `quickrep` are documented in this file. Versions follow
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html), and entries are generated
+from [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) with
+[git-cliff](https://git-cliff.org).
+"""
+body = """
+{%- set repo = "https://github.com/kodzonko/quick-repertoire" -%}
+{% if version -%}
+## [{{ version | trim_start_matches(pat="v") }}]({{ repo }}/{% if previous.version %}compare/{{ previous.version }}...{{ version }}{% else %}releases/tag/{{ version }}{% endif %}) - {{ timestamp | date(format="%Y-%m-%d") }}
+{%- else -%}
+## [Unreleased]({{ repo }}/compare/{{ previous.version }}...HEAD)
+{%- endif %}
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | striptags | trim }}
+{% for commit in commits %}
+- {% if commit.scope and commit.scope != "deps" %}**{{ commit.scope }}:** {% endif %}{% if commit.breaking %}**BREAKING:** {% endif %}{{ commit.message | upper_first }} ([{{ commit.id | truncate(length=7, end="") }}]({{ repo }}/commit/{{ commit.id }}))
+{%- endfor %}
+{% endfor %}
+"""
+trim = false
+
+[git]
+conventional_commits = true
+filter_unconventional = true
+protect_breaking_commits = true
+tag_pattern = "^v[0-9]+\\.[0-9]+\\.[0-9]+(-.+)?$"
+sort_commits = "oldest"
+commit_preprocessors = [
+  { pattern = '\(#([0-9]+)\)', replace = "([#${1}](https://github.com/kodzonko/quick-repertoire/pull/${1}))" },
+]
+# The numeric HTML comments only order the sections; they are stripped from the output.
+commit_parsers = [
+  { message = "^chore\\(release\\)", skip = true },
+  { message = "^feat", group = "<!-- 00 -->Features" },
+  { message = "^fix", group = "<!-- 01 -->Bug Fixes" },
+  { message = "^perf", group = "<!-- 02 -->Performance" },
+  { message = "^refactor", group = "<!-- 03 -->Refactoring" },
+  { message = "^docs", group = "<!-- 04 -->Documentation" },
+  { message = "^build\\(deps\\)", group = "<!-- 05 -->Dependencies" },
+  { message = "^build", group = "<!-- 06 -->Build" },
+  { message = "^ci", group = "<!-- 07 -->CI" },
+  { message = "^test", group = "<!-- 08 -->Testing" },
+  { message = "^(chore|style|revert)", group = "<!-- 09 -->Miscellaneous" },
+]
