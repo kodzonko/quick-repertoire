@@ -89,6 +89,7 @@ impl HtmlRenderer for ChromiumHtmlRenderer {
         );
         let (mut browser, mut handler) = Browser::launch(
             BrowserConfig::builder()
+                .arg(("blink-settings", "imagesEnabled=false"))
                 .request_timeout(Duration::from_secs(REQUEST_TIMEOUT_SECONDS))
                 .build()
                 .map_err(|error| AppError::BrowserUnavailable(error.to_string()))?,

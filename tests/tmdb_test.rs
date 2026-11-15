@@ -1053,3 +1053,76 @@ async fn get_movie_ratings_and_summaries_processes_movies_concurrently() {
         "TMDB lookups should overlap, but took {elapsed:?}",
     );
 }
+
+#[tokio::test]
+async fn get_movie_ratings_and_summaries_overlaps_candidate_details_and_tolerates_failure() {
+    let server = MockServer::start_async().await;
+    let search = server
+        .mock_async(|when, then| {
+            when.method(GET).path("/search/movie").query_param("query", "Parallel Candidates");
+            then.status(200).json_body(json!({
+                "results": (201..=203).map(|id| tmdb_search_result(
+                    id, "Parallel Candidates", "Parallel Candidates", "2026-04-11", "en",
+                    7.0, 100, "Search summary."
+                )).collect::<Vec<_>>()
+            }));
+        })
+        .await;
+    let mut candidates = Vec::new();
+    for id in 201..=203 {
+        candidates.push(
+            server
+                .mock_async(|when, then| {
+                    when.method(GET).path(format!("/movie/{id}"));
+                    let then = then.delay(Duration::from_millis(350));
+                    if id == 203 {
+                        then.status(404);
+                    } else {
+                        then.status(200).json_body(tmdb_movie_details(
+                            id,
+                            "Parallel Candidates",
+                            "Parallel Candidates",
+                            "2026-04-11",
+                            "en",
+                            if id == 202 { 100 } else { 170 },
+                            7.0,
+                            100,
+                            if id == 202 { "Correct candidate." } else { "Wrong candidate." },
+                            &["Animation", "Adventure", "Family"],
+                            &[],
+                            &[],
+                            &[],
+                        ));
+                    }
+                })
+                .await,
+        );
+    }
+    let client = ReqwestTmdbClient::with_search_url(server.url("/search/movie")).unwrap();
+    let started_at = Instant::now();
+    let details = client
+        .get_movie_ratings_and_summaries(
+            &[lookup_movie_with_metadata(
+                "Parallel Candidates",
+                MovieLookupMetadata {
+                    runtime_minutes: Some(100),
+                    genre_tags: vec!["animowany".into(), "przygodowy".into(), "familijny".into()],
+                    ..MovieLookupMetadata::default()
+                },
+            )],
+            "token",
+        )
+        .await
+        .unwrap();
+    let elapsed = started_at.elapsed();
+
+    search.assert_async().await;
+    for candidate in candidates {
+        candidate.assert_async().await;
+    }
+    assert_eq!(details["Parallel Candidates"].summary, "Correct candidate.");
+    assert!(
+        elapsed < Duration::from_millis(750),
+        "Candidate detail requests should overlap, but took {elapsed:?}",
+    );
+}

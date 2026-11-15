@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
+use std::time::Instant;
 
 use clap::{CommandFactory, Parser};
 use clap_complete::{Shell, generate};
+use log::debug;
 
 use crate::cinema::browser::ChromiumHtmlRenderer;
 use crate::cinema::registry::{RegisteredCinemaChain, Registry};
@@ -263,6 +265,7 @@ async fn handle_repertoire(
     date: Option<String>,
     terminal: &mut dyn Terminal,
 ) -> AppResult<()> {
+    let venue_lookup_started = Instant::now();
     let registered_chain = resolve_chain(chain, context.settings, registry)?;
     let resolved_venue_name = resolve_venue_name(venue_name, &registered_chain, context.settings)?;
     let venue_name_parsed = cinema_venue_input_parser(&resolved_venue_name);
@@ -274,8 +277,12 @@ async fn handle_repertoire(
     let date_parsed = date_input_parser(
         date.as_deref().unwrap_or(&context.settings.user_preferences.default_day),
     )?;
+    let venue_lookup_elapsed = venue_lookup_started.elapsed();
+    let fetch_started = Instant::now();
     let fetched_repertoire = registered_chain.client.fetch_repertoire(&date_parsed, &venue).await?;
+    let fetch_elapsed = fetch_started.elapsed();
     let lookup_movies = fetched_repertoire.iter().map(TmdbLookupMovie::from).collect::<Vec<_>>();
+    let tmdb_started = Instant::now();
     let ratings = load_tmdb_ratings(
         &lookup_movies,
         context.settings.user_preferences.tmdb_access_token.as_deref(),
@@ -283,6 +290,15 @@ async fn handle_repertoire(
         terminal,
     )
     .await;
+    debug!(
+        "Repertoire timings chain={} venue_id={} movies={} venue_lookup_ms={} fetch_ms={} tmdb_ms={}",
+        registered_chain.chain_id.as_str(),
+        venue.venue_id,
+        fetched_repertoire.len(),
+        venue_lookup_elapsed.as_millis(),
+        fetch_elapsed.as_millis(),
+        tmdb_started.elapsed().as_millis(),
+    );
 
     let table_metadata = RepertoireCliTableMetadata {
         chain_display_name: registered_chain.display_name,

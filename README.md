@@ -102,3 +102,29 @@ Harmonogram GitHub Actions uruchamia je co poniedziałek. W repozytorium trzeba
 ustawić sekret `TMDB_ACCESS_TOKEN` (klucz API lub API Read Access Token).
 Testy sprawdzają obecność seansów i wypełnienie większości podstawowych pól,
 bez przywiązywania się do konkretnych tytułów czy godzin.
+
+## Testy wydajności
+
+```shell
+cargo test --release --test live_performance -- --ignored --nocapture --test-threads=1
+# Tylko Cinema City:
+cargo test --release --test live_performance cinema_city -- --ignored --nocapture
+```
+
+Testy obejmują po dwa kina: Cinema City Manufaktura i Wroclavia, Helios w Łodzi
+i Wrocławiu oraz Multikino Złote Tarasy i Poznań. Każdy pomiar uruchamia nowy
+proces CLI z tymczasową konfiguracją i gotową bazą kin. Dwa kolejne pomiary
+pokazują koszt startu procesu; nie czyszczą cache systemu ani DNS. Pobieranie
+listy kin jest mierzone osobno. Wyniki zawierają czas całego procesu oraz etapy:
+wyszukanie kina, pobranie repertuaru i TMDB. Domyślnie TMDB jest wyłączone;
+ustawienie `TMDB_ACCESS_TOKEN` dodaje pomiary z ocenami i opisami.
+
+Testy wymagają sieci oraz Chrome/Chromium. Raportują czasy bez stałego limitu,
+ponieważ szybkość zewnętrznych serwisów jest zmienna. Zwykły `cargo test`
+sprawdza współbieżność żądań TMDB na lokalnym serwerze. Osobny test przeglądarki
+sprawdza, czy JavaScript działa bez pobierania obrazów:
+
+```shell
+cargo test --test browser_test -- --ignored
+RUST_LOG=quick_repertoire::app=debug quickrep repertoire
+```

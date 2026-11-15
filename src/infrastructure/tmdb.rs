@@ -3,7 +3,7 @@ use std::sync::LazyLock;
 
 use async_trait::async_trait;
 use chrono::{Datelike, NaiveDate};
-use futures::{StreamExt, stream};
+use futures::{StreamExt, future::join_all, stream};
 use log::debug;
 use regex::Regex;
 use reqwest::{Client, StatusCode};
@@ -371,24 +371,28 @@ impl ReqwestTmdbClient {
         ranked_candidates: &[Ranked<TmdbSearchResult>],
         access_token: &str,
     ) -> Vec<Ranked<TmdbMovieDetailsResponse>> {
-        let mut detailed_candidates = Vec::new();
-        for ranked_candidate in ranked_candidates.iter().take(MAX_DETAILED_CANDIDATES) {
-            let details = match self
-                .fetch_movie_details_payload(ranked_candidate.value.id, access_token)
-                .await
-            {
-                Ok(details) => details,
-                Err(error) => {
-                    debug!(
-                        "TMDB movie details enrichment failed movie_id={} error={error}",
-                        ranked_candidate.value.id,
-                    );
-                    continue;
-                }
-            };
-            detailed_candidates.push(Ranked { value: details, score: ranked_candidate.score });
-        }
-        detailed_candidates
+        join_all(ranked_candidates.iter().take(MAX_DETAILED_CANDIDATES).map(
+            |ranked_candidate| async move {
+                let details = match self
+                    .fetch_movie_details_payload(ranked_candidate.value.id, access_token)
+                    .await
+                {
+                    Ok(details) => details,
+                    Err(error) => {
+                        debug!(
+                            "TMDB movie details enrichment failed movie_id={} error={error}",
+                            ranked_candidate.value.id,
+                        );
+                        return None;
+                    }
+                };
+                Some(Ranked { value: details, score: ranked_candidate.score })
+            },
+        ))
+        .await
+        .into_iter()
+        .flatten()
+        .collect()
     }
 
     async fn extend_search_results_for_queries(
