@@ -31,6 +31,28 @@ cargo llvm-cov --locked --all-targets --all-features
 cargo llvm-cov report --lcov --output-path target/lcov.info
 ```
 
+## Releasing
+
+Releases are tagged `vX.Y.Z`, where `X.Y.Z` is the `version` in `Cargo.toml`, and
+[CHANGELOG.md](CHANGELOG.md) is generated from the Conventional Commits history with
+[git-cliff](https://git-cliff.org) (installed by `mise install`). To cut a release:
+
+```sh
+# 1. Bump `version` in Cargo.toml, then refresh Cargo.lock
+cargo update --workspace
+# 2. Add the changelog section for the new version
+make changelog VERSION=1.2.0
+# 3. Commit, tag and push
+git commit -am "chore(release): v1.2.0"
+git tag -s v1.2.0 -m "Release v1.2.0"
+git push origin main v1.2.0
+# 4. Publish the release; this starts the binary build
+gh release create v1.2.0 --title v1.2.0 --notes "$(make -s release-notes)"
+```
+
+`Build and Publish Release Binaries` refuses to build when the tag doesn't match
+`Cargo.toml`, and the test suite fails when the newest `CHANGELOG.md` section doesn't.
+
 ## Wymagania
 
 - zainstalowany `Chrome` lub `Chromium`
