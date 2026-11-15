@@ -16,6 +16,21 @@ mise install
 Tool versions are declared in `mise.toml`. Activate mise in your shell, or prefix
 project commands with `mise exec --` (for example, `mise exec -- cargo --version`).
 
+## Coverage
+
+The Linux job in `Rust Test Suite` generates an LCOV report and uploads it to
+[Codecov](https://app.codecov.io/gh/kodzonko/quick-repertoire) on pushes to `main`
+and pull requests. Enable this repository in Codecov before the first CI run.
+Uploads use GitHub OIDC, so no `CODECOV_TOKEN` secret is needed. Upload errors
+fail the job.
+
+To generate the same report locally:
+
+```sh
+cargo llvm-cov --locked --all-targets --all-features
+cargo llvm-cov report --lcov --output-path target/lcov.info
+```
+
 ## Wymagania
 
 - zainstalowany `Chrome` lub `Chromium`

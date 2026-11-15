@@ -27,6 +27,9 @@ jobs:
   tests:
     name: Tests (${{ matrix.runner }})
     runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -43,7 +46,7 @@ jobs:
         with:
           ref: ${{ github.ref }}
       - name: Install Rust toolchain
-        uses: jdx/mise-action@v5.2.4
+        uses: jdx/mise-action@v5.2.8
       - name: Run test suite with coverage
         if: matrix.coverage
         shell: bash
@@ -60,6 +63,16 @@ jobs:
             cat "$output_file"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+          cargo llvm-cov report --lcov --output-path target/lcov.info
+      - name: Upload coverage to Codecov
+        if: matrix.coverage
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          files: target/lcov.info
+          disable_search: true
+          fail_ci_if_error: true
+          use_oidc: true
       - name: Run test suite
         if: ${{ !matrix.coverage }}
         run: cargo test --locked --all-targets --all-features
