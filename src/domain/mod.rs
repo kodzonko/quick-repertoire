@@ -1,8 +1,11 @@
 use std::fmt::{Display, Formatter};
 
+use serde::Deserialize;
+
 use crate::error::{AppError, AppResult};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum CinemaChainId {
     CinemaCity,
     Helios,

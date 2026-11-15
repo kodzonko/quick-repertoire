@@ -1,12 +1,10 @@
 use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
-use std::io::{self, Write};
+use std::io;
 use std::path::{Path, PathBuf};
 
-#[cfg(unix)]
-use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
-
 use dialoguer::{Input, Select, theme::ColorfulTheme};
+use serde::Deserialize;
 
 use crate::cinema::registry::Registry;
 use crate::domain::CinemaChainId;
@@ -14,7 +12,6 @@ use crate::error::{AppError, AppResult};
 use crate::persistence::DatabaseManager;
 use crate::venue_refresh::fetch_registered_venues;
 
-pub const CONFIG_FILE_NAME: &str = "config.ini";
 pub const DB_FILE_NAME: &str = "db.sqlite";
 pub const BINARY_NAME: &str = "quickrep";
 pub const DEFAULT_DAY_CHOICES: [&str; 2] = ["dziś", "jutro"];
@@ -48,10 +45,6 @@ impl AppPaths {
         &self.runtime_dir
     }
 
-    pub fn config_file(&self) -> PathBuf {
-        self.runtime_dir.join(CONFIG_FILE_NAME)
-    }
-
     pub fn db_file(&self) -> PathBuf {
         self.runtime_dir.join(DB_FILE_NAME)
     }
@@ -69,7 +62,8 @@ impl RuntimeWriteAccessProbe for FileSystemRuntimeWriteAccessProbe {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize)]
+#[serde(transparent)]
 pub struct DefaultVenues {
     venues_by_chain: HashMap<String, String>,
 }
@@ -91,7 +85,8 @@ impl DefaultVenues {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(default)]
 pub struct UserPreferences {
     pub default_chain: CinemaChainId,
     pub default_day: String,
@@ -110,7 +105,7 @@ impl Default for UserPreferences {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize)]
 pub struct Settings {
     pub user_preferences: UserPreferences,
 }
@@ -192,8 +187,43 @@ pub async fn ensure_settings_for_argv_with_write_access_probe(
 }
 
 pub fn load_settings(paths: &AppPaths) -> AppResult<Settings> {
-    let config_path = paths.config_file();
-    let content = fs::read_to_string(&config_path).map_err(|error| {
+    if paths.db_file().try_exists().map_err(|_| AppError::database_connection(&paths.db_file()))?
+        && let Some(settings) = DatabaseManager::new(paths.db_file())?.load_settings()?
+    {
+        return Ok(normalize_settings(settings));
+    }
+    let settings = load_legacy_settings(paths)?;
+    write_settings(&settings, paths)?;
+    Ok(settings)
+}
+
+fn load_legacy_settings(paths: &AppPaths) -> AppResult<Settings> {
+    let content = match fs::read_to_string(paths.runtime_dir().join("config.json")) {
+        Ok(content) => content,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return load_ini_settings(paths),
+        Err(_) => {
+            return Err(AppError::configuration("Nie udało się odczytać pliku config.json."));
+        }
+    };
+    serde_json::from_str(&content)
+        .map(normalize_settings)
+        .map_err(|_| AppError::configuration(configure_recovery_message()))
+}
+
+fn normalize_settings(mut settings: Settings) -> Settings {
+    let preferences = &mut settings.user_preferences;
+    preferences.default_day = canonicalize_default_day(&preferences.default_day);
+    preferences.tmdb_access_token =
+        preferences.tmdb_access_token.as_deref().and_then(normalize_optional);
+    preferences.default_venues.venues_by_chain.retain(|_, venue| {
+        *venue = venue.trim().to_string();
+        !venue.is_empty()
+    });
+    settings
+}
+
+fn load_ini_settings(paths: &AppPaths) -> AppResult<Settings> {
+    let content = fs::read_to_string(paths.runtime_dir().join("config.ini")).map_err(|error| {
         if error.kind() == std::io::ErrorKind::NotFound {
             AppError::ConfigurationNotFound
         } else {
@@ -238,50 +268,12 @@ pub fn load_settings(paths: &AppPaths) -> AppResult<Settings> {
 
 fn configure_recovery_message() -> String {
     format!(
-        "Nie udało się wczytać config.ini. Uruchom `{BINARY_NAME} configure`, aby odtworzyć konfigurację."
+        "Nie udało się wczytać konfiguracji. Uruchom `{BINARY_NAME} configure`, aby zapisać ustawienia w db.sqlite."
     )
 }
 
 pub fn write_settings(settings: &Settings, paths: &AppPaths) -> AppResult<()> {
-    let config_path = paths.config_file();
-    if let Some(parent) = config_path.parent() {
-        fs::create_dir_all(parent).map_err(|error| AppError::configuration(error.to_string()))?;
-    }
-
-    let default_venues_body = CinemaChainId::all()
-        .iter()
-        .map(|chain_id| {
-            format!(
-                "{} = {}\n",
-                chain_id.section_name(),
-                settings.user_preferences.default_venues.get(*chain_id).unwrap_or(""),
-            )
-        })
-        .collect::<String>();
-
-    let config_body = format!(
-        "[user_preferences]\n\
-default_chain = {}\n\
-default_day = {}\n\
-tmdb_access_token = {}\n\
-\n\
-[default_venues]\n\
-{}\
-\n",
-        settings.user_preferences.default_chain.as_str(),
-        settings.user_preferences.default_day,
-        settings.user_preferences.tmdb_access_token.clone().unwrap_or_default(),
-        default_venues_body,
-    );
-
-    let temp_path = runtime_temp_path(&config_path, paths.runtime_dir());
-    write_sensitive_file(&temp_path, config_body.as_bytes())
-        .map_err(|error| AppError::configuration(error.to_string()))?;
-    fs::rename(&temp_path, &config_path)
-        .map_err(|error| AppError::configuration(error.to_string()))?;
-    restrict_sensitive_file_permissions(&config_path)
-        .map_err(|error| AppError::configuration(error.to_string()))?;
-    Ok(())
+    DatabaseManager::new(paths.db_file())?.save_settings(settings)
 }
 
 pub async fn run_interactive_configuration(
@@ -371,8 +363,8 @@ pub async fn run_interactive_configuration_with_write_access_probe(
         .default_venues
         .set(selected_default_chain, Some(selected_default_venue));
 
-    DatabaseManager::new(paths.db_file())?.replace_venues_batch(&venues_by_chain)?;
-    write_settings(&working_settings, paths)?;
+    DatabaseManager::new(paths.db_file())?
+        .save_configuration(&working_settings, &venues_by_chain)?;
     Ok(working_settings)
 }
 
@@ -380,12 +372,10 @@ fn verify_runtime_write_access(
     paths: &AppPaths,
     write_access_probe: &dyn RuntimeWriteAccessProbe,
 ) -> AppResult<()> {
-    for target_path in [paths.config_file(), paths.db_file()] {
-        write_access_probe
-            .verify_target_writable(&target_path, paths.runtime_dir())
-            .map_err(|error| map_runtime_write_access_error(paths, &target_path, error))?;
-    }
-    Ok(())
+    let target_path = paths.db_file();
+    write_access_probe
+        .verify_target_writable(&target_path, paths.runtime_dir())
+        .map_err(|error| map_runtime_write_access_error(paths, &target_path, error))
 }
 
 fn verify_target_writable(target_path: &Path, runtime_dir: &Path) -> io::Result<()> {
@@ -403,44 +393,6 @@ fn runtime_probe_path(target_path: &Path, runtime_dir: &Path) -> PathBuf {
     let file_name =
         target_path.file_name().and_then(|value| value.to_str()).unwrap_or("runtime-file");
     runtime_dir.join(format!(".{file_name}.write-test.{}", std::process::id()))
-}
-
-fn runtime_temp_path(target_path: &Path, runtime_dir: &Path) -> PathBuf {
-    let file_name =
-        target_path.file_name().and_then(|value| value.to_str()).unwrap_or("runtime-file");
-    runtime_dir.join(format!(".{file_name}.tmp.{}", std::process::id()))
-}
-
-fn write_sensitive_file(path: &Path, content: &[u8]) -> io::Result<()> {
-    match fs::remove_file(path) {
-        Ok(()) => {}
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-        Err(error) => return Err(error),
-    }
-
-    let mut options = OpenOptions::new();
-    options.write(true).create_new(true);
-    #[cfg(unix)]
-    options.mode(0o600);
-
-    let mut file = options.open(path)?;
-    file.write_all(content)?;
-    file.sync_all()?;
-    restrict_sensitive_file_permissions(path)
-}
-
-fn restrict_sensitive_file_permissions(path: &Path) -> io::Result<()> {
-    #[cfg(unix)]
-    {
-        fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;
-    }
-
-    #[cfg(not(unix))]
-    {
-        let _ = path;
-    }
-
-    Ok(())
 }
 
 fn map_runtime_write_access_error(

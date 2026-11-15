@@ -109,7 +109,7 @@ pub async fn run_with_args(
         .await
         {
             Ok(_) => {
-                terminal.write_line("Konfiguracja zapisana w config.ini.");
+                terminal.write_line("Konfiguracja zapisana w db.sqlite.");
                 0
             }
             Err(error) => {
@@ -244,16 +244,14 @@ fn resolve_venue_name(
     }
 }
 
-async fn rehydrate_venues_database_if_missing(
-    paths: &AppPaths,
-    registry: &Registry,
-) -> AppResult<()> {
-    if paths.db_file().exists() {
+async fn rehydrate_venues_if_empty(paths: &AppPaths, registry: &Registry) -> AppResult<()> {
+    let database = DatabaseManager::new(paths.db_file())?;
+    if database.has_venues()? {
         return Ok(());
     }
 
     let venues_by_chain = fetch_registered_venues(registry.get_registered_chains()).await?;
-    DatabaseManager::new(paths.db_file())?.replace_venues_batch(&venues_by_chain)
+    database.replace_venues_batch(&venues_by_chain)
 }
 
 async fn handle_repertoire(
@@ -268,7 +266,7 @@ async fn handle_repertoire(
     let registered_chain = resolve_chain(chain, context.settings, registry)?;
     let resolved_venue_name = resolve_venue_name(venue_name, &registered_chain, context.settings)?;
     let venue_name_parsed = cinema_venue_input_parser(&resolved_venue_name);
-    rehydrate_venues_database_if_missing(context.paths, registry).await?;
+    rehydrate_venues_if_empty(context.paths, registry).await?;
     let db_manager = DatabaseManager::new(context.paths.db_file())?;
     let found_venues =
         db_manager.find_venues_by_name(registered_chain.chain_id.as_str(), &venue_name_parsed)?;
@@ -303,7 +301,7 @@ async fn handle_venues_list(
     terminal: &mut dyn Terminal,
 ) -> AppResult<()> {
     let registered_chain = resolve_chain(chain, settings, registry)?;
-    rehydrate_venues_database_if_missing(paths, registry).await?;
+    rehydrate_venues_if_empty(paths, registry).await?;
     let db_manager = DatabaseManager::new(paths.db_file())?;
     let venues = db_manager.get_all_venues(registered_chain.chain_id.as_str())?;
     terminal.write_line(&render_venues_table(&venues, &registered_chain.display_name));
@@ -353,7 +351,7 @@ async fn handle_venues_search(
     terminal: &mut dyn Terminal,
 ) -> AppResult<()> {
     let registered_chain = resolve_chain(chain, settings, registry)?;
-    rehydrate_venues_database_if_missing(paths, registry).await?;
+    rehydrate_venues_if_empty(paths, registry).await?;
     let db_manager = DatabaseManager::new(paths.db_file())?;
     let venues = db_manager.find_venues_by_name(
         registered_chain.chain_id.as_str(),

@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use quick_repertoire::config::{
-    AppPaths, load_settings, run_interactive_configuration, write_settings,
+    AppPaths, Settings, load_settings, run_interactive_configuration, write_settings,
 };
 use quick_repertoire::domain::{CinemaChainId, CinemaVenue};
 use quick_repertoire::error::AppError;
@@ -18,131 +18,224 @@ use support::{
 use tempfile::tempdir;
 
 #[test]
-fn load_settings_roundtrips_config_ini() {
+fn load_settings_roundtrips_sqlite_without_creating_config_files() {
     let temp_dir = tempdir().unwrap();
     let paths = AppPaths::for_runtime_dir(temp_dir.path().to_path_buf());
-    let mut expected_settings = settings();
-    expected_settings.user_preferences.tmdb_access_token = Some("1234".to_string());
-    expected_settings
+    let mut expected = settings();
+    expected.user_preferences.tmdb_access_token = Some("token\"\\\n1234".to_string());
+    expected.user_preferences.default_chain = CinemaChainId::Helios;
+    expected
         .user_preferences
         .default_venues
-        .set(CinemaChainId::Helios, Some("Łódź - Helios".to_string()));
-    expected_settings
+        .set(CinemaChainId::Helios, Some("Łódź - Helios".into()));
+    expected
         .user_preferences
         .default_venues
-        .set(CinemaChainId::Multikino, Some("Warszawa Złote Tarasy".to_string()));
+        .set(CinemaChainId::Multikino, Some("Warszawa Złote Tarasy".into()));
 
-    write_settings(&expected_settings, &paths).unwrap();
-    let loaded_settings = load_settings(&paths).unwrap();
+    write_settings(&expected, &paths).unwrap();
 
-    assert_eq!(loaded_settings, expected_settings);
+    assert!(paths.db_file().exists());
+    assert_eq!(load_settings(&paths).unwrap(), expected);
+    assert_eq!(fs::read_dir(temp_dir.path()).unwrap().count(), 1);
 }
 
 #[test]
-fn load_settings_ignores_legacy_app_section_entries() {
+fn write_settings_replaces_preferences_and_clears_removed_values() {
     let temp_dir = tempdir().unwrap();
     let paths = AppPaths::for_runtime_dir(temp_dir.path().to_path_buf());
-    fs::write(
-        paths.config_file(),
-        "[app]\n\
-db_file = C:/absolute/test.sqlite\n\
-loguru_level = INFO\n\
-\n\
-[user_preferences]\n\
-default_chain = cinema-city\n\
-default_day = today\n\
-tmdb_access_token =\n\
-\n\
-[default_venues]\n\
-cinema_city = Wroclaw - Wroclavia\n\
-\n\
-[cinema_chains.cinema_city]\n\
-repertoire_url = https://www.cinema-city.pl/#/buy-tickets-by-cinema?in-cinema={cinema_venue_id}&at={repertoire_date}\n\
-venues_list_url = https://www.cinema-city.pl/#/buy-tickets-by-cinema\n",
-    )
-    .unwrap();
-
-    let loaded_settings = load_settings(&paths).unwrap();
-    assert_eq!(
-        loaded_settings.user_preferences.default_chain,
-        quick_repertoire::domain::CinemaChainId::CinemaCity
-    );
-    assert_eq!(loaded_settings.user_preferences.default_day, "dziś");
-}
-
-#[test]
-fn load_settings_reads_default_venues_for_multiple_chains() {
-    let temp_dir = tempdir().unwrap();
-    let paths = AppPaths::for_runtime_dir(temp_dir.path().to_path_buf());
-    fs::write(
-        paths.config_file(),
-        "[user_preferences]\n\
-default_chain = helios\n\
-default_day = jutro\n\
-tmdb_access_token = token\n\
-\n\
-[default_venues]\n\
-cinema_city = Wroclaw - Wroclavia\n\
-helios = Łódź - Helios\n\
-multikino = Warszawa Złote Tarasy\n\
-",
-    )
-    .unwrap();
-
-    let loaded_settings = load_settings(&paths).unwrap();
-
-    assert_eq!(loaded_settings.user_preferences.default_chain, CinemaChainId::Helios);
-    assert_eq!(
-        loaded_settings.get_default_venue(CinemaChainId::CinemaCity),
-        Some("Wroclaw - Wroclavia")
-    );
-    assert_eq!(loaded_settings.get_default_venue(CinemaChainId::Helios), Some("Łódź - Helios"));
-    assert_eq!(
-        loaded_settings.get_default_venue(CinemaChainId::Multikino),
-        Some("Warszawa Złote Tarasy")
-    );
-}
-
-#[test]
-fn write_settings_omits_legacy_app_entries() {
-    let temp_dir = tempdir().unwrap();
-    let paths = AppPaths::for_runtime_dir(temp_dir.path().to_path_buf());
-
     write_settings(&settings(), &paths).unwrap();
+    write_settings(&Settings::default(), &paths).unwrap();
 
-    let config = fs::read_to_string(paths.config_file()).unwrap();
-    assert!(!config.contains("db_file ="));
-    assert!(!config.contains("loguru_level ="));
-    assert!(!config.contains("[cinema_chains.cinema_city]"));
-    assert!(!config.contains("repertoire_url ="));
-    assert!(!config.contains("venues_list_url ="));
+    assert_eq!(load_settings(&paths).unwrap(), Settings::default());
+}
+
+#[test]
+fn settings_and_venue_refresh_preserve_each_other() {
+    let temp_dir = tempdir().unwrap();
+    let paths = AppPaths::for_runtime_dir(temp_dir.path().to_path_buf());
+    let database = DatabaseManager::new(paths.db_file()).unwrap();
+    let venue = CinemaVenue {
+        chain_id: "helios".into(),
+        venue_id: "lodz".into(),
+        venue_name: "Łódź - Helios".into(),
+    };
+    database.replace_venues(CinemaChainId::Helios, std::slice::from_ref(&venue)).unwrap();
+    write_settings(&settings(), &paths).unwrap();
+    assert_eq!(database.get_all_venues("helios").unwrap(), vec![venue]);
+
+    database.replace_venues(CinemaChainId::Helios, &[]).unwrap();
+    assert_eq!(load_settings(&paths).unwrap(), settings());
+}
+
+#[test]
+fn load_settings_migrates_json_into_existing_venue_database() {
+    let temp_dir = tempdir().unwrap();
+    let paths = AppPaths::for_runtime_dir(temp_dir.path().to_path_buf());
+    let venue = CinemaVenue {
+        chain_id: "helios".into(),
+        venue_id: "lodz".into(),
+        venue_name: "Łódź - Helios".into(),
+    };
+    let connection = rusqlite::Connection::open(paths.db_file()).unwrap();
+    connection
+        .execute_batch(
+            "CREATE TABLE cinema_venues (
+                chain_id TEXT NOT NULL, venue_id TEXT NOT NULL, venue_name TEXT NOT NULL,
+                PRIMARY KEY (chain_id, venue_id)
+            );",
+        )
+        .unwrap();
+    connection
+        .execute(
+            "INSERT INTO cinema_venues VALUES (?1, ?2, ?3)",
+            rusqlite::params![venue.chain_id, venue.venue_id, venue.venue_name],
+        )
+        .unwrap();
+    drop(connection);
+    let legacy_path = temp_dir.path().join("config.json");
+    let content = r#"{"user_preferences": {
+        "default_chain": "helios", "default_day": " tomorrow ", "tmdb_access_token": " token ",
+        "default_venues": {"helios": " Łódź - Helios ", "cinema_city": " "}
+    }}"#;
+    fs::write(&legacy_path, content).unwrap();
+    fs::write(temp_dir.path().join("config.ini"), "invalid older config").unwrap();
+
+    let loaded = load_settings(&paths).unwrap();
+
+    assert_eq!(loaded.user_preferences.default_chain, CinemaChainId::Helios);
+    assert_eq!(loaded.user_preferences.default_day, "jutro");
+    assert_eq!(loaded.user_preferences.tmdb_access_token.as_deref(), Some("token"));
+    assert_eq!(loaded.get_default_venue(CinemaChainId::Helios), Some("Łódź - Helios"));
+    assert_eq!(loaded.get_default_venue(CinemaChainId::CinemaCity), None);
+    assert_eq!(
+        DatabaseManager::new(paths.db_file()).unwrap().get_all_venues("helios").unwrap(),
+        vec![venue]
+    );
+    assert_eq!(fs::read_to_string(&legacy_path).unwrap(), content);
+    fs::remove_file(legacy_path).unwrap();
+    assert_eq!(load_settings(&paths).unwrap(), loaded);
+}
+
+#[test]
+fn load_settings_migrates_ini_with_all_preferences_and_ignores_legacy_app_entries() {
+    let temp_dir = tempdir().unwrap();
+    let paths = AppPaths::for_runtime_dir(temp_dir.path().to_path_buf());
+    let legacy_path = temp_dir.path().join("config.ini");
+    let content = "[app]\ndb_file = ignored.sqlite\n\
+[user_preferences]\ndefault_chain = helios\ndefault_day = tomorrow\ntmdb_access_token = token\n\
+[default_venues]\ncinema_city = Wroclaw - Wroclavia\nhelios = Łódź - Helios\nmultikino = Warszawa Złote Tarasy\n";
+    fs::write(&legacy_path, content).unwrap();
+
+    let loaded = load_settings(&paths).unwrap();
+
+    assert!(paths.db_file().exists());
+    assert_eq!(loaded.user_preferences.default_chain, CinemaChainId::Helios);
+    assert_eq!(loaded.user_preferences.default_day, "jutro");
+    assert_eq!(loaded.user_preferences.tmdb_access_token.as_deref(), Some("token"));
+    assert_eq!(loaded.get_default_venue(CinemaChainId::CinemaCity), Some("Wroclaw - Wroclavia"));
+    assert_eq!(loaded.get_default_venue(CinemaChainId::Helios), Some("Łódź - Helios"));
+    assert_eq!(loaded.get_default_venue(CinemaChainId::Multikino), Some("Warszawa Złote Tarasy"));
+    assert_eq!(fs::read_to_string(legacy_path).unwrap(), content);
+    assert!(!temp_dir.path().join("config.json").exists());
+    assert_eq!(load_settings(&paths).unwrap(), loaded);
+}
+
+#[test]
+fn load_settings_defaults_missing_fields_when_migrating_json() {
+    let temp_dir = tempdir().unwrap();
+    let paths = AppPaths::for_runtime_dir(temp_dir.path().to_path_buf());
+    fs::write(temp_dir.path().join("config.json"), r#"{"user_preferences":{}}"#).unwrap();
+    assert_eq!(load_settings(&paths).unwrap(), Settings::default());
+}
+
+#[test]
+fn load_settings_prefers_sqlite_over_legacy_files() {
+    let temp_dir = tempdir().unwrap();
+    let paths = AppPaths::for_runtime_dir(temp_dir.path().to_path_buf());
+    write_settings(&settings(), &paths).unwrap();
+    fs::write(temp_dir.path().join("config.json"), "invalid json").unwrap();
+    fs::write(temp_dir.path().join("config.ini"), "invalid ini").unwrap();
+
+    assert_eq!(load_settings(&paths).unwrap(), settings());
+}
+
+#[test]
+fn load_settings_rejects_invalid_json_without_falling_back_to_ini_or_leaking_values() {
+    let temp_dir = tempdir().unwrap();
+    let paths = AppPaths::for_runtime_dir(temp_dir.path().to_path_buf());
+    fs::write(temp_dir.path().join("config.ini"), "[user_preferences]\ndefault_chain = helios\n")
+        .unwrap();
+    for json in [
+        "{",
+        "{}",
+        "[]",
+        r#"{"user_preferences":{"default_chain":"secret-token"}}"#,
+        r#"{"user_preferences":{"default_day":123}}"#,
+        r#"{"user_preferences":{"tmdb_access_token":123}}"#,
+        r#"{"user_preferences":{"default_venues":{"helios":123}}}"#,
+    ] {
+        fs::write(temp_dir.path().join("config.json"), json).unwrap();
+        let message = load_settings(&paths).unwrap_err().to_string();
+        assert!(message.contains("`quickrep configure`"));
+        assert!(!message.contains("secret-token"));
+        assert!(!paths.db_file().exists());
+    }
+}
+
+#[test]
+fn load_settings_reports_missing_configuration_without_creating_database() {
+    let temp_dir = tempdir().unwrap();
+    let paths = AppPaths::for_runtime_dir(temp_dir.path().to_path_buf());
+
+    assert_eq!(load_settings(&paths).unwrap_err(), AppError::ConfigurationNotFound);
+    assert!(!paths.db_file().exists());
+}
+
+#[test]
+fn load_settings_treats_venue_only_database_as_unconfigured() {
+    let temp_dir = tempdir().unwrap();
+    let paths = AppPaths::for_runtime_dir(temp_dir.path().to_path_buf());
+    DatabaseManager::new(paths.db_file()).unwrap();
+
+    assert_eq!(load_settings(&paths).unwrap_err(), AppError::ConfigurationNotFound);
+}
+
+#[test]
+fn load_settings_preserves_invalid_legacy_configuration() {
+    let temp_dir = tempdir().unwrap();
+    let paths = AppPaths::for_runtime_dir(temp_dir.path().to_path_buf());
+    let legacy_path = temp_dir.path().join("config.ini");
+    fs::write(&legacy_path, "[broken\n").unwrap();
+
+    assert!(load_settings(&paths).unwrap_err().to_string().contains("`quickrep configure`"));
+    assert_eq!(fs::read_to_string(legacy_path).unwrap(), "[broken\n");
+    assert!(!paths.db_file().exists());
+}
+
+#[test]
+fn load_settings_preserves_corrupted_database_without_importing_legacy_files() {
+    let temp_dir = tempdir().unwrap();
+    let paths = AppPaths::for_runtime_dir(temp_dir.path().to_path_buf());
+    fs::write(paths.db_file(), "broken database").unwrap();
+    fs::write(temp_dir.path().join("config.json"), r#"{"user_preferences":{}}"#).unwrap();
+
+    assert!(load_settings(&paths).is_err());
+    assert_eq!(fs::read_to_string(paths.db_file()).unwrap(), "broken database");
 }
 
 #[cfg(unix)]
 #[test]
-fn write_settings_restricts_config_file_permissions() {
+fn write_settings_restricts_new_and_existing_database_permissions() {
     use std::os::unix::fs::PermissionsExt;
 
     let temp_dir = tempdir().unwrap();
     let paths = AppPaths::for_runtime_dir(temp_dir.path().to_path_buf());
-    let mut configured_settings = settings();
-    configured_settings.user_preferences.tmdb_access_token = Some("tmdb-token".to_string());
-
-    write_settings(&configured_settings, &paths).unwrap();
-
-    let mode = fs::metadata(paths.config_file()).unwrap().permissions().mode() & 0o777;
-    assert_eq!(mode, 0o600);
-}
-
-#[test]
-fn load_settings_reports_recovery_command_with_binary_name() {
-    let temp_dir = tempdir().unwrap();
-    let paths = AppPaths::for_runtime_dir(temp_dir.path().to_path_buf());
-    fs::write(paths.config_file(), "[app\n").unwrap();
-
-    let error = load_settings(&paths).unwrap_err();
-
-    assert!(error.to_string().contains("`quickrep configure`"));
+    write_settings(&settings(), &paths).unwrap();
+    assert_eq!(fs::metadata(paths.db_file()).unwrap().permissions().mode() & 0o777, 0o600);
+    fs::set_permissions(paths.db_file(), fs::Permissions::from_mode(0o644)).unwrap();
+    write_settings(&settings(), &paths).unwrap();
+    assert_eq!(fs::metadata(paths.db_file()).unwrap().permissions().mode() & 0o777, 0o600);
 }
 
 #[tokio::test]
@@ -190,8 +283,8 @@ async fn run_interactive_configuration_persists_selected_settings_and_venues() {
         configured_settings.get_default_venue(quick_repertoire::domain::CinemaChainId::CinemaCity),
         Some("Wroclaw - Wroclavia")
     );
-    assert!(dependencies.paths.config_file().exists());
     assert!(dependencies.paths.db_file().exists());
+    assert_eq!(load_settings(&dependencies.paths).unwrap(), configured_settings);
 
     let persisted_db_manager = DatabaseManager::new(dependencies.paths.db_file()).unwrap();
     assert_eq!(
@@ -436,6 +529,5 @@ async fn run_interactive_configuration_does_not_create_config_when_venue_fetch_f
         error.to_string(),
         "Nie udało się pobrać list lokali dla wszystkich sieci. Niepowodzenie: Cinema City."
     );
-    assert!(!dependencies.paths.config_file().exists());
     assert!(!dependencies.paths.db_file().exists());
 }

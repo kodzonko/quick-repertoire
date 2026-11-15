@@ -18,7 +18,7 @@ pub enum AppError {
     #[error("Brak domyślnego lokalu skonfigurowanego dla sieci {chain_display_name}.")]
     DefaultVenueNotConfigured { chain_display_name: String },
     #[error(
-        "Nie znaleziono pliku konfiguracji: config.ini. Uruchom aplikację ponownie, aby przejść przez konfigurację początkową."
+        "Nie znaleziono ustawień w db.sqlite. Uruchom aplikację ponownie, aby przejść przez konfigurację początkową."
     )]
     ConfigurationNotFound,
     #[error("{0}")]

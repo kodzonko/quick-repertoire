@@ -46,8 +46,16 @@ Przy pierwszym uruchomieniu:
 quickrep configure
 ```
 
-Kreator zapisze obok programu `config.ini` i `db.sqlite`, a potem możesz używać
-krótkich poleceń bez podawania wszystkiego za każdym razem.
+Kreator zapisze preferencje i listę kin w jednym pliku `db.sqlite` obok programu.
+Odświeżanie listy kin zachowuje preferencje. Usunięcie bazy usuwa również ustawienia;
+przy następnym uruchomieniu trzeba ponownie przejść konfigurator.
+
+Ustawienia ze starego `config.json` lub `config.ini` zostaną automatycznie przeniesione
+do bazy przy wczytaniu konfiguracji, jeśli baza nie zawiera jeszcze preferencji.
+JSON ma pierwszeństwo przed INI. Stare pliki pozostają bez zmian i po migracji
+można je usunąć. Aplikacja zapisuje nowe ustawienia wyłącznie w SQLite.
+Token TMDB jest przechowywany bez szyfrowania; na systemach Unix baza ma uprawnienia
+`0600` (odczyt i zapis tylko dla właściciela).
 
 ## Komendy i przykłady
 

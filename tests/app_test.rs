@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use quick_repertoire::app::run_with_args;
-use quick_repertoire::config::write_settings;
+use quick_repertoire::config::{load_settings, write_settings};
 use quick_repertoire::domain::{
     CinemaChainId, CinemaVenue, MovieLookupMetadata, MoviePlayDetails, MoviePlayTime, Repertoire,
 };
@@ -103,7 +103,7 @@ async fn chains_command_lists_supported_chains_without_configuration() {
     assert!(output.contains("cinema-city"));
     assert!(output.contains("Helios"));
     assert!(output.contains("Multikino"));
-    assert!(!dependencies.paths.config_file().exists());
+    assert!(!dependencies.paths.db_file().exists());
 }
 
 #[tokio::test]
@@ -567,8 +567,11 @@ async fn configure_command_uses_existing_settings_when_available() {
     .await;
 
     assert_eq!(exit_code, 0);
-    assert!(terminal.into_string().contains("Konfiguracja zapisana w config.ini."));
-    assert!(fs::read_to_string(dependencies.paths.config_file()).unwrap().contains("tmdb-token"));
+    assert!(terminal.into_string().contains("Konfiguracja zapisana w db.sqlite."));
+    assert_eq!(
+        load_settings(&dependencies.paths).unwrap().user_preferences.tmdb_access_token.as_deref(),
+        Some("tmdb-token")
+    );
 }
 
 #[tokio::test]
@@ -675,16 +678,18 @@ async fn repertoire_command_bootstraps_configuration_before_running() {
 
     let output = terminal.into_string();
     assert_eq!(exit_code, 0);
-    assert!(dependencies.paths.config_file().exists());
     assert!(dependencies.paths.db_file().exists());
     assert!(output.contains("Repertuar dla Cinema City"));
     assert!(output.contains("Wroclaw - Wroclavia"));
     assert!(output.contains("Test Movie"));
-    assert!(fs::read_to_string(dependencies.paths.config_file()).unwrap().contains("tmdb-token"));
+    assert_eq!(
+        load_settings(&dependencies.paths).unwrap().user_preferences.tmdb_access_token.as_deref(),
+        Some("tmdb-token")
+    );
 }
 
 #[tokio::test]
-async fn repertoire_command_rehydrates_missing_database_before_running() {
+async fn repertoire_command_rehydrates_empty_venue_cache_without_losing_preferences() {
     let temp_dir = tempdir().unwrap();
     let dependencies = dependencies_with_chains(
         temp_dir.path(),
@@ -744,7 +749,13 @@ async fn repertoire_command_rehydrates_missing_database_before_running() {
         .default_venues
         .set(CinemaChainId::Helios, Some("Łódź - Helios".to_string()));
     write_settings(&configured_settings, &dependencies.paths).unwrap();
-    assert!(!dependencies.paths.db_file().exists());
+    assert!(
+        DatabaseManager::new(dependencies.paths.db_file())
+            .unwrap()
+            .get_all_venues("cinema-city")
+            .unwrap()
+            .is_empty()
+    );
     let mut terminal = BufferTerminal::default();
 
     let exit_code = run_with_args(
@@ -783,6 +794,7 @@ async fn repertoire_command_rehydrates_missing_database_before_running() {
             .collect::<Vec<_>>(),
         vec![("Łódź - Helios".to_string(), "lodz/kino-helios".to_string())]
     );
+    assert_eq!(load_settings(&dependencies.paths).unwrap(), configured_settings);
 }
 
 #[tokio::test]
@@ -980,7 +992,7 @@ async fn configure_command_recovers_from_invalid_existing_config() {
         ),
         FakeTmdbService { result: Default::default(), error: None },
     );
-    fs::write(dependencies.paths.config_file(), "[app\n").unwrap();
+    fs::write(dependencies.paths.runtime_dir().join("config.json"), "[app\n").unwrap();
     let mut terminal = BufferTerminal::default();
 
     let exit_code = run_with_args(
@@ -991,11 +1003,10 @@ async fn configure_command_recovers_from_invalid_existing_config() {
     .await;
 
     assert_eq!(exit_code, 0);
-    assert!(terminal.into_string().contains("Konfiguracja zapisana w config.ini."));
-    assert!(
-        fs::read_to_string(dependencies.paths.config_file())
-            .unwrap()
-            .contains("tmdb_access_token = recovered-token")
+    assert!(terminal.into_string().contains("Konfiguracja zapisana w db.sqlite."));
+    assert_eq!(
+        load_settings(&dependencies.paths).unwrap().user_preferences.tmdb_access_token.as_deref(),
+        Some("recovered-token")
     );
 }
 
