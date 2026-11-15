@@ -599,7 +599,10 @@ impl CinemaCity {
                 let polish_premiere_date =
                     film.release_date.filter(|value| !value.trim().is_empty());
                 let original_language_code =
-                    Self::extract_original_language_code_from_attribute_ids(&film.attribute_ids);
+                    Self::extract_original_language_code_from_attribute_ids(&film.attribute_ids)
+                        .or_else(|| {
+                            film.languages.original.first().map(|code| code.to_uppercase())
+                        });
                 let genre_tags = Self::extract_genre_tags_from_attribute_ids(&film.attribute_ids);
                 let film_id = film.id;
                 let alternate_titles = alternate_titles_by_id
@@ -1017,6 +1020,8 @@ struct CinemaCityFilmEventFilm {
     release_date: Option<String>,
     #[serde(rename = "attributeIds", default)]
     attribute_ids: Vec<String>,
+    #[serde(default)]
+    languages: CinemaCityEventLanguages,
 }
 
 #[derive(Debug, Deserialize)]

@@ -462,7 +462,7 @@ async fn fetch_repertoire_fills_missing_languages_from_quickbook_events() {
                 .query_param("lang", "pl_PL");
             then.status(200).header("content-type", "application/json").body(
                 r#"{"body":{"films":[
-                    {"id":"one","name":"Film z napisami","attributeIds":["original-lang-en"]},
+                    {"id":"one","name":"Film z napisami","attributeIds":["first-subbed-lang-pl"],"languages":{"original":["en"],"subtitles":["pl"]}},
                     {"id":"two","name":"Film z dubbingiem","attributeIds":["dubbed-lang-uk"]}
                 ],"events":[
                     {"filmId":"one","eventDateTime":"2026-09-26T20:00:00","bookingLink":"/book/one","soldOut":false,"languages":{"original":["en"],"dubbed":[],"voiceover":[],"subtitles":["pl"]}},
